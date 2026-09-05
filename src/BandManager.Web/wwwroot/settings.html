@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Setup and Registration</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <h1>Setup and Registration</h1>
+        <a class="back-link" href="/">&larr; Back to dashboard</a>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <nav class="settings-tabs">
+            <a href="/settings" class="active">Setup and Registration</a>
+            <a href="/cadence">Cadence</a>
+            <a href="/catalog">Catalog</a>
+            <a href="/profile">Profile</a>
+        </nav>
+
+        <p class="intro">
+            These are one-time steps to let "Fart it out" actually post for you.
+            Each connection below is a real external process you (or whoever has
+            the platform's admin access) needs to do on that platform's own
+            site - I can't create accounts or click through verification for
+            you. Once you have the values it asks for, paste them into the
+            form and save; everything's encrypted in this app's own local
+            database, not sent anywhere else.
+        </p>
+
+        <div id="platform-accordion">Loading platforms...</div>
+
+        <section class="platform-card test-mode-card">
+            <h2>Test Mode</h2>
+            <p class="test-mode-note">
+                While on, edits to the calendar and media sections (add/edit/delete,
+                flyers, tile art) go to a local clone of the site repo on this
+                computer instead of the live site - so you can try things out
+                without touching anything real. This doesn't test the actual
+                GitHub push itself, but everything else (the edits, the lookups,
+                the UI) works exactly the same way.
+            </p>
+            <form id="test-mode-form" class="cred-form">
+                <p id="test-mode-state-line" hidden><strong>Test Mode Enabled</strong></p>
+                <label id="test-mode-path-label">Local site repo path
+                    <input type="text" name="localRepoPath" id="test-mode-path" placeholder="C:\path\to\your\site\repo">
+                </label>
+                <button type="submit" id="test-mode-toggle-btn">Enable Test Mode</button>
+                <p class="save-note" id="test-mode-status"></p>
+            </form>
+        </section>
+    </main>
+
+    <div id="meta-setup-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal meta-setup-modal">
+            <button type="button" class="detail-modal-close" id="meta-setup-modal-close">&times;</button>
+            <h2>Facebook &amp; Instagram Setup</h2>
+
+            <div class="meta-setup-status-row">
+                <span class="meta-setup-status-item">Facebook <span class="status-badge" id="meta-setup-status-facebook">checking...</span></span>
+                <span class="meta-setup-status-item">Instagram <span class="status-badge" id="meta-setup-status-instagram">checking...</span></span>
+            </div>
+
+            <div class="meta-token-expiry-field">
+                <span class="meta-token-expiry-label-row">
+                    <label for="meta-token-expiry">Token expiration</label>
+                    <span class="info-icon" data-help="Optional, but recommended - if you know when this token stops working, set it here so this app can warn you before it dies instead of after. The Page Access Token from this flow typically lasts about 60 days. For one that doesn't expire, create a System User token in Meta Business Suite (Settings, then Users, then System users) with Never as its expiration and paste that instead - then this field isn't needed at all.">i</span>
+                </span>
+                <input type="date" id="meta-token-expiry">
+            </div>
+
+            <div class="auto-setup-tool">
+                <h3 id="auto-setup-heading">Finish setup automatically</h3>
+                <p id="auto-setup-description">
+                    Paste what you have and this does the rest for you: exchanges
+                    your token for a long-lived one, finds your Page, and finds
+                    its linked Instagram account - saving both Facebook and
+                    Instagram in one step instead of four manual Graph API
+                    queries.
+                </p>
+                <label>App ID
+                    <input type="text" id="auto-app-id" placeholder="From the app dashboard: Settings → Basic" autocomplete="off">
+                </label>
+                <label>App Secret
+                    <input type="password" id="auto-app-secret" placeholder="Same page, click 'Show'" autocomplete="new-password">
+                </label>
+                <label>Short-lived token
+                    <input type="password" id="auto-token" placeholder="Copied from Graph API Explorer" autocomplete="new-password">
+                </label>
+                <div id="auto-page-picker" hidden>
+                    <label>Which Page?
+                        <select id="auto-page-select"></select>
+                    </label>
+                </div>
+                <button type="button" id="auto-setup-btn">Finish Setup</button>
+                <p id="auto-setup-status" class="save-note"></p>
+            </div>
+
+            <details class="manual-fallback">
+                <summary>Or enter values manually</summary>
+                <p class="manual-warning">Same token dance as above - you just look up the Page/Instagram IDs yourself, and the token won't be long-lived unless you exchange it first.</p>
+                <form class="cred-form" id="meta-manual-form">
+                    <h3>Facebook <span class="status-badge" data-platform="facebook">checking...</span> &amp; Instagram <span class="status-badge" data-platform="instagram">checking...</span></h3>
+                    <label>Page ID <input type="text" name="pageId" required autocomplete="off"></label>
+                    <label>Page Access Token <input type="password" name="pageAccessToken" required autocomplete="new-password"></label>
+                    <label>Instagram Business Account ID <span class="field-hint">(only if also adding Instagram)</span> <input type="text" name="igUserId" autocomplete="off"></label>
+                    <button type="submit">Save</button>
+                    <p class="save-note cred-form-status" data-cred-status></p>
+                </form>
+            </details>
+        </div>
+    </div>
+
+    <!-- Hand-authored detail content for platforms with real tooling beyond
+         a plain credential form - cloned into that platform's accordion
+         body by settings.js. IDs are preserved exactly so the existing
+         event wiring below (auto-setup, verify, cover-photo) keeps working
+         no matter where in the page this ends up. -->
+    <template id="tpl-meta">
+        <p id="meta-connected-page" class="save-note" hidden>Connected Page: <strong id="meta-connected-page-name"></strong></p>
+        <p id="meta-verification-error" class="verify-error-banner" hidden></p>
+        <p id="meta-token-expiry-warning" class="verify-error-banner" hidden></p>
+
+        <button type="button" class="meta-setup-open-btn" id="open-meta-setup-modal-btn">Set up Facebook &amp; Instagram</button>
+
+        <div class="verify-connection-tool" id="verify-connection-tool" hidden>
+            <h3>Sanity check</h3>
+            <p>
+                Confirms the saved Page credentials actually work: makes a real
+                test post then deletes it, and re-applies the current cover photo
+                (same photo goes back in, so the Page won't visually change).
+                Also updates the Page name shown above and on the dashboard.
+            </p>
+            <button type="button" id="verify-connection-btn">Run sanity check</button>
+            <p id="verify-connection-status" class="save-note"></p>
+        </div>
+
+        <div class="cover-photo-tool" id="cover-photo-tool" hidden>
+            <h3>Facebook cover photo</h3>
+            <p>Format one of the upcoming show flyers to fit Facebook's cover photo dimensions (820&times;312), filled with black wherever it doesn't fill the frame, and set it live.</p>
+            <label>Pick a flyer
+                <select id="cover-flyer-select"></select>
+            </label>
+            <button type="button" id="cover-preview-btn">Preview</button>
+            <div id="cover-preview-box" hidden>
+                <img id="cover-preview-img" alt="Cover photo preview">
+                <button type="button" id="cover-publish-btn">Set as Facebook cover photo</button>
+            </div>
+            <p id="cover-status" class="save-note"></p>
+        </div>
+
+        <div class="disconnect-tool" id="meta-disconnect-tool" hidden>
+            <button type="button" class="disconnect-btn" data-disconnect="facebook,instagram">Disconnect Facebook &amp; Instagram</button>
+        </div>
+    </template>
+
+    <template id="tpl-googleBusiness">
+        <form class="cred-form" data-platform="googleBusiness">
+            <h3>Google Business Profile <span class="status-badge" data-platform="googleBusiness">checking...</span></h3>
+            <label>Account ID <input type="text" name="accountId" required autocomplete="off"></label>
+            <label>Location ID <input type="text" name="locationId" required autocomplete="off"></label>
+            <label>Access Token <input type="password" name="accessToken" required autocomplete="new-password"></label>
+            <button type="submit">Save Google Business Profile credentials</button>
+            <p class="save-note cred-form-status" data-cred-status></p>
+        </form>
+        <div class="disconnect-tool" data-disconnect-tool="googleBusiness" hidden>
+            <button type="button" class="disconnect-btn" data-disconnect="googleBusiness">Disconnect Google Business Profile</button>
+        </div>
+    </template>
+
+    <template id="tpl-website">
+        <form class="cred-form" data-platform="website">
+            <h3>Website <span class="status-badge" data-platform="website">checking...</span></h3>
+            <label>GitHub Token <input type="password" name="githubToken" required autocomplete="new-password"></label>
+            <button type="submit">Save Website credentials</button>
+            <p class="save-note cred-form-status" data-cred-status></p>
+        </form>
+        <div class="disconnect-tool" data-disconnect-tool="website" hidden>
+            <button type="button" class="disconnect-btn" data-disconnect="website">Disconnect Website</button>
+        </div>
+    </template>
+
+    <template id="tpl-bandsintown">
+        <form class="cred-form" data-platform="bandsintown">
+            <h3>Bandsintown/Songkick <span class="status-badge" data-platform="bandsintown">checking...</span></h3>
+            <label>Artist ID <input type="text" name="artistName" placeholder="e.g. id_15662855" required></label>
+            <label>App ID <input type="text" name="appId" placeholder="e.g. 8c8cfd4dd08e15fcb7d6441b48d3081d" required></label>
+            <button type="submit">Save and push to site</button>
+            <p class="save-note cred-form-status" data-cred-status></p>
+        </form>
+        <div class="disconnect-tool" data-disconnect-tool="bandsintown" hidden>
+            <button type="button" class="disconnect-btn" data-disconnect="bandsintown">Disconnect Bandsintown</button>
+        </div>
+    </template>
+
+    <script src="/assets/settings.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/password-toggle.js"></script>
+    <script src="/assets/infoIcon.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

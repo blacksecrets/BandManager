@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catalog</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/catalog.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <h1>Catalog</h1>
+        <a class="back-link" href="/">&larr; Back to dashboard</a>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main catalog-main">
+        <nav class="settings-tabs">
+            <a href="/settings">Setup and Registration</a>
+            <a href="/cadence">Cadence</a>
+            <a href="/catalog" class="active">Catalog</a>
+            <a href="/profile">Profile</a>
+        </nav>
+
+        <p class="intro">
+            Every photo, video, and audio file this app has ever handled -
+            uploaded automatically the moment it's added anywhere else in
+            the app, or added straight from here. Pick one from anywhere
+            you'd add media (it's copied, not linked), or manage the
+            library itself below.
+        </p>
+
+        <div class="catalog-toolbar">
+            <div class="catalog-media-tabs" id="catalog-media-tabs">
+                <button type="button" class="catalog-tab active" data-media-type="image">Photos <span class="catalog-tab-count" data-count="image">0</span></button>
+                <button type="button" class="catalog-tab" data-media-type="video">Videos <span class="catalog-tab-count" data-count="video">0</span></button>
+                <button type="button" class="catalog-tab" data-media-type="audio">Audio <span class="catalog-tab-count" data-count="audio">0</span></button>
+            </div>
+            <input type="search" id="catalog-search" class="catalog-search" placeholder="Search by label or filename...">
+            <button type="button" id="catalog-add-btn" class="catalog-toolbar-btn">+ Add media</button>
+            <button type="button" id="catalog-delete-btn" class="catalog-toolbar-btn catalog-delete-btn" disabled>Delete selected</button>
+        </div>
+
+        <div id="catalog-add-panel" class="catalog-add-panel" hidden></div>
+
+        <div id="catalog-grid" class="catalog-grid">Loading...</div>
+    </main>
+
+    <div id="catalog-viewer-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="catalog-viewer-modal">
+            <button type="button" class="detail-modal-close" id="catalog-viewer-close">&times;</button>
+            <div id="catalog-viewer-body"></div>
+        </div>
+    </div>
+
+    <script src="/assets/catalog.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

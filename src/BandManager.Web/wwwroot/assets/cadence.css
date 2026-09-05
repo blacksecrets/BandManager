@@ -1,0 +1,93 @@
+/* Same collapsible-row layout as the main dashboard's .board and Setup's
+   #platform-accordion (both from dashboard.css/settings.css, already
+   linked on this page) - just a differently-named container. */
+#cadence-board { display: flex; flex-direction: column; gap: 6px; }
+
+/* .section-toggle (dashboard.css) already takes flex:1, so this just
+   needs to not shrink or wrap - it naturally lands at the header's right
+   edge, same as the dashboard's own header-row buttons. */
+.platform-section-header .add-rule-btn { flex-shrink: 0; white-space: nowrap; }
+
+.cadence-rule-list { display: flex; flex-direction: column; gap: 10px; margin: 0; }
+
+.cadence-rule-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding: 12px 14px;
+    border: 1px solid #333;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.02);
+}
+.cadence-rule-row.inactive { opacity: 0.5; }
+
+.cadence-rule-main { flex: 1; min-width: 0; }
+.cadence-kind-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: #444;
+    color: #ccc;
+    margin-bottom: 6px;
+}
+.cadence-rule-desc { color: #ccc; font-size: 0.85rem; margin: 4px 0; }
+.cadence-rule-schedule { color: #999; font-size: 0.8rem; margin: 0; }
+
+.cadence-rule-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.cadence-rule-actions button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.cadence-rule-actions button:hover { background: #555; }
+.cadence-rule-actions .checkbox-label { font-size: 0.8rem; color: #ccc; display: flex; align-items: center; gap: 4px; }
+
+.add-rule-btn {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.add-rule-btn:hover { background: #555; }
+
+.cadence-form {
+    border-top: 1px solid #333;
+    margin-top: 12px;
+    padding-top: 12px;
+}
+.cadence-form textarea {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    font-family: inherit;
+    resize: vertical;
+}
+.cadence-weekly-days { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; }
+.cadence-weekly-days .checkbox-label, .cadence-monthly-days .checkbox-label { font-size: 0.85rem; color: #ccc; display: flex; align-items: center; gap: 4px; }
+.cadence-monthly-days { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.cadence-form .cancel-btn {
+    background: none;
+    color: #999;
+    border: 1px solid #444;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-left: 8px;
+}

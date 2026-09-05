@@ -1,0 +1,679 @@
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: #111;
+    color: #eee;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.test-mode-banner {
+    background: #d4b100;
+    color: #1a1a1a;
+    text-align: center;
+    font-weight: bold;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    padding: 3px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 11;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 15px 20px;
+    background: rgba(0, 0, 0, 0.85);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.topbar h1 { font-size: 1.2rem; margin: 0; }
+.brand-logo-slot:empty { display: none; }
+.brand-logo { height: 32px; width: auto; display: block; }
+.legend { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #aaa; flex-wrap: wrap; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
+.setup-link { margin-left: auto; color: #aaa; text-decoration: none; font-size: 0.85rem; }
+.setup-link:hover { color: #eee; }
+/* Always pins Log out to the far right, regardless of what else is in a
+   given page's topbar - on index.html .setup-link's own auto-margin
+   already does this (this is a no-op there, both push the same
+   direction), but settings/cadence/profile have nothing else claiming
+   the leftover space, so without this the button just sits wherever the
+   preceding elements happen to end. */
+.topbar form[action="/logout"] { margin-left: auto; }
+.logout-btn { background: none; border: 1px solid #444; color: #eee; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+
+.dot.grey, .card.status-grey { background: #555; }
+.dot.neutral, .card.status-neutral { background: #333; }
+.dot.red { background: #c00; }
+.dot.yellow { background: #d4b100; }
+.dot.done, .card.status-done { background: #2e8b3d; }
+.dot.auto, .card.status-auto { background: #4a6fa5; }
+.dot.cancelled, .card.status-cancelled { background: #6b6b6b; }
+.dot.done-pending, .card.status-done-pending { background: #1f8a8a; }
+.dot.ready { background: transparent; border: 2px solid #2e8b3d; }
+
+.board {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.platform-section {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.platform-section.needs-setup { background: rgba(255, 255, 255, 0.015); }
+.platform-section.dragging { opacity: 0.4; }
+.platform-section.drag-over { outline: 2px dashed #4a6fa5; outline-offset: -2px; }
+
+.platform-section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 6px 12px 6px 6px;
+    border-radius: 8px;
+}
+
+.drag-handle {
+    cursor: grab;
+    color: #666;
+    font-size: 1rem;
+    padding: 0 4px;
+    user-select: none;
+    touch-action: none;
+}
+.drag-handle:hover { color: #aaa; }
+.drag-handle:active { cursor: grabbing; }
+
+.section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 8px 14px;
+    color: #eee;
+    font-size: 1rem;
+    font-weight: bold;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+    border-radius: 6px;
+}
+.section-toggle:hover { background: rgba(255, 255, 255, 0.06); }
+.section-toggle:disabled { cursor: default; opacity: 0.55; }
+.section-toggle:disabled:hover { background: none; }
+
+.chevron { width: 12px; display: inline-block; color: #999; font-weight: normal; }
+.platform-section-summary { color: #999; font-weight: normal; font-size: 0.85rem; margin-left: auto; }
+.platform-account-label { color: #999; font-weight: normal; font-size: 0.85rem; }
+
+.future-work-toggle {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid #444;
+    color: #aaa;
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.future-work-toggle:hover { border-color: #666; color: #eee; }
+
+.future-work-panel {
+    padding: 4px 20px 16px 44px;
+}
+.future-work-panel[hidden] { display: none; }
+.future-work-panel ul { margin: 8px 0 0; padding-left: 18px; color: #aaa; font-size: 0.85rem; line-height: 1.7; }
+.future-work-panel strong { color: #ccc; }
+.posted-panel li { display: flex; align-items: center; gap: 10px; }
+.reopen-btn {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 3px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+}
+.reopen-btn:hover { background: #555; }
+
+.adhoc-toggle {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid #444;
+    color: #aaa;
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.adhoc-toggle:hover { border-color: #666; color: #eee; }
+
+.website-tile-filter {
+    flex-shrink: 0;
+    background: #1a1a1a;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
+.setup-automation-link {
+    flex-shrink: 0;
+    display: inline-block;
+    background: none;
+    border: 1px solid #4a6fa5;
+    color: #8fb4d9;
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    text-decoration: none;
+    white-space: nowrap;
+}
+.setup-automation-link:hover { border-color: #6f93c5; color: #b8d4ee; }
+
+.adhoc-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    padding: 12px 20px 16px 44px;
+    border-bottom: 1px solid #2a2a2a;
+}
+.adhoc-form[hidden] { display: none; }
+.adhoc-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: #ccc; }
+.adhoc-form input, .adhoc-form select {
+    padding: 7px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    font-size: 0.85rem;
+}
+.adhoc-form button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    align-self: flex-end;
+}
+.adhoc-form button:hover { background: #555; }
+.adhoc-form-buttons { display: flex; gap: 8px; align-self: flex-end; }
+.adhoc-form .cancel-btn { background: none; color: #ccc; }
+.adhoc-form .cancel-btn:hover { background: none; border-color: #999; }
+.adhoc-status { width: 100%; margin: 0; color: #ff9b9b; }
+
+.platform-setup-btn {
+    margin: 0 20px 16px;
+    max-width: 240px;
+}
+
+.platform-section-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 16px 20px 20px;
+}
+.platform-section-body[hidden] { display: none; }
+.section-empty-note { color: #777; font-style: italic; font-size: 0.85rem; margin: 0; grid-column: 1 / -1; }
+
+.card {
+    background: rgba(255, 255, 255, 0.04);
+    border-left: 6px solid #555;
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+}
+.card.status-grey { border-left-color: #555; }
+.card.status-neutral { border-left-color: #777; }
+.card.status-red { border-left-color: #c00; }
+.card.status-yellow { border-left-color: #d4b100; }
+.card.status-done { border-left-color: #2e8b3d; opacity: 0.6; }
+.card.status-auto { border-left-color: #4a6fa5; opacity: 0.7; }
+
+/* Due-today/past-due get a bold ring instead of a fill - same weight as
+   the "ready" ring below, just a different color, and no background
+   change so the card's text stays legible without any contrast overrides. */
+.card.status-yellow { box-shadow: 0 0 0 7px #d4b100 inset; }
+.card.status-red { box-shadow: 0 0 0 7px #c00 inset; }
+
+/* Independent of the ring above - a green ring means "could post this
+   right now," regardless of how due it is. Uses box-shadow (not border)
+   so it doesn't collide with border-left above. When a card is both
+   urgent and ready, nest the two rings rather than letting one hide the
+   other (compound selectors below win by specificity, no ordering needed). */
+.card.ready { box-shadow: 0 0 0 7px #3fcf5a inset; }
+.card.status-yellow.ready { box-shadow: 0 0 0 4px #d4b100 inset, 0 0 0 7px #3fcf5a inset; }
+.card.status-red.ready { box-shadow: 0 0 0 4px #c00 inset, 0 0 0 7px #3fcf5a inset; }
+
+/* No-due-date item that's genuinely complete - no fill color of its own
+   (falls through to the card's plain default background), just the usual
+   .ready green border plus a green "Complete: <date>" label. */
+.card.status-complete .due { color: #3fcf5a; }
+
+.register-btn {
+    display: block;
+    text-align: center;
+    text-decoration: none;
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+}
+.register-btn:hover { background: #555; }
+
+.card-top { display: flex; justify-content: space-between; font-size: 0.8rem; color: #aaa; margin-bottom: 6px; }
+.card h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.card .due { margin: 6px 0; font-weight: bold; font-size: 0.85rem; }
+.card .owed-badge[hidden] { display: none; }
+.card .owed-badge {
+    background: #4a2e00;
+    color: #ffb84d;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    display: inline-block;
+}
+
+.artifacts-needed { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.artifact-slot {
+    border: 1px dashed #555;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.78rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.artifact-slot.filled { border-style: solid; border-color: #2e8b3d; color: #9fdca8; }
+.artifact-slot input[type="file"], .artifact-slot input[type="text"] { display: none; }
+.artifact-slot label { cursor: pointer; }
+.artifact-view-link { color: #6ab0f3; text-decoration: underline; font-size: 0.75rem; white-space: nowrap; }
+
+/* Pushed to the bottom of the card (margin-top: auto, card is a flex
+   column) so button rows line up across a row of tiles regardless of how
+   much content - artifacts, gig issues, etc. - sits above them. */
+.card-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; padding-top: 10px; }
+.fart-btn {
+    background: #444;
+    color: #999;
+    border: none;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: not-allowed;
+}
+.fart-btn.ready { background: #2e8b3d; color: white; cursor: pointer; }
+.fart-btn.ready:hover { background: #38a84a; }
+
+.manual-btn {
+    background: none;
+    border: 1px solid #555;
+    color: #ccc;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.manual-btn:hover { border-color: #999; }
+
+.archive-btn {
+    background: none;
+    border: 1px solid #7a3030;
+    color: #d99a9a;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.archive-btn:hover { border-color: #a34a4a; color: #ff8a8a; }
+/* Closing out an already-successful post reads differently than
+   cancelling/discarding one that never went out - same button, a calmer
+   green tint instead of the cancel red. */
+.archive-btn.confirm { border-color: #2e8b3d; color: #9fdca8; }
+.archive-btn.confirm:hover { border-color: #38a84a; color: #c3f0cb; }
+
+.instructions-btn {
+    background: none;
+    border: 1px solid #4a6fa5;
+    color: #8fb4d9;
+    padding: 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.instructions-btn:hover { border-color: #6f93c5; }
+
+/* The flyer/tile art as a scaled-down tile background - placed after
+   every .status-yellow rule above so it wins the cascade regardless of
+   whether the tile also happens to be yellow (a flyer can exist while
+   something else about the gig is still incomplete). Text stays light
+   since the background-image itself carries a built-in dark gradient
+   (set in JS) for contrast, whatever the flyer's own brightness is. */
+.card.has-tile-image {
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: #f5f5f5;
+}
+.card.has-tile-image .card-top,
+.card.has-tile-image .content-type,
+.card.has-tile-image .due {
+    color: #f5f5f5;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+/* Living-entry tiles (the only ones with a background image until now)
+   never had artifact slots or fart/instructions/manual buttons to worry
+   about - every other platform's tiles do, and several of those buttons
+   have transparent backgrounds (.manual-btn, .instructions-btn,
+   .edit-site-btn) that would otherwise sit directly on the photo. Same
+   text-shadow treatment as above, plus a touch of shadow on the
+   artifact-slot's dashed border so it doesn't disappear into a busy image. */
+.card.has-tile-image .artifact-slot label,
+.card.has-tile-image .manual-btn,
+.card.has-tile-image .instructions-btn,
+.card.has-tile-image .edit-site-btn {
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.card.has-tile-image .artifact-slot {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.card { cursor: pointer; }
+.card button, .card input, .card label { cursor: default; }
+
+.detail-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    z-index: 100;
+    overflow-y: auto;
+}
+.detail-modal-backdrop[hidden] { display: none; }
+
+.detail-modal {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 520px;
+    width: 100%;
+    position: relative;
+}
+.detail-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+}
+.detail-modal-close:hover { color: #eee; }
+
+.image-modal {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 90vw;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+}
+.image-modal img {
+    max-width: 100%;
+    max-height: 70vh;
+    border-radius: 6px;
+    display: block;
+}
+.image-modal-download-btn {
+    background: #2e8b3d;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    text-decoration: none;
+}
+.image-modal-download-btn:hover { background: #38a84a; }
+
+.detail-modal h2 { margin: 0 0 4px; font-size: 1.15rem; padding-right: 24px; }
+.detail-modal .detail-meta { color: #999; font-size: 0.85rem; margin: 0 0 14px; }
+.detail-modal .detail-example { color: #ccc; font-size: 0.9rem; margin: 0 0 14px; }
+
+.detail-gig-issues {
+    background: #3a2f1f;
+    border: 1px solid #a37a33;
+    color: #f0cf99;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin: 0 0 14px;
+}
+.detail-gig-issues ul { margin: 4px 0 0; padding-left: 18px; }
+
+.detail-gig-reference {
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 0 0 14px;
+    font-size: 0.85rem;
+}
+.detail-gig-reference h3 { margin: 0 0 6px; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #999; }
+.detail-gig-reference p { margin: 2px 0; color: #ccc; word-break: break-all; }
+.detail-gig-reference a { color: #6ab0f3; }
+
+.detail-artifact-list { display: flex; flex-direction: column; gap: 8px; margin: 0 0 14px; }
+.detail-artifact-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid #333;
+    border-radius: 6px;
+}
+.detail-artifact-row.filled { border-color: #2e8b3d; }
+.detail-artifact-info { font-size: 0.85rem; color: #ccc; }
+.detail-artifact-info a { color: #8fb4d9; }
+.detail-artifact-row button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.78rem;
+}
+.detail-artifact-row button:hover { background: #555; }
+.detail-artifact-row input[type="file"] { display: none; }
+
+.detail-artifact-row.text-row { flex-direction: column; align-items: stretch; }
+.detail-artifact-row.text-row button { align-self: flex-start; }
+.detail-artifact-textarea {
+    width: 100%;
+    min-height: 76px;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    resize: vertical;
+}
+
+.website-edit-form { display: flex; flex-direction: column; gap: 10px; }
+.website-edit-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #ccc; }
+.website-edit-form input {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+}
+.website-edit-form button {
+    align-self: flex-start;
+    background: #2e8b3d;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.website-edit-form button:hover { background: #38a84a; }
+.website-edit-form .error-text { color: #ff9b9b; }
+.website-edit-form input[disabled] { opacity: 0.5; }
+.website-edit-form .current-flyer { margin: 0; font-size: 0.85rem; color: #ccc; }
+.website-edit-form .current-flyer a { color: #6ab0f3; }
+
+.ticket-mode-fieldset {
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.ticket-mode-fieldset legend { font-size: 0.8rem; color: #999; padding: 0 4px; }
+.website-edit-form .radio-label { flex-direction: row !important; align-items: center; gap: 8px !important; }
+.website-edit-form .radio-label input { flex-shrink: 0; }
+.ticket-mode-fieldset input[type="text"] { margin-left: 24px; width: calc(100% - 24px); }
+
+.delete-listing-btn {
+    margin-top: 14px;
+    background: transparent;
+    color: #ff8a8a;
+    border: 1px solid #7a3030;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.delete-listing-btn:hover { background: #3a1f1f; }
+
+/* Shared by dashboard.js's exported media-input controls
+   (buildMediaFieldControl / buildMediaSlotControl, catalog.js) and the
+   Catalog picker modal - lives here (not catalog.css) since both
+   index.html and catalog.html need it, and dashboard.css is already
+   linked on both. */
+.media-input-control { display: flex; flex-direction: column; gap: 6px; }
+.media-input-control-inline { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
+.media-input-modes { display: flex; gap: 6px; flex-wrap: wrap; }
+.media-input-modes button {
+    background: #333;
+    color: #ccc;
+    border: 1px solid #555;
+    padding: 6px 10px;
+    border-radius: 5px;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.media-input-modes button:hover { border-color: #777; color: #eee; }
+.media-input-modes button.active { background: #2e8b3d; border-color: #2e8b3d; color: white; }
+.media-input-current { font-size: 0.78rem; color: #9fdca8; }
+.media-input-url-row { display: flex; gap: 6px; }
+.media-input-url-row input {
+    flex: 1;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    font-size: 0.8rem;
+}
+
+.catalog-picker-modal {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 20px;
+    max-width: 900px;
+    width: 100%;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.catalog-picker-toolbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.catalog-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 12px;
+    overflow-y: auto;
+    padding: 4px;
+}
+.catalog-picker-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+.video-cut-panel {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.video-cut-panel[hidden] { display: none; }
+.video-cut-panel label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: #ccc; }
+.video-cut-panel input {
+    width: 90px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    font-size: 0.8rem;
+}
+.video-cut-panel button {
+    background: #2e8b3d;
+    color: white;
+    border: none;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.video-cut-panel button:hover { background: #38a84a; }
+.video-cut-panel button:disabled { background: #444; cursor: default; }
+
+.edit-site-btn {
+    background: none;
+    border: 1px solid #4a6fa5;
+    color: #8fb4d9;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.edit-site-btn:hover { border-color: #6f93c5; }

@@ -1,0 +1,341 @@
+.back-link { color: #aaa; text-decoration: none; margin-left: 10px; }
+.back-link:hover { color: #eee; }
+
+.test-mode-card { border-color: #7a5c00; }
+.test-mode-note { font-size: 0.85rem; color: #ccc; margin: 0 0 12px; }
+
+.settings-main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.settings-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid #333;
+}
+.settings-tabs a {
+    padding: 10px 16px;
+    color: #999;
+    text-decoration: none;
+    font-size: 0.9rem;
+    border-bottom: 2px solid transparent;
+}
+.settings-tabs a:hover { color: #eee; }
+.settings-tabs a.active { color: #eee; border-bottom-color: #c00; font-weight: bold; }
+
+.intro { color: #ccc; line-height: 1.5; margin-bottom: 24px; }
+
+/* One row per platform - reuses the main dashboard's .platform-section/
+   .section-toggle/.chevron/.platform-section-body classes (dashboard.css
+   is already linked on this page) rather than a parallel set of rules,
+   so the two pages actually look like the same app. */
+#platform-accordion { display: flex; flex-direction: column; gap: 6px; margin-bottom: 28px; }
+.platform-section-body { padding: 4px 20px 20px 20px; }
+.platform-section.connected .status-badge:not(.info-badge) { background: #2e8b3d; color: white; }
+.platform-section.needs-attention { outline: 1px solid #a33; outline-offset: -1px; }
+
+.tile-note { color: #bbb; font-size: 0.85rem; margin: 4px 0 0; }
+.info-badge { background: #2a3a4a; color: #8fb4d9; }
+
+.instructions-toggle-wrap { margin-bottom: 14px; }
+.instructions-toggle {
+    background: none;
+    border: 1px solid #444;
+    color: #eee;
+    padding: 7px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.instructions-toggle:hover { border-color: #666; }
+.instructions-panel { padding: 12px 2px 0; }
+.instructions-panel[hidden] { display: none; }
+
+.disconnect-tool { margin-top: 16px; }
+.disconnect-tool[hidden] { display: none; }
+.disconnect-btn {
+    background: transparent;
+    color: #ff8a8a;
+    border: 1px solid #7a3030;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.disconnect-btn:hover { background: #3a1f1f; }
+
+.platform-card {
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    padding: 20px 22px;
+    margin-bottom: 20px;
+    position: relative;
+}
+.platform-card h2 { margin: 0 0 8px; font-size: 1.15rem; display: flex; align-items: center; gap: 10px; }
+.platform-card p { color: #ccc; }
+
+.steps { padding-left: 20px; color: #ddd; line-height: 1.6; }
+.steps li { margin-bottom: 10px; }
+.steps code { background: #222; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+.steps a { color: #77a3d3; }
+.steps ul { margin: 8px 0; padding-left: 20px; }
+.steps ul li { margin-bottom: 8px; }
+
+.instructions-block { margin: 14px 0; }
+.instructions-block h4 { margin: 0 0 6px; font-size: 0.88rem; color: #eee; display: flex; align-items: center; gap: 7px; }
+.instructions-block p { color: #ddd; font-size: 0.85rem; line-height: 1.5; margin: 0 0 6px; }
+.instructions-block ul { color: #ddd; font-size: 0.85rem; line-height: 1.6; margin: 4px 0; padding-left: 20px; }
+.instructions-block code { background: #222; padding: 1px 5px; border-radius: 3px; font-size: 0.85em; }
+
+.drift-note {
+    background: #2a2200;
+    color: #e0c46c;
+    border-left: 3px solid #d4b100;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin: 8px 0 14px;
+}
+
+.status-badge {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 10px;
+    background: #444;
+    color: #ccc;
+    font-weight: normal;
+}
+.status-badge.configured { background: #2e8b3d; color: white; }
+.status-badge.not-configured { background: #555; color: #ccc; }
+.status-badge.needs-attention { background: #a33; color: white; }
+
+.verify-error-banner {
+    background: #3a1f1f;
+    border: 1px solid #a33;
+    color: #ffb3b3;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin: 8px 0 14px;
+}
+.verify-error-banner[hidden] { display: none; }
+
+.cred-form-status.error-text { color: #ff9b9b; }
+
+.reuse-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.82rem;
+    color: #8fb4d9;
+    background: rgba(143, 180, 217, 0.08);
+    border: 1px solid #345;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+.reuse-picker select {
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+}
+
+.cred-form {
+    border-top: 1px solid #333;
+    margin-top: 16px;
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.cred-form h3 { margin: 0; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; }
+.cred-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #ccc; }
+.field-hint { color: #888; font-weight: normal; }
+.cred-form input {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+}
+.cred-form button {
+    align-self: flex-start;
+    background: #c00;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.cred-form button:hover { background: #ff3333; }
+.save-note { font-size: 0.8rem; color: #9fdca8; }
+
+.auto-setup-tool {
+    background: rgba(46, 139, 61, 0.08);
+    border: 1px solid #2e8b3d;
+    border-radius: 6px;
+    padding: 16px;
+    margin: 16px 0;
+}
+.auto-setup-tool h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.auto-setup-tool p { color: #ccc; font-size: 0.85rem; margin: 0 0 10px; }
+.auto-setup-tool label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #ccc; margin-bottom: 10px; }
+.auto-setup-tool input, .auto-setup-tool select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+}
+.auto-setup-tool button {
+    background: #2e8b3d;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.auto-setup-tool button:hover { background: #38a84a; }
+.auto-setup-tool button:disabled { background: #444; cursor: default; }
+
+.manual-fallback { margin: 10px 0; }
+.manual-fallback summary { color: #ccc; cursor: pointer; font-size: 0.85rem; }
+.manual-fallback summary:hover { color: #eee; }
+.manual-fallback .cred-form { border-top: none; }
+.manual-warning {
+    background: #2a2200;
+    color: #e0c46c;
+    border-left: 3px solid #d4b100;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.82rem;
+    margin: 8px 0 0;
+}
+
+.verify-connection-tool {
+    border-top: 1px solid #333;
+    margin-top: 16px;
+    padding-top: 16px;
+}
+.verify-connection-tool[hidden] { display: none; }
+.verify-connection-tool h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.verify-connection-tool p { color: #ccc; font-size: 0.85rem; margin: 0 0 10px; }
+.verify-connection-tool button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.verify-connection-tool button:hover { background: #555; }
+
+.cover-photo-tool {
+    border-top: 1px solid #333;
+    margin-top: 16px;
+    padding-top: 16px;
+}
+.cover-photo-tool[hidden] { display: none; }
+.cover-photo-tool h3 { margin: 0 0 6px; font-size: 0.95rem; }
+.cover-photo-tool p { color: #ccc; font-size: 0.85rem; margin: 0 0 10px; }
+.cover-photo-tool label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #ccc; margin-bottom: 10px; }
+.cover-photo-tool select {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+}
+.cover-photo-tool button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.cover-photo-tool button:hover { background: #555; }
+#cover-preview-box { margin-top: 14px; }
+#cover-preview-img {
+    display: block;
+    width: 100%;
+    max-width: 410px;
+    aspect-ratio: 820 / 312;
+    object-fit: contain;
+    background: #000;
+    border-radius: 6px;
+    margin-bottom: 10px;
+}
+#cover-publish-btn { background: #c00; border-color: #c00; }
+#cover-publish-btn:hover { background: #ff3333; }
+
+/* .platform-section-body (dashboard.css) is a card grid (auto-fill columns,
+   stretch-to-row-height) meant for form/tool "cards" - a plain banner line
+   or a single button shouldn't be stretched to match a neighboring card's
+   height, so these span the full row instead of taking one grid cell. */
+#meta-connected-page, #meta-verification-error, #meta-token-expiry-warning, .meta-setup-open-btn {
+    grid-column: 1 / -1;
+}
+.meta-setup-open-btn {
+    justify-self: start;
+    background: #c00;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+    margin: 6px 0 4px;
+}
+.meta-setup-open-btn:hover { background: #ff3333; }
+
+.meta-setup-modal { max-width: 640px; max-height: 85vh; overflow-y: auto; }
+.meta-setup-modal h2 { margin: 0 0 14px; font-size: 1.15rem; padding-right: 24px; }
+
+.meta-setup-status-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #333;
+}
+.meta-setup-status-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9rem;
+    color: #eee;
+}
+
+.meta-token-expiry-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 0.85rem;
+    color: #ccc;
+    margin-bottom: 16px;
+}
+/* The info-icon deliberately sits outside <label> (not wrapped inside it) -
+   a label's native click-forwarding to its associated control fires a
+   second, unrelated click on the input, which would immediately close the
+   popover the icon's own click just opened. */
+.meta-token-expiry-label-row { display: flex; align-items: center; gap: 6px; }
+.meta-token-expiry-field input {
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    max-width: 200px;
+}

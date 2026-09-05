@@ -1,0 +1,57 @@
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #111;
+    color: #eee;
+    font-family: 'Segoe UI', Arial, sans-serif;
+}
+.auth-box {
+    background: rgba(0, 0, 0, 0.8);
+    padding: 30px;
+    border-radius: 10px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.brand-logo-slot:empty { display: none; }
+.brand-logo-slot { text-align: center; margin-bottom: 4px; }
+.brand-logo { height: 60px; width: auto; display: inline-block; }
+
+.auth-box h1 { margin: 0 0 4px; font-size: 1.3rem; }
+.auth-box p { margin: 0; color: #aaa; font-size: 0.9rem; }
+.auth-box label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; }
+.auth-box input {
+    padding: 10px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+}
+.auth-box button {
+    margin-top: 8px;
+    padding: 10px;
+    border: none;
+    border-radius: 4px;
+    background: #c00;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+}
+.auth-box button:hover { background: #ff3333; }
+
+.field-error { color: #ff9b9b; font-size: 0.85rem; margin: -6px 0 0; }
+.field-error[hidden] { display: none; }
+
+.forgot-link { color: #999; font-size: 0.85rem; text-align: center; text-decoration: none; margin-top: -4px; }
+.forgot-link:hover { color: #ccc; text-decoration: underline; }
+
+.auth-note { color: #9fdca8; font-size: 0.85rem; margin: 0; text-align: center; }
+.auth-note.error-text { color: #ff9b9b; }
+.auth-note[hidden] { display: none; }
+.back-to-login { color: #999; font-size: 0.85rem; text-align: center; text-decoration: none; }
+.back-to-login:hover { color: #ccc; text-decoration: underline; }

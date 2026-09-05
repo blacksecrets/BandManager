@@ -1,0 +1,6 @@
+@BandManager.Web_HostAddress = http://localhost:5073
+
+GET {{BandManager.Web_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

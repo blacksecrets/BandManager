@@ -1,0 +1,30 @@
+# Build artifacts
+bin/
+obj/
+*.user
+
+# Local dev tooling - portable Postgres binaries + actual DB files, and
+# the dev superuser password file used to init it. None of this belongs
+# in source control; see README for how to regenerate it on a new machine.
+tools/postgresql/
+tools/pgdata/
+tools/pgpass.txt
+tools/pg.log
+
+# .NET user-secrets are stored outside the repo (%APPDATA%), never here -
+# nothing to ignore for them, just don't put secrets in appsettings*.json.
+
+# Local file storage - the credential encryption key (secret.key, the one
+# genuinely irreplaceable piece of local state - see AesGcmCredentialCipher)
+# plus uploaded artifacts/catalog media once those land. Never committed;
+# back these up (or the whole data/ folder) alongside Postgres dumps.
+src/BandManager.Web/data/
+
+# Docker Compose's bind-mounted app data (secret.key, uploads, catalog,
+# branding) and the .env holding the real Postgres password - same
+# never-commit rule as the dev data/ folder above.
+/data/
+.env
+
+.vs/
+*.swp

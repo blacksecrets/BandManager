@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cadence</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/cadence.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <h1>Cadence</h1>
+        <a class="back-link" href="/">&larr; Back to dashboard</a>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <nav class="settings-tabs">
+            <a href="/settings">Setup and Registration</a>
+            <a href="/cadence" class="active">Cadence</a>
+            <a href="/catalog">Catalog</a>
+            <a href="/profile">Profile</a>
+        </nav>
+
+        <p class="intro">
+            What gets posted, how often, and what's needed for it - editable
+            here instead of being fixed in code. Recurring rows repeat on a
+            weekly or monthly schedule; gig rows are triggered by a show
+            being added to the calendar.
+        </p>
+
+        <div id="cadence-board">Loading...</div>
+    </main>
+
+    <script src="/assets/cadence.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

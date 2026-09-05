@@ -1,0 +1,39 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bandmanager
+      POSTGRES_USER: bandmanager
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bandmanager -d bandmanager"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=bandmanager;Username=bandmanager;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+    volumes:
+      # secret.key, uploads/, catalog/, branding/, flyer-cache/ all live
+      # here - back this up (alongside a pg_dump of the db volume) the same
+      # way the old app's "copy the data/ folder" convention worked. Losing
+      # secret.key permanently strands every stored platform credential.
+      # A host bind mount (not a named volume) so it's a plain folder you
+      # can browse/back up directly, and so BandManager.Migrate (run
+      # natively on the host, not in a container) can write into it.
+      - ./data:/app/data
+    ports:
+      - "8080:8080"
+
+volumes:
+  pgdata:
