@@ -37,7 +37,7 @@
 
 .branding-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 20px;
     margin-top: 14px;
 }
@@ -85,3 +85,21 @@
 @media (max-width: 600px) {
     .branding-row { grid-template-columns: 1fr; }
 }
+
+.user-manage-row td { background: rgba(255, 255, 255, 0.03); padding: 14px 10px; }
+.user-manage-block { display: flex; flex-direction: column; gap: 12px; }
+.user-manage-row h4 { margin: 0; font-size: 0.82rem; color: #999; text-transform: uppercase; letter-spacing: 0.03em; }
+.membership-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: #ddd;
+}
+.membership-row select { padding: 4px 6px; border-radius: 4px; border: 1px solid #444; background: #1a1a1a; color: #eee; }
+.membership-row .archived-tag { color: #d4b100; font-size: 0.78rem; }
+.add-membership-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.add-membership-row select { padding: 6px; border-radius: 4px; border: 1px solid #444; background: #1a1a1a; color: #eee; }
+.band-checkbox-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.band-checkbox-list label { flex-direction: row !important; align-items: center; gap: 8px !important; color: #ddd; }
+.band-checkbox-list input { width: auto; }

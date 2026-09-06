@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SuperAdmin</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>SuperAdmin</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <p id="superadmin-denied" class="save-note" hidden>SuperAdmin access is required to view this page.</p>
+
+        <section class="platform-card" id="superadmin-bands-section" hidden>
+            <h2>All bands</h2>
+            <p>Every band on this BandManager instance. Every band needs at least one Band Admin, chosen when it's created.</p>
+            <table class="user-table">
+                <thead><tr><th>Name</th><th>Slug</th><th>Created</th><th>Status</th><th></th></tr></thead>
+                <tbody id="superadmin-bands-body"></tbody>
+            </table>
+
+            <details class="manual-fallback">
+                <summary>Add a band</summary>
+                <form id="add-band-form" class="cred-form">
+                    <label>Band name <input type="text" name="name" required autocomplete="off"></label>
+                    <label>Band Admin - existing user
+                        <select name="adminChoice" id="add-band-admin-choice">
+                            <option value="">(none selected)</option>
+                        </select>
+                    </label>
+                    <label>...or Band Admin - new username <input type="email" name="newAdminUsername" placeholder="new-admin@example.com" autocomplete="off"></label>
+                    <p class="field-hint">Every band needs a Band Admin - pick an existing user above, or enter a brand-new username here (not both).</p>
+                    <button type="submit">Create band</button>
+                    <p id="add-band-status" class="save-note"></p>
+                </form>
+            </details>
+        </section>
+
+        <section class="platform-card" id="superadmin-users-section" hidden>
+            <h2>All users</h2>
+            <p>Every account on this BandManager instance - add, change the level or band memberships of, or delete any of them here. You can't remove your own SuperAdmin access or delete your own account.</p>
+
+            <table class="user-table">
+                <thead><tr><th>Username</th><th>Level</th><th>Bands</th><th></th></tr></thead>
+                <tbody id="all-users-body"></tbody>
+            </table>
+
+            <details class="manual-fallback">
+                <summary>Add a user</summary>
+                <form id="add-user-form" class="cred-form">
+                    <label>Username / Email <input type="email" name="username" required></label>
+                    <label>Level
+                        <select name="level" id="add-user-level">
+                            <option value="SuperAdmin">SuperAdmin</option>
+                            <option value="BandAdmin">Band Admin</option>
+                            <option value="User" selected>User</option>
+                        </select>
+                    </label>
+                    <div class="reuse-picker" id="add-user-bands-picker">
+                        <span class="field-hint">Bands (as the level chosen above):</span>
+                        <div id="add-user-bands-checkboxes"></div>
+                    </div>
+                    <button type="submit">Add user</button>
+                    <p id="add-user-status" class="save-note"></p>
+                </form>
+            </details>
+        </section>
+
+        <section class="platform-card" id="song-search-section" hidden>
+            <h2>Song search (YouTube &amp; Spotify)</h2>
+            <p>Powers the web search on every band's Repertoire page when adding a song. Songsterr has no public API to connect - it stays a manually-pasted link regardless.</p>
+
+            <form id="youtube-cred-form" class="cred-form">
+                <h3>YouTube Data API <span class="status-badge" id="youtube-status-badge">checking...</span></h3>
+                <label>API key <input type="password" name="apiKey" autocomplete="new-password"></label>
+                <button type="submit">Save YouTube key</button>
+                <p id="youtube-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="youtube-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="youtube-disconnect-btn">Remove YouTube key</button>
+            </div>
+
+            <form id="spotify-cred-form" class="cred-form">
+                <h3>Spotify Web API <span class="status-badge" id="spotify-status-badge">checking...</span></h3>
+                <label>Client ID <input type="text" name="clientId" autocomplete="off"></label>
+                <label>Client Secret <input type="password" name="clientSecret" autocomplete="new-password"></label>
+                <button type="submit">Save Spotify credentials</button>
+                <p id="spotify-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="spotify-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="spotify-disconnect-btn">Remove Spotify credentials</button>
+            </div>
+        </section>
+
+        <section class="platform-card" id="admin-branding-section" hidden>
+            <h2>BandManager branding</h2>
+            <p>Shown on every page when no band is selected (including the login page) - separate from any individual band's own branding, which takes over automatically once a band is active.</p>
+
+            <div class="branding-row">
+                <div class="branding-item">
+                    <h3>Logo</h3>
+                    <div class="branding-preview" id="logo-preview">No logo set</div>
+                    <label class="upload-btn">Upload logo<input type="file" id="logo-upload" accept="image/*" hidden></label>
+                    <button type="button" class="remove-btn" id="logo-remove" hidden>Remove</button>
+                </div>
+                <div class="branding-item">
+                    <h3>Background</h3>
+                    <div class="branding-preview" id="background-preview">No background set</div>
+                    <label class="upload-btn">Upload background<input type="file" id="background-upload" accept="image/*" hidden></label>
+                    <button type="button" class="remove-btn" id="background-remove" hidden>Remove</button>
+                </div>
+                <div class="branding-item">
+                    <h3>Favicon</h3>
+                    <div class="branding-preview" id="favicon-preview">No favicon set</div>
+                    <label class="upload-btn">Upload favicon<input type="file" id="favicon-upload" accept="image/*" hidden></label>
+                    <button type="button" class="remove-btn" id="favicon-remove" hidden>Remove</button>
+                </div>
+            </div>
+            <p id="branding-status" class="save-note"></p>
+        </section>
+    </main>
+
+    <script src="/assets/superadmin.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

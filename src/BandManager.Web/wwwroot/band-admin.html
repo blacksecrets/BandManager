@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Band Admin</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Band Admin</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <p id="band-admin-no-band" class="save-note" hidden>Select a band from the switcher above to manage it.</p>
+
+        <section class="platform-card" id="band-web-presence-section" hidden>
+            <h2>Configure Web Presence</h2>
+            <p>Connect the platforms this band posts to (Facebook, Instagram, Website, and the rest), and manage its cadence - the recurring/gig-triggered rules that generate what shows up on the board.</p>
+            <div class="branding-row">
+                <a href="/settings" class="upload-btn">Open Configure Web Presence &rarr;</a>
+                <a href="/cadence" class="upload-btn">Open Cadence &rarr;</a>
+            </div>
+        </section>
+
+        <section class="platform-card" id="band-branding-section" hidden>
+            <h2>This band's branding</h2>
+            <p>Applied everywhere once this band is selected (by anyone) - background, logo, and favicon all switch over automatically, replacing the BandManager shell's own branding until a different band is picked.</p>
+
+            <div class="branding-row">
+                <div class="branding-item">
+                    <h3>Logo</h3>
+                    <div class="branding-preview" id="band-logo-preview">No logo set</div>
+                    <label class="upload-btn">Upload logo<input type="file" id="band-logo-upload" accept="image/*" hidden></label>
+                    <button type="button" class="remove-btn" id="band-logo-remove" hidden>Remove</button>
+                </div>
+                <div class="branding-item">
+                    <h3>Background</h3>
+                    <div class="branding-preview" id="band-background-preview">No background set</div>
+                    <label class="upload-btn">Upload background<input type="file" id="band-background-upload" accept="image/*" hidden></label>
+                    <button type="button" class="remove-btn" id="band-background-remove" hidden>Remove</button>
+                </div>
+                <div class="branding-item">
+                    <h3>Favicon</h3>
+                    <div class="branding-preview" id="band-favicon-preview">No favicon set</div>
+                    <label class="upload-btn">Upload favicon<input type="file" id="band-favicon-upload" accept="image/*" hidden></label>
+                    <button type="button" class="remove-btn" id="band-favicon-remove" hidden>Remove</button>
+                </div>
+                <div class="branding-item">
+                    <h3>Accent color</h3>
+                    <label>Hex color <input type="text" id="band-accent-color" placeholder="#c00000" maxlength="7"></label>
+                    <button type="button" id="band-accent-save" class="upload-btn">Save color</button>
+                </div>
+            </div>
+            <p id="band-branding-status" class="save-note"></p>
+        </section>
+
+        <section class="platform-card" id="band-users-section" hidden>
+            <h2>Manage this band's users</h2>
+            <p>Anyone you add here can log in and access this band. Band Admins can also manage this band's users and Setup. Adding an existing username just attaches them to this band - it doesn't create a second account. A brand-new username gets emailed a temporary password (logged to the server console for now - see "Verify email" below for why that's fine during this stretch without real email delivery).</p>
+
+            <table class="user-table">
+                <thead><tr><th>Username</th><th>Role</th><th>Email</th><th>Added</th><th></th></tr></thead>
+                <tbody id="user-table-body"></tbody>
+            </table>
+
+            <details class="manual-fallback">
+                <summary>Add a user</summary>
+                <form id="add-user-form" class="cred-form">
+                    <label>Username / Email <input type="email" name="username" required></label>
+                    <label class="checkbox-label"><input type="checkbox" name="isAdmin"> Band Admin (can manage this band's users and Setup)</label>
+                    <button type="submit">Add user</button>
+                    <p id="add-user-status" class="save-note"></p>
+                </form>
+            </details>
+        </section>
+    </main>
+
+    <script src="/assets/band-admin.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

@@ -2,32 +2,48 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Set up Crew Dashboard</title>
+<title>Set up BandManager</title>
 <link rel="stylesheet" href="/assets/auth.css">
 </head>
 <body>
-    <form class="auth-box" method="POST" action="/setup" id="setup-form">
+    <form class="auth-box" id="setup-form">
         <span class="brand-logo-slot"></span>
-        <h1>Set up the crew dashboard</h1>
-        <p>No admin account exists yet. Create the first one.</p>
-        <label>Username<input type="text" name="username" required autofocus></label>
-        <label>Password (8+ characters)<input type="password" name="password" minlength="8" required></label>
+        <h1>Set up BandManager</h1>
+        <p>No account exists yet. Create the first one - it becomes SuperAdmin.</p>
+        <label>Username / Email<input type="email" name="username" required autofocus></label>
+        <label>Password<input type="password" name="password" minlength="8" pattern="(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters, including one uppercase letter and one special character." required></label>
         <label>Confirm password<input type="password" name="confirmPassword" minlength="8" required></label>
-        <p class="field-error" id="setup-password-error" hidden>Passwords don't match.</p>
+        <p class="field-hint password-requirements">At least 8 characters, including one UPPERCASE letter and one special character (like ! @ # $).</p>
+        <p class="field-error" id="setup-error" hidden></p>
         <button type="submit">Create account</button>
     </form>
     <script src="/assets/branding.js"></script>
     <script src="/assets/password-toggle.js"></script>
     <script>
-        document.getElementById('setup-form').addEventListener('submit', (e) => {
+        document.getElementById('setup-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
             const form = e.target;
-            const error = document.getElementById('setup-password-error');
+            const error = document.getElementById('setup-error');
+            error.hidden = true;
+
             if (form.password.value !== form.confirmPassword.value) {
-                e.preventDefault();
+                error.textContent = "Passwords don't match.";
                 error.hidden = false;
-            } else {
-                error.hidden = true;
+                return;
             }
+
+            const res = await fetch('/api/setup/first-admin', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: form.username.value.trim(), password: form.password.value })
+            });
+            if (res.ok) {
+                location.href = '/login.html';
+                return;
+            }
+            const body = await res.json();
+            error.textContent = body.error || 'Could not create the account.';
+            error.hidden = false;
         });
     </script>
 </body>

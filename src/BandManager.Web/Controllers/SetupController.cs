@@ -1,4 +1,5 @@
 using BandManager.Data.Entities;
+using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 
@@ -32,7 +33,15 @@ public class SetupController(UserManager<ApplicationUser> userManager) : Control
             return Conflict(new { error = "Setup has already been completed." });
         }
 
-        var user = new ApplicationUser { UserName = request.Username, IsSuperAdmin = true };
+        var username = request.Username?.Trim() ?? "";
+        if (!EmailValidation.LooksLikeEmail(username))
+            return BadRequest(new { error = "Username must be a valid email address." });
+
+        // Self-chosen password, right now, by the account's own owner - no
+        // MustChangePassword needed (that's for a password someone *else*
+        // assigned). EmailConfirmed=true for the same "who's vouching for
+        // it" reason as ProfileController.AddUser's admin-created path.
+        var user = new ApplicationUser { UserName = username, Email = username, EmailConfirmed = true, IsSuperAdmin = true };
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {

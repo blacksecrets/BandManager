@@ -20,6 +20,39 @@ var args_ = ParseArgs(args);
 string Require(string name) => args_.TryGetValue(name, out var v) ? v : throw new ArgumentException($"Missing required --{name}");
 string Optional(string name, string fallback) => args_.TryGetValue(name, out var v) ? v : fallback;
 
+// Separate one-off mode, unrelated to the SQLite cutover this tool exists
+// for otherwise - creating a SuperAdmin has no UI/API path of its own yet
+// (SuperAdminController's own endpoints correctly require already being
+// one), so this reaches the DB directly instead, the same way the cutover
+// flow below already does. Exits immediately either way - never falls
+// through to the migration-specific required args.
+if (args_.ContainsKey("create-superadmin"))
+{
+    var email = Require("email");
+    var password = Require("password");
+    await using var db2 = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(Require("connection")).Options);
+    if (await db2.Users.AnyAsync(u => u.NormalizedUserName == email.ToUpperInvariant()))
+        throw new InvalidOperationException($"A user named '{email}' already exists.");
+
+    var newAdmin = new ApplicationUser
+    {
+        UserName = email,
+        NormalizedUserName = email.ToUpperInvariant(),
+        Email = email,
+        NormalizedEmail = email.ToUpperInvariant(),
+        EmailConfirmed = true,
+        IsSuperAdmin = true,
+        MustChangePassword = true,
+        SecurityStamp = Guid.NewGuid().ToString(),
+        ConcurrencyStamp = Guid.NewGuid().ToString(),
+    };
+    newAdmin.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(newAdmin, password);
+    db2.Users.Add(newAdmin);
+    await db2.SaveChangesAsync();
+    Console.WriteLine($"Created SuperAdmin '{email}' ({newAdmin.Id}).");
+    return;
+}
+
 var sqlitePath = Require("sqlite");
 var oldRoot = Require("old-root"); // old app root - file_path columns are relative to this
 var oldKeyPath = Require("old-key");

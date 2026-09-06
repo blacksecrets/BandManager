@@ -46,6 +46,8 @@ body {
 
 .field-error { color: #ff9b9b; font-size: 0.85rem; margin: -6px 0 0; }
 .field-error[hidden] { display: none; }
+.field-hint { color: #888; font-size: 0.8rem; margin: -6px 0 0; }
+.password-requirements { margin: -4px 0 4px; }
 
 .forgot-link { color: #999; font-size: 0.85rem; text-align: center; text-decoration: none; margin-top: -4px; }
 .forgot-link:hover { color: #ccc; text-decoration: underline; }

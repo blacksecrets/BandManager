@@ -55,6 +55,12 @@ public class AuthController(
             }
         }
 
+        // An admin-set password (new account, or a reset done on someone's
+        // behalf) sends them straight to Profile with a message instead of
+        // the dashboard, rather than leaving them to notice on their own.
+        if (user?.MustChangePassword == true)
+            return Redirect("/profile?mustChangePassword=1");
+
         return Redirect("/");
     }
 

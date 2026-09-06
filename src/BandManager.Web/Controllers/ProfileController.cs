@@ -2,6 +2,7 @@ using BandManager.Data;
 using BandManager.Data.Entities;
 using BandManager.Data.Services;
 using BandManager.Web.Auth;
+using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -10,8 +11,8 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
-public record AddBandUserRequest(string Username, string? Password, string Role);
-public record UpdateEmailRequest(string? Email);
+public record AddBandUserRequest(string Username, string Role);
+public record UpdateUsernameRequest(string Username);
 
 /// <summary>
 /// Self-service profile (any logged-in user) + Band-scoped user
@@ -33,9 +34,10 @@ public class ProfileController(
     SignInManager<ApplicationUser> signInManager,
     IActiveBandAccessor activeBand,
     BandMembershipService membershipService,
+    UserProvisioningService userProvisioning,
     IWebHostEnvironment env) : ControllerBase
 {
-    private static readonly string[] BrandTypes = ["logo", "background"];
+    private static readonly string[] BrandTypes = ["logo", "background", "favicon"];
     private const long MaxBrandBytes = 20 * 1024 * 1024;
 
     [HttpGet("me")]
@@ -48,19 +50,24 @@ public class ProfileController(
         var bandId = activeBand.GetActiveBandId();
         string? activeBandRole = null;
         string? activeBandName = null;
-        if (bandId is not null)
+        // A band archived while it was someone's active selection (or one
+        // whose id is otherwise stale) reports back exactly like "no band
+        // selected" - matches BandAccessCheck's own deny, so the nav
+        // (which reads activeBandRole to decide what's enabled) doesn't
+        // show a band as live when every real action against it 403s.
+        var band = bandId is not null ? await db.Bands.FindAsync(bandId.Value) : null;
+        if (band is not null && !band.IsArchived)
         {
-            var membership = await db.BandMemberships.Include(m => m.Band)
+            var membership = await db.BandMemberships
                 .FirstOrDefaultAsync(m => m.UserId == user.Id && m.BandId == bandId);
             if (membership is not null)
             {
                 activeBandRole = membership.Role.ToString();
-                activeBandName = membership.Band.Name;
+                activeBandName = band.Name;
             }
             else if (user.IsSuperAdmin)
             {
-                var band = await db.Bands.FindAsync(bandId.Value);
-                activeBandName = band?.Name;
+                activeBandName = band.Name;
                 activeBandRole = "SuperAdmin";
             }
         }
@@ -72,6 +79,7 @@ public class ProfileController(
             isSuperAdmin = user.IsSuperAdmin,
             activeBandRole,
             activeBandName,
+            mustChangePassword = user.MustChangePassword,
             // isAdmin: true whenever the user can manage the active Band's
             // users - BandAdmin of it, or SuperAdmin regardless. Named to
             // match what wwwroot/assets/profile.js already checks.
@@ -79,22 +87,38 @@ public class ProfileController(
         });
     }
 
-    [HttpPut("email")]
+    // The account's UserName IS its email (required + validated at every
+    // creation/change point - see EmailValidation) - there's no separate
+    // "set your email" step anymore, which used to leave Profile showing a
+    // confusingly blank email even though the username itself already
+    // looked like one. A self-service change marks it unverified (matches
+    // normal email-change practice: re-confirm before it's trusted again) -
+    // see VerifyEmail below for the manual override while there's no real
+    // email delivery to click a confirmation link with yet.
+    [HttpPut("username")]
     [Authorize]
-    public async Task<IActionResult> UpdateEmail([FromBody] UpdateEmailRequest request)
+    public async Task<IActionResult> UpdateUsername([FromBody] UpdateUsernameRequest request)
     {
-        var email = request.Email?.Trim() ?? "";
-        // Not required to use the app at all - only required for the
-        // "forgot password" flow to have somewhere to send a reset link.
-        // Clearing it back to blank is allowed (SetEmailAsync accepts null).
-        if (email.Length > 0 && (!email.Contains('@') || email.Length > 256))
-            return BadRequest(new { error = "That doesn't look like a valid email address." });
+        var username = request.Username?.Trim() ?? "";
+        if (!EmailValidation.LooksLikeEmail(username))
+            return BadRequest(new { error = "Username must be a valid email address." });
 
         var user = await userManager.GetUserAsync(User);
         if (user is null) return Unauthorized();
 
-        await userManager.SetEmailAsync(user, email.Length == 0 ? null : email);
-        return Ok(new { ok = true, email = user.Email });
+        if (!string.Equals(user.UserName, username, StringComparison.OrdinalIgnoreCase))
+        {
+            var existing = await userManager.FindByNameAsync(username);
+            if (existing is not null) return BadRequest(new { error = "That username is already taken." });
+        }
+
+        await userManager.SetUserNameAsync(user, username);
+        await userManager.SetEmailAsync(user, username);
+        user.EmailConfirmed = false;
+        await userManager.UpdateAsync(user);
+        await signInManager.RefreshSignInAsync(user);
+
+        return Ok(new { ok = true, username = user.UserName });
     }
 
     [HttpPost("password")]
@@ -116,6 +140,12 @@ public class ProfileController(
             return incorrect
                 ? Unauthorized(new { error = "Current password is incorrect." })
                 : BadRequest(new { error = string.Join("; ", result.Errors.Select(e => e.Description)) });
+        }
+
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            await userManager.UpdateAsync(user);
         }
 
         // Re-sign-in so the auth cookie's security stamp stays valid -
@@ -146,6 +176,7 @@ public class ProfileController(
                 id = m.UserId,
                 username = m.User.UserName,
                 is_admin = m.Role == BandRole.BandAdmin,
+                email_confirmed = m.User.EmailConfirmed,
                 created_at = m.CreatedAt
             })
             .ToListAsync();
@@ -159,29 +190,52 @@ public class ProfileController(
         if (RequireActiveBand(out var bandId) is { } err) return err;
 
         var username = request.Username?.Trim();
-        if (string.IsNullOrEmpty(username) || username.Length > 100)
-            return BadRequest(new { error = "Username is required (max 100 chars)." });
+        if (string.IsNullOrEmpty(username) || !EmailValidation.LooksLikeEmail(username))
+            return BadRequest(new { error = "Username must be a valid email address." });
         if (!Enum.TryParse<BandRole>(request.Role, ignoreCase: true, out var role))
             return BadRequest(new { error = "Invalid role." });
 
         var user = await userManager.FindByNameAsync(username);
         if (user is null)
         {
-            if (string.IsNullOrEmpty(request.Password) || request.Password.Length is < 8 or > 200)
-                return BadRequest(new { error = "That user doesn't exist yet - a password (8-200 chars) is required to create it." });
-
-            user = new ApplicationUser { UserName = username };
-            var createResult = await userManager.CreateAsync(user, request.Password);
-            if (!createResult.Succeeded)
-                return BadRequest(new { error = string.Join("; ", createResult.Errors.Select(e => e.Description)) });
+            // New account - temp password is generated and emailed, not
+            // chosen by whoever's adding them (see UserProvisioningService).
+            var loginUrl = $"{Request.Scheme}://{Request.Host}/login.html";
+            var (created, error) = await userProvisioning.CreateAsync(username, isSuperAdmin: false, loginUrl);
+            if (!created) return BadRequest(new { error });
+            user = await userManager.FindByNameAsync(username);
         }
         else if (await db.BandMemberships.AnyAsync(m => m.UserId == user.Id && m.BandId == bandId))
         {
             return BadRequest(new { error = "That user is already a member of this band." });
         }
 
-        db.BandMemberships.Add(new BandMembership { UserId = user.Id, BandId = bandId, Role = role });
+        db.BandMemberships.Add(new BandMembership { UserId = user!.Id, BandId = bandId, Role = role });
         await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    // Manual override for "this email is actually good" while there's no
+    // real email delivery to send a real confirmation link through yet
+    // (see LoggingEmailSender) - lets a BandAdmin/SuperAdmin unblock
+    // whatever eventually starts checking EmailConfirmed without waiting
+    // on that. Scoped to the active Band's own members, same as every
+    // other user-management action here.
+    [HttpPost("users/{userId:guid}/verify-email")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> VerifyEmail(Guid userId)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.BandMemberships.AnyAsync(m => m.UserId == userId && m.BandId == bandId))
+            return NotFound(new { error = "Not found" });
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null) return NotFound(new { error = "Not found" });
+        if (string.IsNullOrWhiteSpace(user.Email))
+            return BadRequest(new { error = "This user has no email/username to verify." });
+
+        user.EmailConfirmed = true;
+        await userManager.UpdateAsync(user);
         return Ok(new { ok = true });
     }
 
@@ -220,7 +274,8 @@ public class ProfileController(
         return Ok(new
         {
             logoUrl = settings.GetValueOrDefault("logo_filename") is { } logo ? $"/branding/{logo}" : null,
-            backgroundUrl = settings.GetValueOrDefault("background_filename") is { } bg ? $"/branding/{bg}" : null
+            backgroundUrl = settings.GetValueOrDefault("background_filename") is { } bg ? $"/branding/{bg}" : null,
+            faviconUrl = settings.GetValueOrDefault("favicon_filename") is { } fav ? $"/branding/{fav}" : null
         });
     }
 
