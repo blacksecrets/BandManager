@@ -3,26 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Setup and Registration</title>
+<title>Configure Web Presence</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
 <link rel="stylesheet" href="/assets/settings.css">
 </head>
 <body>
     <header class="topbar">
         <span class="brand-logo-slot"></span>
-        <h1>Setup and Registration</h1>
-        <a class="back-link" href="/">&larr; Back to dashboard</a>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Configure Web Presence</h1>
+        <nav class="main-nav" id="main-nav"></nav>
         <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
     </header>
 
     <main class="settings-main">
-        <nav class="settings-tabs">
-            <a href="/settings" class="active">Setup and Registration</a>
-            <a href="/cadence">Cadence</a>
-            <a href="/catalog">Catalog</a>
-            <a href="/profile">Profile</a>
-        </nav>
-
         <p class="intro">
             These are one-time steps to let "Fart it out" actually post for you.
             Each connection below is a real external process you (or whoever has
@@ -59,11 +53,10 @@
     <div id="meta-setup-modal-backdrop" class="detail-modal-backdrop" hidden>
         <div class="detail-modal meta-setup-modal">
             <button type="button" class="detail-modal-close" id="meta-setup-modal-close">&times;</button>
-            <h2>Facebook &amp; Instagram Setup</h2>
+            <h2>Facebook Setup</h2>
 
             <div class="meta-setup-status-row">
                 <span class="meta-setup-status-item">Facebook <span class="status-badge" id="meta-setup-status-facebook">checking...</span></span>
-                <span class="meta-setup-status-item">Instagram <span class="status-badge" id="meta-setup-status-instagram">checking...</span></span>
             </div>
 
             <div class="meta-token-expiry-field">
@@ -78,10 +71,8 @@
                 <h3 id="auto-setup-heading">Finish setup automatically</h3>
                 <p id="auto-setup-description">
                     Paste what you have and this does the rest for you: exchanges
-                    your token for a long-lived one, finds your Page, and finds
-                    its linked Instagram account - saving both Facebook and
-                    Instagram in one step instead of four manual Graph API
-                    queries.
+                    your token for a long-lived one and finds your Page - saving
+                    Facebook in one step instead of manual Graph API queries.
                 </p>
                 <label>App ID
                     <input type="text" id="auto-app-id" placeholder="From the app dashboard: Settings → Basic" autocomplete="off">
@@ -105,10 +96,9 @@
                 <summary>Or enter values manually</summary>
                 <p class="manual-warning">Same token dance as above - you just look up the Page/Instagram IDs yourself, and the token won't be long-lived unless you exchange it first.</p>
                 <form class="cred-form" id="meta-manual-form">
-                    <h3>Facebook <span class="status-badge" data-platform="facebook">checking...</span> &amp; Instagram <span class="status-badge" data-platform="instagram">checking...</span></h3>
+                    <h3>Facebook <span class="status-badge" data-platform="facebook">checking...</span></h3>
                     <label>Page ID <input type="text" name="pageId" required autocomplete="off"></label>
                     <label>Page Access Token <input type="password" name="pageAccessToken" required autocomplete="new-password"></label>
-                    <label>Instagram Business Account ID <span class="field-hint">(only if also adding Instagram)</span> <input type="text" name="igUserId" autocomplete="off"></label>
                     <button type="submit">Save</button>
                     <p class="save-note cred-form-status" data-cred-status></p>
                 </form>
@@ -126,7 +116,7 @@
         <p id="meta-verification-error" class="verify-error-banner" hidden></p>
         <p id="meta-token-expiry-warning" class="verify-error-banner" hidden></p>
 
-        <button type="button" class="meta-setup-open-btn" id="open-meta-setup-modal-btn">Set up Facebook &amp; Instagram</button>
+        <button type="button" class="meta-setup-open-btn" id="open-meta-setup-modal-btn">Set up Facebook</button>
 
         <div class="verify-connection-tool" id="verify-connection-tool" hidden>
             <h3>Sanity check</h3>
@@ -155,7 +145,27 @@
         </div>
 
         <div class="disconnect-tool" id="meta-disconnect-tool" hidden>
-            <button type="button" class="disconnect-btn" data-disconnect="facebook,instagram">Disconnect Facebook &amp; Instagram</button>
+            <button type="button" class="disconnect-btn" data-disconnect="facebook">Disconnect Facebook</button>
+        </div>
+    </template>
+
+    <template id="tpl-instagram">
+        <form class="cred-form" data-platform="instagram" id="instagram-cred-form">
+            <h3>Instagram <span class="status-badge" data-platform="instagram">checking...</span></h3>
+
+            <div class="instagram-mode-toggle">
+                <label class="radio-label"><input type="radio" name="mode" value="linked" checked> Linked to Facebook <span class="field-hint">(reuses the Facebook connection above)</span></label>
+                <label class="radio-label"><input type="radio" name="mode" value="standalone"> Independent connection <span class="field-hint">(no Facebook Page needed)</span></label>
+            </div>
+
+            <label>Instagram Account ID <input type="text" name="igUserId" required autocomplete="off"></label>
+            <label data-instagram-field="standalone" hidden>Instagram Access Token <input type="password" name="igAccessToken" autocomplete="new-password"></label>
+
+            <button type="submit">Save Instagram credentials</button>
+            <p class="save-note cred-form-status" data-cred-status></p>
+        </form>
+        <div class="disconnect-tool" data-disconnect-tool="instagram" hidden>
+            <button type="button" class="disconnect-btn" data-disconnect="instagram">Disconnect Instagram</button>
         </div>
     </template>
 
@@ -177,6 +187,11 @@
         <form class="cred-form" data-platform="website">
             <h3>Website <span class="status-badge" data-platform="website">checking...</span></h3>
             <label>GitHub Token <input type="password" name="githubToken" required autocomplete="new-password"></label>
+            <label>Site base URL <span class="field-hint">(e.g. https://yourband.com - used to read gigs/media/gallery for Gig Sets and the Website tiles)</span>
+                <input type="url" name="siteBaseUrl" placeholder="https://yourband.com">
+            </label>
+            <label>GitHub owner <input type="text" name="githubOwner" placeholder="e.g. yourband" autocomplete="off"></label>
+            <label>GitHub repo <input type="text" name="githubRepo" placeholder="e.g. yourband-site" autocomplete="off"></label>
             <button type="submit">Save Website credentials</button>
             <p class="save-note cred-form-status" data-cred-status></p>
         </form>
@@ -200,6 +215,7 @@
 
     <script src="/assets/settings.js"></script>
     <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>
     <script src="/assets/password-toggle.js"></script>
     <script src="/assets/infoIcon.js"></script>

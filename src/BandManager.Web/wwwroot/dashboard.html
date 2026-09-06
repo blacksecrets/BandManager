@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Web Presence</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/catalog.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Web Presence</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <div class="legend">
+        <span class="dot grey"></span> Not due yet
+        <span class="dot neutral"></span> Due soon
+        <span class="dot yellow"></span> Due today
+        <span class="dot red"></span> Past due
+        <span class="dot ready"></span> Ready to post
+        <span class="dot done"></span> Posted
+        <span class="dot auto"></span> Auto-handled
+        <span class="dot cancelled"></span> Cancelled
+        <span class="dot done-pending"></span> Posted, needs archiving
+    </div>
+
+    <main id="board" class="board">Loading...</main>
+
+    <div id="detail-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="detail-modal-close">&times;</button>
+            <div id="detail-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="image-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="image-modal">
+            <button type="button" class="detail-modal-close" id="image-modal-close">&times;</button>
+            <img id="image-modal-img" src="" alt="">
+            <a id="image-modal-download" href="" download class="image-modal-download-btn">Download</a>
+        </div>
+    </div>
+
+    <div id="video-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="catalog-viewer-modal">
+            <button type="button" class="detail-modal-close" id="video-modal-close">&times;</button>
+            <video id="video-modal-video" controls></video>
+            <canvas id="video-modal-canvas" hidden></canvas>
+            <div class="catalog-viewer-actions">
+                <a id="video-modal-download" href="" download class="image-modal-download-btn">Download</a>
+                <button type="button" id="video-modal-capture">Capture frame</button>
+                <button type="button" id="video-modal-trim-toggle">Trim</button>
+                <button type="button" id="video-modal-split-toggle">Split</button>
+            </div>
+            <div id="video-modal-trim-panel" class="video-cut-panel" hidden>
+                <label>Start (sec) <input type="number" id="video-modal-trim-start" min="0" step="0.1" value="0"></label>
+                <label>End (sec) <input type="number" id="video-modal-trim-end" min="0" step="0.1"></label>
+                <button type="button" id="video-modal-trim-export">Export trimmed clip</button>
+            </div>
+            <div id="video-modal-split-panel" class="video-cut-panel" hidden>
+                <label>Split at (sec) <input type="number" id="video-modal-split-point" min="0" step="0.1"></label>
+                <button type="button" id="video-modal-split-export">Export both clips</button>
+            </div>
+            <p class="catalog-viewer-status" id="video-modal-status"></p>
+        </div>
+    </div>
+
+    <div id="catalog-picker-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="catalog-picker-modal">
+            <button type="button" class="detail-modal-close" id="catalog-picker-close">&times;</button>
+            <div class="catalog-picker-toolbar">
+                <input type="search" id="catalog-picker-search" class="catalog-search" placeholder="Search by label or filename...">
+            </div>
+            <div id="catalog-picker-grid" class="catalog-picker-grid"></div>
+            <div class="catalog-picker-actions">
+                <button type="button" id="catalog-picker-cancel" class="catalog-toolbar-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <template id="card-template">
+        <article class="card">
+            <div class="card-top">
+                <span class="platform"></span>
+            </div>
+            <h3 class="content-type"></h3>
+            <p class="category"></p>
+            <p class="example"></p>
+            <p class="due"></p>
+            <p class="owed-badge" hidden>Artifacts still owed for the archive</p>
+            <div class="artifacts-needed"></div>
+            <div class="card-actions">
+                <button class="fart-btn" disabled>Fart it out</button>
+                <button class="manual-btn">Mark done (posted outside system)</button>
+                <button class="archive-btn">Cancel/Archive</button>
+            </div>
+        </article>
+    </template>
+
+    <script src="/assets/catalog.js"></script>
+    <script src="/assets/dashboard.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

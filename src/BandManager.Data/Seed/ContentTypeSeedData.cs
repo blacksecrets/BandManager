@@ -15,7 +15,14 @@ public static class ContentTypeSeedData
     public static readonly ContentType[] All =
     [
         new() { Id = "Text + Photo", RequiredArtifacts = ["caption", "photo"], SortOrder = 1 },
-        new() { Id = "Event Post", RequiredArtifacts = [], SortOrder = 2 },
+        // Facebook has no Events API access here, so this is never
+        // automated (Scheduler.cs sets NoApi=true unconditionally for
+        // gig-only items) - "posting" always means creating the event by
+        // hand on Facebook. RequiredArtifacts still matters even so: it's
+        // what makes the detail modal's artifact rows (photo, caption)
+        // appear at all - date/time/venue come from the linked gig itself
+        // via renderGigReference in dashboard.js, not from an artifact.
+        new() { Id = "Event Post", RequiredArtifacts = ["photo", "caption"], SortOrder = 2 },
         new() { Id = "Video Clip", RequiredArtifacts = ["caption", "video"], SortOrder = 3 },
         new() { Id = "Photo Album", RequiredArtifacts = ["caption", "photo"], SortOrder = 4 },
         new() { Id = "Reel", RequiredArtifacts = ["video"], SortOrder = 5 },

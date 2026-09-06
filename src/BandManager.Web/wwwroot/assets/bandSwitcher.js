@@ -1,10 +1,10 @@
 // New in BandManager (the old single-tenant app never needed this) - a
 // self-contained control injected into every page's .topbar, showing the
 // active Band and letting anyone with more than one membership (or
-// SuperAdmin, who has access to all of them) switch. SuperAdmin also gets
-// a "+ New Band" option here, since there's nowhere else to create one yet.
-// Self-injecting like password-toggle.js/infoIcon.js - one <script> tag,
-// no markup changes needed on any page.
+// SuperAdmin, who has access to all of them) switch. Creating a new band
+// lives under Settings > SuperAdmin instead (profile.html) - this is pure
+// switching only. Self-injecting like password-toggle.js/infoIcon.js - one
+// <script> tag, no markup changes needed on any page.
 (function () {
     const style = document.createElement('style');
     style.textContent = `
@@ -50,29 +50,7 @@
         .band-switcher-item:hover { background: #2c2c2c; }
         .band-switcher-item.active { color: #fff; font-weight: bold; }
         .band-switcher-item .role-tag { color: #999; font-weight: normal; font-size: 0.75em; margin-left: 6px; }
-        .band-switcher-divider { border: none; border-top: 1px solid #333; margin: 4px 0; }
-        .band-switcher-new { color: #8fb4d9; }
         .band-switcher-empty { color: #888; padding: 8px 10px; font-size: 0.8rem; }
-        .band-switcher-new-form { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 6px; }
-        .band-switcher-new-form input {
-            background: #262626;
-            border: 1px solid #444;
-            color: #eee;
-            padding: 6px 8px;
-            border-radius: 5px;
-            font-size: 0.85rem;
-        }
-        .band-switcher-new-form button {
-            background: #c00;
-            color: white;
-            border: none;
-            padding: 6px 8px;
-            border-radius: 5px;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 0.85rem;
-        }
-        .band-switcher-new-error { color: #ff8a8a; font-size: 0.78rem; margin: 0; }
     `;
     document.head.appendChild(style);
 
@@ -129,61 +107,6 @@
                     location.reload();
                 });
                 menu.appendChild(item);
-            }
-
-            if (me.isSuperAdmin) {
-                if (bands.length > 0) {
-                    const hr = document.createElement('hr');
-                    hr.className = 'band-switcher-divider';
-                    menu.appendChild(hr);
-                }
-                const newBtn = document.createElement('button');
-                newBtn.type = 'button';
-                newBtn.className = 'band-switcher-item band-switcher-new';
-                newBtn.textContent = '+ New band';
-
-                const newForm = document.createElement('form');
-                newForm.className = 'band-switcher-new-form';
-                newForm.hidden = true;
-                newForm.innerHTML = `
-                    <input type="text" name="name" placeholder="Band name" required autocomplete="off">
-                    <button type="submit">Create</button>
-                    <p class="band-switcher-new-error" hidden></p>
-                `;
-                const errorEl = newForm.querySelector('.band-switcher-new-error');
-
-                newBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    newForm.hidden = !newForm.hidden;
-                    if (!newForm.hidden) newForm.name.focus();
-                });
-                newForm.addEventListener('click', (e) => e.stopPropagation());
-                newForm.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    const name = newForm.name.value.trim();
-                    if (!name) return;
-                    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-                    const res = await fetch('/api/superadmin/bands', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ name, slug })
-                    });
-                    const body = await res.json();
-                    if (!res.ok) {
-                        errorEl.textContent = body.error || 'Could not create band.';
-                        errorEl.hidden = false;
-                        return;
-                    }
-                    await fetch('/api/bands/active', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ bandId: body.id })
-                    });
-                    location.reload();
-                });
-
-                menu.appendChild(newBtn);
-                menu.appendChild(newForm);
             }
         }
 

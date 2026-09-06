@@ -24,9 +24,15 @@ public class BandsController(ApplicationDbContext db, IActiveBandAccessor active
         var userId = User.GetUserId();
         if (userId is null) return Unauthorized();
 
+        // Archived bands are excluded here for everyone, SuperAdmin
+        // included - "deactivated" means nobody can select it day-to-day
+        // any more. SuperAdmin still manages/unarchives it from the
+        // SuperAdmin bands list, which reads straight from db.Bands rather
+        // than through this switcher-only endpoint.
         if (User.IsSuperAdmin())
         {
             var all = await db.Bands.AsNoTracking()
+                .Where(b => !b.IsArchived)
                 .OrderBy(b => b.Name)
                 .Select(b => new { bandId = b.Id, bandName = b.Name, role = "SuperAdmin" })
                 .ToListAsync();
@@ -35,7 +41,7 @@ public class BandsController(ApplicationDbContext db, IActiveBandAccessor active
 
         var mine = await db.BandMemberships.AsNoTracking()
             .Include(m => m.Band)
-            .Where(m => m.UserId == userId)
+            .Where(m => m.UserId == userId && !m.Band.IsArchived)
             .OrderBy(m => m.Band.Name)
             .Select(m => new { bandId = m.BandId, bandName = m.Band.Name, role = m.Role.ToString() })
             .ToListAsync();
@@ -47,6 +53,9 @@ public class BandsController(ApplicationDbContext db, IActiveBandAccessor active
     {
         var userId = User.GetUserId();
         if (userId is null) return Unauthorized();
+
+        var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == request.BandId);
+        if (band is null || band.IsArchived) return BadRequest(new { error = "That band is archived and can no longer be selected." });
 
         var hasAccess = User.IsSuperAdmin() ||
             await db.BandMemberships.AsNoTracking()
