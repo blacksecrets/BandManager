@@ -18,14 +18,19 @@ public record FartRequest(string? ImageUrl);
 /// /items + serializeItem, scoped to the active Band. Field names are
 /// snake_case to match wwwroot/assets/dashboard.js's existing expectations.
 ///
-/// Not yet ported: gig/media/gallery cross-referencing (gig_issues,
-/// gig/media/gallery objects) - that depends on per-Band site sourcing
-/// (gigsSource.js/mediaSource.js/gallerySource.js) which isn't built yet,
-/// so those fields are always null/empty here for now. Publishing is
-/// wired for Facebook, Instagram, Google Business Profile, and no-api
-/// ("mark posted yourself") items - Facebook Cover Photo (needs Catalog +
-/// image generation) and TikTok/YouTube/Bandsintown/Spotify (no posting
-/// API exists for any of them, same as the old app) aren't wired.
+/// gig/media/gallery cross-referencing (SerializeAsync below) reads live
+/// from the Band's own site via GigsSource/MediaSource/GallerySource - a
+/// 60s in-process cache per Band, so serializing a whole list of items
+/// only actually re-fetches the site's calendar.js/media.js/gallery.js
+/// once per unique ref-bearing item type, not once per item. gig_issues
+/// (a "what's still missing on the site itself" checklist) isn't ported -
+/// a separate, smaller gap than the cross-referencing itself.
+///
+/// Publishing is wired for Facebook, Instagram, Google Business Profile,
+/// and no-api ("mark posted yourself") items - Facebook Cover Photo
+/// (needs Catalog + image generation) and TikTok/YouTube/Bandsintown/
+/// Spotify (no posting API exists for any of them, same as the old app)
+/// aren't wired.
 /// </summary>
 [ApiController]
 [Route("/api/items")]
@@ -38,7 +43,10 @@ public partial class ScheduleItemsController(
     FacebookPublisher facebookPublisher,
     InstagramPublisher instagramPublisher,
     GoogleBusinessPublisher googleBusinessPublisher,
-    CatalogStore catalogStore) : ControllerBase
+    CatalogStore catalogStore,
+    GigsSource gigsSource,
+    MediaSource mediaSource,
+    GallerySource gallerySource) : ControllerBase
 {
     [GeneratedRegex(@"^cadence-([0-9a-fA-F-]{36})")]
     private static partial Regex CadenceRuleIdInTemplateKey();
@@ -416,6 +424,21 @@ public partial class ScheduleItemsController(
         Account? account = item.AccountId is { } accId ? accountsById.GetValueOrDefault(accId) : null;
         var automated = !item.NoApi && account?.EncryptedCredentials is not null;
 
+        // FindAsync checks the DbContext's own tracked-entity cache before
+        // hitting the database - serializing a whole list of items for the
+        // same Band only ever costs one real query here, not one per item.
+        var band = await db.Bands.FindAsync(item.BandId);
+
+        Gig? gig = null;
+        MediaItem? media = null;
+        GalleryImage? gallery = null;
+        if (band is not null)
+        {
+            if (!string.IsNullOrEmpty(item.GigRef)) gig = await gigsSource.FindGigByRefAsync(band, item.GigRef);
+            if (!string.IsNullOrEmpty(item.MediaRef)) media = await mediaSource.FindMediaByRefAsync(band, item.MediaRef);
+            if (!string.IsNullOrEmpty(item.GalleryRef)) gallery = await gallerySource.FindGalleryByRefAsync(band, item.GalleryRef);
+        }
+
         return new
         {
             id = item.Id,
@@ -429,6 +452,8 @@ public partial class ScheduleItemsController(
             no_api = item.NoApi,
             auto_handled = item.AutoHandled,
             gig_ref = item.GigRef,
+            media_ref = item.MediaRef,
+            gallery_ref = item.GalleryRef,
             artifacts_owed = item.ArtifactsOwed,
             posted_at = item.PostedAt,
             posted_via = item.PostedVia,
@@ -444,9 +469,41 @@ public partial class ScheduleItemsController(
                 uploaded_at = a.UploadedAt
             }),
             status = new { color = status.Color, label = status.Label, ready = status.Ready },
-            gig_title = (string?)null,
-            gig = (object?)null,
+            gig_title = gig?.Title,
+            gig = gig is null ? null : new
+            {
+                id = gig.Id,
+                title = gig.Title,
+                venue = gig.Venue,
+                venueUrl = gig.VenueUrl,
+                date = gig.Date,
+                time = gig.Time,
+                address = gig.Address,
+                withArtists = gig.WithArtists,
+                withArtistsUrl = gig.WithArtistsUrl,
+                ticketsUrl = gig.TicketsUrl,
+                flyerMain = gig.FlyerMain,
+                freeAdmission = gig.FreeAdmission,
+                customTicketsText = gig.CustomTicketsText,
+                ticketMode = gig.TicketMode
+            },
             gig_issues = Array.Empty<string>(),
+            media_title = media?.Title,
+            media = media is null ? null : new
+            {
+                id = media.Id,
+                title = media.Title,
+                url = media.Url,
+                thumbnail = media.Thumbnail
+            },
+            gallery_title = gallery?.Alt,
+            gallery = gallery is null ? null : new
+            {
+                id = gallery.Id,
+                alt = gallery.Alt,
+                thumb = gallery.Thumb,
+                full = gallery.Full
+            },
             manual_instructions = manualInstructions,
             automated,
             account_label = account?.Label

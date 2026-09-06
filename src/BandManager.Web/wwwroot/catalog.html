@@ -11,18 +11,13 @@
 <body>
     <header class="topbar">
         <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
         <h1>Catalog</h1>
-        <a class="back-link" href="/">&larr; Back to dashboard</a>
+        <nav class="main-nav" id="main-nav"></nav>
         <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
     </header>
 
     <main class="settings-main catalog-main">
-        <nav class="settings-tabs">
-            <a href="/settings">Setup and Registration</a>
-            <a href="/cadence">Cadence</a>
-            <a href="/catalog" class="active">Catalog</a>
-            <a href="/profile">Profile</a>
-        </nav>
 
         <p class="intro">
             Every photo, video, and audio file this app has ever handled -
@@ -57,6 +52,7 @@
 
     <script src="/assets/catalog.js"></script>
     <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>
     <script src="/assets/testModeBanner.js"></script>
 </body>

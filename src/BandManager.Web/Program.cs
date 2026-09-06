@@ -4,6 +4,7 @@ using BandManager.Data.Entities;
 using BandManager.Data.Seed;
 using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,14 +13,27 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
 
+// Without this, ASP.NET Core generates a fresh in-memory key ring per
+// process - every container restart silently invalidates every logged-in
+// user's auth cookie (decrypts to garbage under the new key, so it's
+// treated as "not logged in," not an error). Persisting it into the same
+// data/ bind mount that already survives restarts (secret.key, uploads,
+// etc.) fixes that: a rebuild/redeploy no longer logs anyone out.
+builder.Services.AddDataProtection()
+    .SetApplicationName("BandManager")
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, "data", "dpkeys")));
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
 builder.Services
     .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
     {
-        // Internal tool, small trusted user base - relaxed but not absent.
-        options.Password.RequireNonAlphanumeric = false;
+        // 8+ chars, at least one uppercase, lowercase, digit, and special
+        // character - RequireUppercase/Lowercase/Digit are already true by
+        // default (never overridden here), so RequireNonAlphanumeric is
+        // the only one that needs setting explicitly.
+        options.Password.RequireNonAlphanumeric = true;
         options.Password.RequiredLength = 8;
         options.User.RequireUniqueEmail = false;
     })
@@ -69,6 +83,8 @@ builder.Services.AddScoped<IActiveBandAccessor, ActiveBandAccessor>();
 // the reset link instead of sending it) - swap this registration for a
 // real SMTP/SendGrid/etc. sender once one is chosen; nothing else changes.
 builder.Services.AddScoped<BandManager.Web.Services.IEmailSender, BandManager.Web.Services.LoggingEmailSender>();
+builder.Services.AddScoped<BandManager.Web.Services.UserProvisioningService>();
+builder.Services.AddScoped<BandManager.Web.Services.SongSearchService>();
 
 // The one genuinely irreplaceable piece of local state - see
 // AesGcmCredentialCipher's doc comment. Configurable via
@@ -84,9 +100,12 @@ builder.Services.AddScoped<BandManager.Data.Services.BandMembershipService>();
 var uploadsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "uploads");
 var catalogRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "catalog");
 var flyerCacheRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "flyer-cache");
+var bandBrandingRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "band-branding");
+
+builder.Services.AddHttpClient(); // generic IHttpClientFactory, for FlyerCache/CatalogStore below
 
 builder.Services.AddScoped<BandManager.Data.Services.CatalogStore>(sp =>
-    new BandManager.Data.Services.CatalogStore(sp.GetRequiredService<ApplicationDbContext>(), catalogRootPath));
+    new BandManager.Data.Services.CatalogStore(sp.GetRequiredService<ApplicationDbContext>(), catalogRootPath, sp.GetRequiredService<IHttpClientFactory>().CreateClient()));
 
 // Per-Band site content sourcing (calendar.js/media.js/gallery.js) - plain
 // HttpClient-typed services, no extra constructor params, so a simple
@@ -94,10 +113,14 @@ builder.Services.AddScoped<BandManager.Data.Services.CatalogStore>(sp =>
 builder.Services.AddHttpClient<BandManager.Data.Services.GigsSource>();
 builder.Services.AddHttpClient<BandManager.Data.Services.MediaSource>();
 builder.Services.AddHttpClient<BandManager.Data.Services.GallerySource>();
+builder.Services.AddHttpClient<BandManager.Data.Services.GitHubSiteClient>();
 
-builder.Services.AddHttpClient(); // generic IHttpClientFactory, for FlyerCache below
 builder.Services.AddScoped<BandManager.Data.Services.FlyerCache>(sp =>
     new BandManager.Data.Services.FlyerCache(sp.GetRequiredService<IHttpClientFactory>().CreateClient(), flyerCacheRootPath));
+
+builder.Services.AddScoped<BandManager.Data.Services.GigsSiteEditor>();
+builder.Services.AddScoped<BandManager.Data.Services.MediaSiteEditor>();
+builder.Services.AddScoped<BandManager.Data.Services.GallerySiteEditor>();
 
 builder.Services.AddScoped<BandManager.Data.Services.Scheduler>(sp =>
     new BandManager.Data.Services.Scheduler(
@@ -137,7 +160,17 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.UseDefaultFiles();
-app.UseStaticFiles();
+// no-cache (not no-store) - the browser still keeps a copy and can reuse
+// it, but only after revalidating with the server on every request
+// (a cheap conditional GET, 304 if unchanged). Without this, browsers
+// apply their own heuristic freshness window to these files with no
+// explicit Cache-Control header, which has repeatedly served a stale
+// wwwroot/assets/*.js after a deploy even on a plain reload - a real bug
+// hunted down more than once, not just a hygiene nicety.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx => ctx.Context.Response.Headers.CacheControl = "no-cache"
+});
 
 // Public (no login required) - the login page itself needs to show
 // branding before anyone's authenticated, same as the old app's
@@ -184,6 +217,7 @@ void MapAuthenticatedStaticFiles(string requestPath, string physicalPath)
 }
 
 MapAuthenticatedStaticFiles("/uploads", uploadsRootPath);
+MapAuthenticatedStaticFiles("/band-branding", bandBrandingRootPath);
 // Extensionless page routes - the reused frontend's nav links (topbar
 // <a href="/settings">, etc., carried over unchanged from the old app)
 // point at these, not the .html filenames directly. The .html files stay
@@ -191,7 +225,7 @@ MapAuthenticatedStaticFiles("/uploads", uploadsRootPath);
 // disclosed gap: unlike the old app, that path doesn't require login -
 // no secrets live in the page shells themselves, just markup/JS, but
 // worth tightening later if that stops being true).
-foreach (var page in new[] { "settings", "cadence", "catalog", "profile" })
+foreach (var page in new[] { "dashboard", "settings", "cadence", "catalog", "profile", "band-admin", "superadmin", "repertoire", "gig-sets" })
 {
     // Plain "logged in" (not the BandMember policy) - same as "/" (the
     // Dashboard, served unconditionally above) needs no active Band just

@@ -28,6 +28,18 @@ async function loadAll() {
         fetch('/api/cadence-rules'),
         fetch('/api/content-types')
     ]);
+    // Not logged in, or no active band selected yet - same class of bug
+    // dashboard.js's loadItems had (see there for the fuller explanation):
+    // without this, res.json() on the error body throws and the page is
+    // stuck on its initial "Loading..." forever.
+    if (platformsRes.status === 401) {
+        location.href = '/login.html';
+        return;
+    }
+    if (platformsRes.status === 403 || platformsRes.status === 400) {
+        document.getElementById('cadence-board').textContent = 'Select a band from the switcher above to continue.';
+        return;
+    }
     platforms = await platformsRes.json();
     rules = await rulesRes.json();
     contentTypes = await typesRes.json();
@@ -55,7 +67,7 @@ function scheduleSummary(rule) {
 
 // One collapsible row per platform - same .platform-section/.section-toggle/
 // .chevron/.platform-section-body classes as the main dashboard and the
-// Setup and Registration page, reused as-is rather than a parallel layout.
+// Configure Web Presence page, reused as-is rather than a parallel layout.
 function render() {
     const board = document.getElementById('cadence-board');
     board.innerHTML = '';

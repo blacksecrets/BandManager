@@ -4,6 +4,13 @@ using SkiaSharp;
 
 namespace BandManager.Data.Services;
 
+public record ResolvedMedia(byte[] Buffer, string MimeType, string? Ext, string Mode);
+
+/// <summary>An already-read upload's bytes - the Web layer extracts these
+/// from its own IFormFile (ASP.NET Core-specific, not available to this
+/// plain class library project) before calling ResolveMediaInputAsync.</summary>
+public record UploadedFilePayload(byte[] Bytes, string MimeType, string? FileName);
+
 /// <summary>
 /// The Media Catalog: a persistent, per-Band, browsable library of every
 /// image/video/audio file this Band's users have touched. Ported from the
@@ -13,16 +20,11 @@ namespace BandManager.Data.Services;
 /// (not resolved internally), same pattern as AesGcmCredentialCipher's
 /// keyFilePath - resolved from IWebHostEnvironment.ContentRootPath by the
 /// Web project's DI registration.
-///
-/// Not yet ported: the general resolveMediaInput dispatcher that the old
-/// app wired into every OTHER upload spot (item artifacts, gig flyers,
-/// etc.) so those could pick-from-catalog or paste-a-URL too - this is
-/// registration + browse/list/delete only for now, enough for Cover Photo
-/// and the Catalog page itself.
 /// </summary>
-public class CatalogStore(ApplicationDbContext db, string catalogRootPath)
+public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpClient http)
 {
     private const int ThumbMaxWidth = 200; // matches the old app's generateThumbnail
+    private const long DefaultMaxUrlBytes = 200 * 1024 * 1024;
 
     private static readonly Dictionary<string, string> ExtForMime = new()
     {
@@ -181,5 +183,99 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath)
         db.CatalogItems.RemoveRange(items);
         await db.SaveChangesAsync();
         return items.Count;
+    }
+
+    /// <summary>Paste-a-URL mode: fetches, validates, and returns bytes -
+    /// never touches the Catalog itself (the caller decides whether/how
+    /// to register it).</summary>
+    public async Task<(byte[] Buffer, string MimeType, string? OriginalFilename)> FetchUrlAsBufferAsync(string url, long maxBytes = DefaultMaxUrlBytes)
+    {
+        Uri parsed;
+        try { parsed = new Uri(url); }
+        catch { throw new InvalidOperationException("That is not a valid URL."); }
+        if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)
+            throw new InvalidOperationException("Only http/https URLs are supported.");
+
+        HttpResponseMessage res;
+        try { res = await http.GetAsync(parsed); }
+        catch (Exception ex) { throw new InvalidOperationException($"Could not reach that URL: {ex.Message}"); }
+        if (!res.IsSuccessStatusCode) throw new InvalidOperationException($"Could not fetch that URL (HTTP {(int)res.StatusCode}).");
+
+        var contentType = (res.Content.Headers.ContentType?.MediaType ?? "").Trim().ToLowerInvariant();
+        if (MediaTypeForMime(contentType) is null)
+            throw new InvalidOperationException($"That URL isn't an image, video, or audio file (got \"{(contentType.Length > 0 ? contentType : "an unknown type")}\").");
+
+        var contentLength = res.Content.Headers.ContentLength;
+        if (contentLength is not null && contentLength > maxBytes)
+            throw new InvalidOperationException($"File is too large (max {maxBytes / 1024 / 1024}MB).");
+
+        var buffer = await res.Content.ReadAsByteArrayAsync();
+        if (buffer.Length > maxBytes) throw new InvalidOperationException($"File is too large (max {maxBytes / 1024 / 1024}MB).");
+        if (buffer.Length == 0) throw new InvalidOperationException("That URL returned an empty file.");
+
+        // Cheap insurance against a spoofed content-type on an image:
+        // round-trip the bytes through the image decoder, which throws on
+        // anything it can't decode.
+        if (contentType.StartsWith("image/"))
+        {
+            using var decoded = SKBitmap.Decode(buffer);
+            if (decoded is null) throw new InvalidOperationException("That URL did not contain a valid, decodable image.");
+        }
+
+        var originalFilename = Path.GetFileName(parsed.LocalPath);
+        return (buffer, contentType, string.IsNullOrEmpty(originalFilename) ? null : originalFilename);
+    }
+
+    /// <summary>The single entry point every upload route in the app
+    /// calls instead of reading the raw multipart form directly - ported
+    /// from the old app's resolveMediaInput. Each request only ever
+    /// carries one media input, so the three modes share plain,
+    /// unprefixed field names (file / catalogItemId / url). Returns a
+    /// resolved buffer with Mode == "none" if nothing was provided.
+    ///
+    /// Auto-registration (every future upload anywhere becomes a Catalog
+    /// entry with zero extra steps) happens here for the 'file' and 'url'
+    /// modes only - a catalogItemId pick is already a Catalog row, so
+    /// it's never re-registered. That's what keeps copy semantics honest:
+    /// the destination always gets an independent byte-copy, and the
+    /// Catalog row itself is only ever touched by the Catalog routes (or
+    /// here, on first creation).</summary>
+    public async Task<ResolvedMedia?> ResolveMediaInputAsync(
+        Guid bandId, UploadedFilePayload? file, string? catalogItemId, string? url,
+        MediaType? expectedMediaType, string? uploadedBy, long maxBytes = DefaultMaxUrlBytes)
+    {
+        if (file is not null && file.Bytes.Length > 0)
+        {
+            var mimeType = file.MimeType;
+            if (expectedMediaType is not null && MediaTypeForMime(mimeType) != expectedMediaType)
+                throw new InvalidOperationException($"Expected a {expectedMediaType.ToString()!.ToLowerInvariant()} file, got {mimeType}");
+
+            try { await RegisterCatalogItemAsync(bandId, file.Bytes, mimeType, file.FileName, CatalogSource.Upload, null, uploadedBy); }
+            catch { /* best-effort, same as the old app - a registration failure shouldn't block the actual upload */ }
+            return new ResolvedMedia(file.Bytes, mimeType, ExtForMimeType(mimeType, file.FileName), "file");
+        }
+
+        if (!string.IsNullOrEmpty(catalogItemId))
+        {
+            if (!Guid.TryParse(catalogItemId, out var id)) throw new InvalidOperationException("Invalid catalogItemId");
+            var item = await db.CatalogItems.FirstOrDefaultAsync(c => c.Id == id && c.BandId == bandId)
+                ?? throw new InvalidOperationException("Catalog item not found.");
+            if (expectedMediaType is not null && item.MediaType != expectedMediaType)
+                throw new InvalidOperationException($"That Catalog item is {item.MediaType.ToString()!.ToLowerInvariant()}, not {expectedMediaType.ToString()!.ToLowerInvariant()}");
+            var buffer = await File.ReadAllBytesAsync(ResolveFullPath(item));
+            return new ResolvedMedia(buffer, item.MimeType, ExtForMimeType(item.MimeType, item.OriginalFilename), "catalog");
+        }
+
+        if (!string.IsNullOrEmpty(url))
+        {
+            var (buffer, mimeType, originalFilename) = await FetchUrlAsBufferAsync(url, maxBytes);
+            if (expectedMediaType is not null && MediaTypeForMime(mimeType) != expectedMediaType)
+                throw new InvalidOperationException($"Expected a {expectedMediaType.ToString()!.ToLowerInvariant()} URL, got {mimeType}");
+            try { await RegisterCatalogItemAsync(bandId, buffer, mimeType, originalFilename, CatalogSource.Url, url, uploadedBy); }
+            catch { /* best-effort */ }
+            return new ResolvedMedia(buffer, mimeType, ExtForMimeType(mimeType, originalFilename), "url");
+        }
+
+        return null;
     }
 }

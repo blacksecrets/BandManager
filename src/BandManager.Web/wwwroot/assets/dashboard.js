@@ -54,7 +54,7 @@ async function adhocContentTypesForPlatform(platform) {
 // Where "Setup X" should send you on the Settings page.
 const SETTINGS_ANCHOR = {
     facebook: '/settings#meta-section',
-    instagram: '/settings#meta-section',
+    instagram: '/settings#instagram-section',
     googleBusiness: '/settings#gbp-section',
     website: '/settings#website-section'
 };
@@ -90,6 +90,26 @@ async function loadItems() {
         fetch('/api/items'),
         fetch('/api/settings/credentials')
     ]);
+    // Not logged in (or the session expired) - the board's own API calls
+    // 401 rather than redirecting (see Program.cs's OnRedirectToLogin),
+    // so without this check the page would just sit on "Loading..."
+    // forever instead of bouncing to the login form.
+    if (itemsRes.status === 401) {
+        location.href = '/login.html';
+        return;
+    }
+    // Logged in, but no active band resolved. Two different status codes
+    // for the same underlying problem: a regular user gets 403 from
+    // BandAccessCheck.HasAccessAsync (normally auto-fixes itself there for
+    // anyone with just one band, so this only shows for a genuinely
+    // ambiguous multi-band user); a SuperAdmin always passes that check
+    // regardless of band, so they instead hit ScheduleItemsController's own
+    // RequireActiveBand and get 400. Either way, "Loading..." forever is
+    // never the right thing to show.
+    if (itemsRes.status === 403 || itemsRes.status === 400) {
+        board.textContent = 'Select a band from the switcher above to continue.';
+        return;
+    }
     const items = await itemsRes.json();
     configuredPlatforms = await credsRes.json();
     if (ADHOC_CONTENT_TYPES.length === 0) await loadAdhocContentTypes();
@@ -1471,6 +1491,7 @@ function openMediaEditForm(item) {
     form.className = 'website-edit-form';
     form.innerHTML = `
         <label>Title <input type="text" name="title" value="${escapeHtml(media.title || '')}" maxlength="200" required></label>
+        ${media.url ? `<p class="current-flyer">Current link: <a href="${escapeHtml(media.url)}" target="_blank" rel="noopener">open link</a></p>` : ''}
         <label>YouTube or SoundCloud link <input type="text" name="mediaUrl" value="" placeholder="paste a new link to change it - leave blank to keep the current one"></label>
         ${media.thumbnail ? `<p class="current-flyer">Current tile art: <a href="#" class="current-flyer-link">view image</a></p>` : ''}
         <label>Replace tile art</label>

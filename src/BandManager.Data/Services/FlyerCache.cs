@@ -25,6 +25,45 @@ public class FlyerCache(HttpClient http, string cacheRootPath)
     /// error, or the path was already a full external URL with nothing to
     /// mirror - some older media items point straight at e.g. YouTube's
     /// own thumbnail CDN).</summary>
+    /// <summary>Writes bytes already in hand straight into the cache,
+    /// rather than deleting the stale entry and waiting for the next
+    /// cache-priming cycle to re-fetch it from the live site - which can
+    /// lag behind a GitHub push. Used right after a GitHub push of the
+    /// same bytes, so the dashboard's own tile shows the new image
+    /// immediately instead of a stale one.</summary>
+    public async Task WriteDirectlyAsync(Band band, string relativePath, byte[] bytes)
+    {
+        var bandCacheDir = Path.Combine(cacheRootPath, band.Id.ToString());
+        var normalizedRelative = relativePath.Replace('\\', '/').TrimStart('/');
+        var destPath = Path.GetFullPath(Path.Combine(bandCacheDir, normalizedRelative.Replace('/', Path.DirectorySeparatorChar)));
+        if (!destPath.StartsWith(Path.GetFullPath(bandCacheDir), StringComparison.Ordinal)) return;
+
+        Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
+        await File.WriteAllBytesAsync(destPath, bytes);
+    }
+
+    /// <summary>Drops a cached file if present (best-effort, never
+    /// throws) - used when a fresher copy isn't available in hand to
+    /// write directly (e.g. a regenerated thumbnail whose bytes weren't
+    /// kept around), so the next cache-priming read just re-fetches it
+    /// from the live site instead of serving a stale one.</summary>
+    public void DeleteCached(Band band, string? relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath)) return;
+        try
+        {
+            var bandCacheDir = Path.Combine(cacheRootPath, band.Id.ToString());
+            var normalizedRelative = relativePath.Replace('\\', '/').TrimStart('/');
+            var destPath = Path.GetFullPath(Path.Combine(bandCacheDir, normalizedRelative.Replace('/', Path.DirectorySeparatorChar)));
+            if (!destPath.StartsWith(Path.GetFullPath(bandCacheDir), StringComparison.Ordinal)) return;
+            File.Delete(destPath);
+        }
+        catch
+        {
+            // best-effort
+        }
+    }
+
     public async Task<string?> EnsureCachedAsync(Band band, string? relativePath)
     {
         if (string.IsNullOrWhiteSpace(relativePath)) return null;

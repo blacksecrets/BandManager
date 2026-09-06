@@ -32,10 +32,31 @@ body {
 .topbar h1 { font-size: 1.2rem; margin: 0; }
 .brand-logo-slot:empty { display: none; }
 .brand-logo { height: 32px; width: auto; display: block; }
-.legend { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #aaa; flex-wrap: wrap; }
+.legend { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: #aaa; flex-wrap: wrap; padding: 10px 20px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
-.setup-link { margin-left: auto; color: #aaa; text-decoration: none; font-size: 0.85rem; }
-.setup-link:hover { color: #eee; }
+
+/* Shared nav (topNav.js) - one instance per page, replacing what used to
+   be hand-duplicated topbar links plus a separate settings-tabs strip. */
+.role-badge {
+    background: #2a3a4a;
+    color: #8fb4d9;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 10px;
+}
+.role-badge[hidden] { display: none; }
+.main-nav { display: flex; align-items: center; gap: 16px; margin-left: auto; flex-wrap: wrap; }
+.main-nav-link { color: #aaa; text-decoration: none; font-size: 0.85rem; }
+.main-nav-link:hover { color: #eee; }
+.main-nav-link.active { color: #fff; font-weight: bold; border-bottom: 2px solid #c00; padding-bottom: 2px; }
+/* Band-scoped feature with no active Band selected - still a real link
+   (clicking it explains why, via the page's own "select a band" message)
+   so this dims it rather than disabling it outright. */
+.main-nav-link.nav-link-inactive { color: #666; }
+.main-nav-link.nav-link-inactive:hover { color: #888; }
 /* Always pins Log out to the far right, regardless of what else is in a
    given page's topbar - on index.html .setup-link's own auto-margin
    already does this (this is a no-op there, both push the same

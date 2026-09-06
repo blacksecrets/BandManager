@@ -14,10 +14,21 @@ function escapeHtmlCatalog(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Returns null (instead of throwing) when not logged in or no active band
+// is selected yet - res.json() on that error body would otherwise throw
+// and leave the page stuck on its initial "Loading..." forever (same
+// class of bug dashboard.js had - see its 401/403 handling in loadItems
+// for the fuller explanation). Callers must check for null before
+// rendering normally.
 async function fetchCatalogItems(q) {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     const res = await fetch(`/api/catalog?${params.toString()}`);
+    if (res.status === 401) {
+        location.href = '/login.html';
+        return null;
+    }
+    if (res.status === 403 || res.status === 400) return null;
     return res.json();
 }
 
@@ -108,7 +119,12 @@ if (document.getElementById('catalog-grid')) {
     }
 
     async function reload() {
-        allItems = await fetchCatalogItems(searchQuery);
+        const items = await fetchCatalogItems(searchQuery);
+        if (items === null) {
+            grid.textContent = 'Select a band from the switcher above to continue.';
+            return;
+        }
+        allItems = items;
         render();
     }
 
@@ -434,7 +450,7 @@ window.openCatalogPicker = function openCatalogPicker({ mediaType }) {
         function onKeydown(e) { if (e.key === 'Escape') finish(null); }
 
         async function renderGrid(q) {
-            const items = (await fetchCatalogItems(q)).filter((i) => i.media_type === mediaType);
+            const items = ((await fetchCatalogItems(q)) || []).filter((i) => i.media_type === mediaType);
             grid.innerHTML = '';
             if (items.length === 0) {
                 grid.innerHTML = '<p class="catalog-empty-note">Nothing here yet.</p>';
