@@ -1,10 +1,13 @@
 // Which <template> holds a platform's hand-authored detail content (form
 // plus any bespoke tooling - auto-setup, verify, cover photo). Facebook
-// and Instagram share one accordion row (one Meta Developer App covers
-// both) and one template; a platform with no entry here and no
-// credential_fields is purely informational (no form, just instructions).
+// and Instagram are independently configured, each its own accordion row -
+// Instagram's own template offers a choice to reuse the Facebook
+// connection or connect independently, but neither platform requires the
+// other. A platform with no entry here and no credential_fields is purely
+// informational (no form, just instructions).
 const TEMPLATE_FOR_PLATFORM = {
     facebook: 'tpl-meta',
+    instagram: 'tpl-instagram',
     googleBusiness: 'tpl-googleBusiness',
     website: 'tpl-website',
     bandsintown: 'tpl-bandsintown'
@@ -20,6 +23,18 @@ function escapeHtml(str) {
 
 async function loadPlatforms() {
     const res = await fetch('/api/platforms');
+    // Not logged in, or no active band selected yet - same class of bug
+    // dashboard.js's loadItems had (see there for the fuller explanation):
+    // without this, res.json() on the error body throws and the page is
+    // stuck on its initial "Loading platforms..." forever.
+    if (res.status === 401) {
+        location.href = '/login.html';
+        return;
+    }
+    if (res.status === 403 || res.status === 400) {
+        document.getElementById('platform-accordion').textContent = 'Select a band from the switcher above to continue.';
+        return;
+    }
     const platforms = await res.json();
     platformsById = Object.fromEntries(platforms.map((p) => [p.id, p]));
 
@@ -30,6 +45,7 @@ async function loadPlatforms() {
     wireInstructionsToggles();
     wireDisconnectButtons();
     wireCredForms();
+    wireInstagramModeToggle();
     wireMetaManualForm();
     wireCoverPhotoTool();
     wireAutoSetupTool();
@@ -53,18 +69,18 @@ async function loadPlatforms() {
     }
 }
 
-// One row per platform, Facebook+Instagram merged into one (same pattern
-// as the main dashboard's collapsible platform sections - same CSS
-// classes, reused as-is rather than inventing a parallel layout).
+// One row per platform (same pattern as the main dashboard's collapsible
+// platform sections - same CSS classes, reused as-is rather than
+// inventing a parallel layout). Facebook and Instagram are two separate
+// rows, each independently configured.
 function renderPlatformAccordion(platforms) {
     const container = document.getElementById('platform-accordion');
     container.innerHTML = '';
 
     for (const platform of platforms) {
-        if (platform.id === 'instagram') continue; // folded into the facebook row below
         const isMeta = platform.id === 'facebook';
         const rowId = isMeta ? 'meta' : platform.id;
-        const rowLabel = isMeta ? 'Facebook & Instagram' : platform.display_name;
+        const rowLabel = isMeta ? 'Facebook' : platform.display_name;
 
         const section = document.createElement('section');
         section.className = 'platform-section';
@@ -85,13 +101,7 @@ function renderPlatformAccordion(platforms) {
         `;
         header.appendChild(toggleBtn);
 
-        if (isMeta) {
-            const badge = document.createElement('span');
-            badge.className = 'status-badge';
-            badge.dataset.platformGroup = 'meta';
-            badge.textContent = 'checking...';
-            header.appendChild(badge);
-        } else if (platform.credential_fields) {
+        if (platform.credential_fields) {
             const badge = document.createElement('span');
             badge.className = 'status-badge';
             badge.dataset.platform = platform.id;
@@ -199,21 +209,6 @@ function applyBadge(badge, state, textOverride) {
     badge.textContent = textOverride || (state === 'ok' ? 'Configured' : state === 'warn' ? 'Needs attention' : 'Not configured');
 }
 
-// Facebook and Instagram share one row, but they're independently
-// configured - a blanket "Setup needed" the moment either one is missing
-// reads as "nothing here works," even when Facebook is fully connected
-// and verified and only Instagram was never added. Names which one, if
-// only one, is actually done.
-function metaCombinedState(data) {
-    const fbState = badgeState(data.facebook);
-    const igState = badgeState(data.instagram);
-    if (fbState === 'warn' || igState === 'warn') return { state: 'warn', text: 'Needs attention' };
-    if (fbState === 'ok' && igState === 'ok') return { state: 'ok', text: 'Both configured' };
-    if (fbState === 'ok') return { state: 'off', text: 'Facebook connected, Instagram not set up' };
-    if (igState === 'ok') return { state: 'off', text: 'Instagram connected, Facebook not set up' };
-    return { state: 'off', text: 'Setup needed' };
-}
-
 // Turns a verifyConnection()-shaped result ({ok, pageName, steps} or the
 // {ok:false, error} short-circuit when the Page couldn't even be reached)
 // into one readable sentence, reused everywhere a verification outcome is shown.
@@ -232,6 +227,10 @@ function formatVerificationMessage(v) {
 
 async function loadStatus() {
     const res = await fetch('/api/settings/credentials');
+    // No active band (or logged out) - loadPlatforms already showed a
+    // message in that case, chained right before this via
+    // loadPlatforms().then(loadStatus); nothing further to update here.
+    if (!res.ok) return;
     const data = await res.json();
 
     for (const badge of document.querySelectorAll('.status-badge[data-platform]')) {
@@ -239,33 +238,23 @@ async function loadStatus() {
         applyBadge(badge, badgeState(data[platform]), expiryOverrideText(data[platform]));
     }
 
-    // Combined Facebook+Instagram badge in the section heading.
-    const metaBadge = document.querySelector('.status-badge[data-platform-group="meta"]');
-    if (metaBadge) {
-        const { state, text } = metaCombinedState(data);
-        applyBadge(metaBadge, state, text);
-    }
-
-    // The modal's own top-of-modal status indicators - same badgeState
-    // logic as everything else, just its own dedicated elements (not
-    // data-platform, so the loop above doesn't already touch them).
+    // The modal's own top-of-modal status indicator - same badgeState
+    // logic as everything else, just its own dedicated element (not
+    // data-platform, so the loop above doesn't already touch it).
     const modalFbBadge = document.getElementById('meta-setup-status-facebook');
     if (modalFbBadge) applyBadge(modalFbBadge, badgeState(data.facebook), expiryOverrideText(data.facebook));
-    const modalIgBadge = document.getElementById('meta-setup-status-instagram');
-    if (modalIgBadge) applyBadge(modalIgBadge, badgeState(data.instagram), expiryOverrideText(data.instagram));
 
-    // Prefills the modal's expiry field from whichever of the two has one
-    // set (they share one token, so they should match) - repopulated on
-    // every status refresh, same as the badges above.
     const expiryInput = document.getElementById('meta-token-expiry');
-    if (expiryInput) expiryInput.value = data.facebook?.tokenExpiresAt || data.instagram?.tokenExpiresAt || '';
+    if (expiryInput) expiryInput.value = data.facebook?.tokenExpiresAt || '';
 
     // A visible warning outside the modal too, not just a quiet badge -
     // same "stays visible until fixed" treatment as the verification-error
-    // banner below.
+    // banner below. Instagram's own expiry (only meaningful in standalone
+    // mode - linked mode has no token of its own) surfaces through its
+    // own row's badge instead, via the generic expiryOverrideText loop above.
     const metaExpiryWarning = document.getElementById('meta-token-expiry-warning');
     if (metaExpiryWarning) {
-        const msg = expiryOverrideText(data.facebook) || expiryOverrideText(data.instagram);
+        const msg = expiryOverrideText(data.facebook);
         if (msg) {
             metaExpiryWarning.textContent = `${msg} - reconnect before it stops working.`;
             metaExpiryWarning.hidden = false;
@@ -275,45 +264,9 @@ async function loadStatus() {
         }
     }
 
-    // The auto-setup tool always re-derives Facebook (token exchange +
-    // Page lookup) and only saves Instagram if it finds one linked - so
-    // it's equally the right tool whichever one is still missing, but a
-    // blanket "Finish setup automatically" reads as "start from scratch"
-    // even when one side's already done. Name the one actually missing.
-    const autoHeading = document.getElementById('auto-setup-heading');
-    const autoDescription = document.getElementById('auto-setup-description');
-    if (autoHeading && autoDescription) {
-        const fbState = badgeState(data.facebook);
-        const igState = badgeState(data.instagram);
-        if (fbState === 'ok' && igState !== 'ok') {
-            autoHeading.textContent = 'Finish Instagram setup automatically';
-            autoDescription.textContent = 'Facebook is already connected - paste what you have and this finds the Instagram Business Account linked to your Page and saves it too, no separate manual lookup needed.';
-        } else if (igState === 'ok' && fbState !== 'ok') {
-            autoHeading.textContent = 'Finish Facebook setup automatically';
-            autoDescription.textContent = 'Instagram is already connected - paste what you have and this reconnects Facebook (exchanges your token for a long-lived one and finds your Page), the same steps a full setup uses.';
-        } else {
-            autoHeading.textContent = 'Finish setup automatically';
-            autoDescription.textContent = 'Paste what you have and this does the rest for you: exchanges your token for a long-lived one, finds your Page, and finds its linked Instagram account - saving both Facebook and Instagram in one step instead of four manual Graph API queries.';
-        }
-    }
-
-    // Same naming logic, for the button that opens the modal these fields
-    // live in - reads "Set up" before anything's connected, names whichever
-    // platform is still missing once one side's already done.
     const openModalBtn = document.getElementById('open-meta-setup-modal-btn');
     if (openModalBtn) {
-        const { state } = metaCombinedState(data);
-        const fbState = badgeState(data.facebook);
-        const igState = badgeState(data.instagram);
-        if (state === 'ok') {
-            openModalBtn.textContent = 'Manage Facebook & Instagram setup';
-        } else if (fbState === 'ok' && igState !== 'ok') {
-            openModalBtn.textContent = 'Finish Instagram setup';
-        } else if (igState === 'ok' && fbState !== 'ok') {
-            openModalBtn.textContent = 'Finish Facebook setup';
-        } else {
-            openModalBtn.textContent = 'Set up Facebook & Instagram';
-        }
+        openModalBtn.textContent = badgeState(data.facebook) === 'ok' ? 'Manage Facebook setup' : 'Set up Facebook';
     }
 
     // Accordion rows: status shows entirely through the badge now (no more
@@ -321,7 +274,7 @@ async function loadStatus() {
     // tracks which row is "broken" so it can be force-expanded below.
     for (const row of document.querySelectorAll('.platform-section[data-platform-row]')) {
         const rowId = row.dataset.platformRow;
-        const state = rowId === 'meta' ? metaCombinedState(data).state : badgeState(data[rowId]);
+        const state = badgeState(data[rowId === 'meta' ? 'facebook' : rowId]);
         row.classList.toggle('connected', state === 'ok');
         row.classList.toggle('needs-attention', state === 'warn');
     }
@@ -332,7 +285,7 @@ async function loadStatus() {
         tool.hidden = !data[tool.dataset.disconnectTool]?.configured;
     }
     const metaDisconnect = document.getElementById('meta-disconnect-tool');
-    if (metaDisconnect) metaDisconnect.hidden = !data.facebook?.configured && !data.instagram?.configured;
+    if (metaDisconnect) metaDisconnect.hidden = !data.facebook?.configured;
 
     const coverTool = document.getElementById('cover-photo-tool');
     if (coverTool) {
@@ -397,9 +350,15 @@ async function saveCredentials(platform, body) {
 // needs to be shown.
 function describeSaveOutcome(label, result) {
     if (!result.verification) return `${label} saved.`;
-    return result.verification.ok
+    if (!result.verification.ok) {
+        return `${label} saved, but the connection check failed: ${formatVerificationMessage(result.verification)}. Fix this before relying on it to post.`;
+    }
+    // Not every platform's check identifies a specific connected account
+    // (pageName) - Website's just confirms the site's reachable and the
+    // GitHub token/repo actually work, with nothing named to report back.
+    return result.verification.pageName
         ? `${label} saved and verified - connected as "${result.verification.pageName}".`
-        : `${label} saved, but the connection check failed: ${formatVerificationMessage(result.verification)}. Fix this before relying on it to post.`;
+        : `${label} saved and verified.`;
 }
 
 // Bandsintown's save can come back with siteUpdateError even on ok:true
@@ -463,7 +422,13 @@ function wireCredForms() {
 
             try {
                 const result = await saveCredentials(platform, body);
-                form.reset();
+                // Not form.reset() - that would blank every field, including
+                // the ones that aren't secrets (siteBaseUrl, githubOwner,
+                // githubRepo, ...) and are actually useful to see confirmed
+                // as saved. Re-pulling from the server (the same call the
+                // page makes on load) shows exactly what's now on record,
+                // including for fields this form doesn't even have.
+                await loadSavedCredentialValues();
                 if (statusEl) {
                     statusEl.textContent = platform === 'bandsintown' ? describeBandsintownOutcome(result) : describeSaveOutcome('Credentials', result);
                     statusEl.classList.toggle('error-text', (!!result.verification && !result.verification.ok) || !!result.siteUpdateError);
@@ -478,52 +443,58 @@ function wireCredForms() {
     }
 }
 
-// Facebook and Instagram share one Meta Developer App and the same Page
-// Access Token, so this one form saves both: Facebook always (its fields
-// are required), Instagram only if its optional ID field was filled in -
-// as two calls to the existing per-platform endpoint under the hood.
 function wireMetaManualForm() {
     const metaManualForm = document.getElementById('meta-manual-form');
     if (!metaManualForm) return;
     metaManualForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const statusEl = metaManualForm.querySelector('[data-cred-status]');
-        const { pageId, pageAccessToken, igUserId } = Object.fromEntries(new FormData(metaManualForm).entries());
-        // Shared by both platforms below - they use the same Page token, so
-        // it expires on the same day. Sent even when blank (not omitted),
-        // so clearing the field here actually clears the saved date too.
+        const { pageId, pageAccessToken } = Object.fromEntries(new FormData(metaManualForm).entries());
         const tokenExpiresAt = document.getElementById('meta-token-expiry')?.value || '';
-
-        const messages = [];
-        let hadError = false;
 
         try {
             const fbResult = await saveCredentials('facebook', { pageId, pageAccessToken, tokenExpiresAt });
-            messages.push(describeSaveOutcome('Facebook', fbResult));
-            hadError = hadError || (fbResult.verification && !fbResult.verification.ok);
-        } catch (err) {
-            messages.push(`Facebook: couldn't save (${err.message}).`);
-            hadError = true;
-        }
-
-        if (igUserId.trim()) {
-            try {
-                await saveCredentials('instagram', { igUserId, pageAccessToken, tokenExpiresAt });
-                messages.push('Instagram saved.');
-            } catch (err) {
-                messages.push(`Instagram: couldn't save (${err.message}).`);
-                hadError = true;
+            metaManualForm.reset();
+            if (statusEl) {
+                statusEl.textContent = describeSaveOutcome('Facebook', fbResult);
+                statusEl.classList.toggle('error-text', !!(fbResult.verification && !fbResult.verification.ok));
             }
-        }
-
-        metaManualForm.reset();
-        if (statusEl) {
-            statusEl.textContent = messages.join(' ');
-            statusEl.classList.toggle('error-text', hadError);
+        } catch (err) {
+            if (statusEl) {
+                statusEl.textContent = `Couldn't save: ${err.message}`;
+                statusEl.classList.add('error-text');
+            }
         }
 
         loadStatus();
     });
+}
+
+// Instagram's "Linked to Facebook" mode needs only the account ID (its
+// form field is always visible); "Independent connection" additionally
+// needs its own access token. Toggling swaps which field is required so
+// the browser's own validation matches whichever mode is selected,
+// instead of demanding a token the linked mode never uses. Exported at
+// module scope (not just a listener closure) so loadSavedCredentialValues
+// can re-apply it after prefilling a saved mode - setting a radio's
+// .value programmatically doesn't fire 'change' on its own.
+function applyInstagramModeVisibility() {
+    const form = document.getElementById('instagram-cred-form');
+    if (!form) return;
+    const tokenField = form.querySelector('[data-instagram-field="standalone"]');
+    const tokenInput = tokenField?.querySelector('input');
+    const mode = form.mode.value;
+    if (tokenField) tokenField.hidden = mode !== 'standalone';
+    if (tokenInput) tokenInput.required = mode === 'standalone';
+}
+
+function wireInstagramModeToggle() {
+    const form = document.getElementById('instagram-cred-form');
+    if (!form) return;
+    for (const radio of form.querySelectorAll('input[name="mode"]')) {
+        radio.addEventListener('change', applyInstagramModeVisibility);
+    }
+    applyInstagramModeVisibility();
 }
 
 async function loadFlyerOptions() {
@@ -732,30 +703,26 @@ async function loadSavedCredentialValues() {
     const res = await fetch('/api/settings/credentials/values');
     const values = await res.json();
 
-    // Facebook + Instagram share one form - Facebook's own two fields,
-    // plus Instagram's igUserId (kept as its own stored value in case it
-    // was set independently of Facebook's, e.g. disconnected and redone).
     const metaForm = document.getElementById('meta-manual-form');
-    if (metaForm) {
-        if (values.facebook) {
-            if (metaForm.pageId) metaForm.pageId.value = values.facebook.pageId || '';
-            if (metaForm.pageAccessToken) metaForm.pageAccessToken.value = values.facebook.pageAccessToken || '';
-        }
-        if (values.instagram?.igUserId && metaForm.igUserId) {
-            metaForm.igUserId.value = values.instagram.igUserId;
-        }
+    if (metaForm && values.facebook) {
+        if (metaForm.pageId) metaForm.pageId.value = values.facebook.pageId || '';
+        if (metaForm.pageAccessToken) metaForm.pageAccessToken.value = values.facebook.pageAccessToken || '';
     }
 
     // Everything else is one form per platform with data-platform set and
     // field names matching that platform's credential_fields exactly, so
-    // this stays generic instead of hardcoding each one by hand.
-    for (const platform of ['googleBusiness', 'website', 'bandsintown']) {
+    // this stays generic instead of hardcoding each one by hand. Instagram's
+    // "mode" radio group is included - setting a RadioNodeList's .value
+    // checks the matching radio - but that alone doesn't fire 'change', so
+    // its field visibility needs an explicit re-apply after prefilling.
+    for (const platform of ['instagram', 'googleBusiness', 'website', 'bandsintown']) {
         const form = document.querySelector(`form[data-platform="${platform}"]`);
         if (!form || !values[platform]) continue;
         for (const [field, value] of Object.entries(values[platform])) {
             if (form.elements[field]) form.elements[field].value = value;
         }
     }
+    applyInstagramModeVisibility();
 }
 
 loadPlatforms().then(loadStatus);

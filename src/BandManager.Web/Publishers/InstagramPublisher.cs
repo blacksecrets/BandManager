@@ -4,13 +4,20 @@ using BandManager.Data.Services;
 namespace BandManager.Web.Publishers;
 
 /// <summary>
-/// Instagram Graph API - feed post via the connected Business account
-/// (shares Facebook's Page token model - "API with Facebook Login", not
-/// the separate "API with Instagram Login" flow this app deliberately
-/// doesn't use). Ported from the old app's src/publishers/instagram.js.
+/// Instagram Graph API - feed post. Supports both of Meta's connection
+/// models independently (Setup lets a Band pick per-connection, see
+/// PlatformSeedData.InstagramInstructions): "linked" reuses the Facebook
+/// Page's own saved Page Access Token at publish time rather than storing
+/// a redundant copy ("API with Facebook Login" - the two can never drift
+/// out of sync this way); "standalone" stores its own token from Meta's
+/// separate "API with Instagram Login" flow, which needs no Facebook Page
+/// at all and calls a different API host (graph.instagram.com, not
+/// graph.facebook.com). Ported from the old app's src/publishers/instagram.js,
+/// which only ever supported the "linked" model.
 ///
 /// Needs a credential stored under platform "instagram":
-/// { igUserId: "...", pageAccessToken: "..." }.
+/// { mode: "linked", igUserId: "..." } (Facebook's own credential supplies
+/// the token), or { mode: "standalone", igUserId: "...", igAccessToken: "..." }.
 ///
 /// Known limitation, inherited as-is from the old app: unlike Facebook's
 /// publisher (which uploads the file directly), Instagram's Graph API
@@ -26,17 +33,30 @@ namespace BandManager.Web.Publishers;
 /// </summary>
 public class InstagramPublisher(HttpClient http, CredentialStore credentialStore)
 {
-    private const string GraphApi = "https://graph.facebook.com/v19.0";
+    private const string FacebookGraphApi = "https://graph.facebook.com/v19.0";
+    private const string InstagramGraphApi = "https://graph.instagram.com/v19.0";
 
-    private async Task<Dictionary<string, string>> RequireCredsAsync(Guid bandId)
+    private async Task<(string IgUserId, string Token, string ApiBase)> RequireCredsAsync(Guid bandId)
     {
         var creds = await credentialStore.GetCredentialAsync(bandId, "instagram");
-        if (creds is null || !creds.TryGetValue("igUserId", out var igUserId) || string.IsNullOrEmpty(igUserId)
-            || !creds.TryGetValue("pageAccessToken", out var token) || string.IsNullOrEmpty(token))
+        if (creds is null || !creds.TryGetValue("igUserId", out var igUserId) || string.IsNullOrEmpty(igUserId))
+            throw new InvalidOperationException("Instagram is not configured yet - add an Instagram account ID in Settings.");
+
+        // Absent "mode" means a credential saved before this field existed
+        // - those were always the Facebook-linked model, so that's the
+        // correct default for backward compatibility, not just a guess.
+        var mode = creds.GetValueOrDefault("mode", "linked");
+        if (mode == "standalone")
         {
-            throw new InvalidOperationException("Instagram is not configured yet - add an IG Business account ID and access token in Settings.");
+            if (!creds.TryGetValue("igAccessToken", out var igToken) || string.IsNullOrEmpty(igToken))
+                throw new InvalidOperationException("Instagram is not fully configured - add an access token in Settings.");
+            return (igUserId, igToken, InstagramGraphApi);
         }
-        return creds;
+
+        var fbCreds = await credentialStore.GetCredentialAsync(bandId, "facebook");
+        if (fbCreds is null || !fbCreds.TryGetValue("pageAccessToken", out var pageToken) || string.IsNullOrEmpty(pageToken))
+            throw new InvalidOperationException("Instagram is set to use the Facebook connection, but Facebook isn't connected yet - connect Facebook first, or switch Instagram to an independent connection in Settings.");
+        return (igUserId, pageToken, FacebookGraphApi);
     }
 
     private static async Task<string> ExtractErrorAsync(HttpResponseMessage res)
@@ -53,9 +73,7 @@ public class InstagramPublisher(HttpClient http, CredentialStore credentialStore
 
     public async Task<PublishResult> PublishAsync(Guid bandId, string? caption, string? imageUrl)
     {
-        var creds = await RequireCredsAsync(bandId);
-        var igUserId = creds["igUserId"];
-        var token = creds["pageAccessToken"];
+        var (igUserId, token, apiBase) = await RequireCredsAsync(bandId);
 
         if (string.IsNullOrWhiteSpace(imageUrl))
             throw new InvalidOperationException("Instagram posts need a publicly reachable image URL (publish the flyer to the site first).");
@@ -66,7 +84,7 @@ public class InstagramPublisher(HttpClient http, CredentialStore credentialStore
             ["caption"] = caption ?? "",
             ["access_token"] = token
         });
-        using var createRes = await http.PostAsync($"{GraphApi}/{igUserId}/media", createForm);
+        using var createRes = await http.PostAsync($"{apiBase}/{igUserId}/media", createForm);
         if (!createRes.IsSuccessStatusCode)
             throw new InvalidOperationException($"Instagram media create failed: {await ExtractErrorAsync(createRes)}");
         var createBody = await createRes.Content.ReadFromJsonAsync<JsonElement>();
@@ -77,7 +95,7 @@ public class InstagramPublisher(HttpClient http, CredentialStore credentialStore
             ["creation_id"] = creationId!,
             ["access_token"] = token
         });
-        using var publishRes = await http.PostAsync($"{GraphApi}/{igUserId}/media_publish", publishForm);
+        using var publishRes = await http.PostAsync($"{apiBase}/{igUserId}/media_publish", publishForm);
         if (!publishRes.IsSuccessStatusCode)
             throw new InvalidOperationException($"Instagram publish failed: {await ExtractErrorAsync(publishRes)}");
         var publishBody = await publishRes.Content.ReadFromJsonAsync<JsonElement>();
