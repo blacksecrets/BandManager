@@ -25,6 +25,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ScheduleItem> ScheduleItems => Set<ScheduleItem>();
     public DbSet<Artifact> Artifacts => Set<Artifact>();
 
+    public DbSet<Song> Songs => Set<Song>();
+    public DbSet<BandInstrument> BandInstruments => Set<BandInstrument>();
+    public DbSet<RepertoireEntry> RepertoireEntries => Set<RepertoireEntry>();
+    public DbSet<GigSet> GigSets => Set<GigSet>();
+    public DbSet<GigSetSong> GigSetSongs => Set<GigSetSong>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -126,6 +132,38 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Artifact>(b =>
         {
             b.HasOne(x => x.ScheduleItem).WithMany(s => s.Artifacts).HasForeignKey(x => x.ScheduleItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // --- Repertoire / gig sets ---
+
+        builder.Entity<Song>(b =>
+        {
+            b.Property(x => x.Tunings)
+                .HasConversion(JsonValueConverter.For<Dictionary<string, string>>(), JsonValueConverter.Comparer<Dictionary<string, string>>());
+        });
+
+        builder.Entity<BandInstrument>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RepertoireEntry>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.BandId, x.SongId }).IsUnique();
+        });
+
+        builder.Entity<GigSet>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.GigRef }).IsUnique();
+        });
+
+        builder.Entity<GigSetSong>(b =>
+        {
+            b.HasOne(x => x.GigSet).WithMany(s => s.Songs).HasForeignKey(x => x.GigSetId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

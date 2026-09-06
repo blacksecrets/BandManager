@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Repertoire</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/repertoire.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Repertoire</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main repertoire-main">
+        <p id="repertoire-no-band" class="save-note" hidden>Select a band from the switcher above to see its repertoire.</p>
+
+        <div id="repertoire-content" hidden>
+            <p class="intro">
+                Every song this band knows, is working on, or plans to learn. Songs come from the shared catalog
+                (anything any band has ever entered) or from scratch - once added here, fill in tuning, key,
+                length, and reference links as you go.
+            </p>
+
+            <section class="platform-card" id="repertoire-instruments-section">
+                <details class="manual-fallback">
+                    <summary>Instruments tracked for this band (<span id="instrument-count">0</span>)</summary>
+                    <div id="instrument-list" class="instrument-chip-list"></div>
+                    <form id="add-instrument-form" class="cred-form">
+                        <label>Instrument name <input type="text" name="name" placeholder="e.g. Lead Guitar" required autocomplete="off"></label>
+                        <button type="submit">Add instrument</button>
+                        <p id="add-instrument-status" class="save-note"></p>
+                    </form>
+                </details>
+            </section>
+
+            <section class="platform-card">
+                <h2>Add a song</h2>
+                <label>Search the shared catalog <input type="search" id="song-db-search" placeholder="Title, artist, or album..." autocomplete="off"></label>
+                <div id="song-db-results" class="song-search-results"></div>
+
+                <details class="manual-fallback">
+                    <summary>Can't find it? Search the web</summary>
+                    <form id="song-web-search-form" class="cred-form">
+                        <label>Title / artist <input type="text" name="query" placeholder="e.g. Enter Sandman Metallica" required autocomplete="off"></label>
+                        <button type="submit">Search YouTube &amp; Spotify</button>
+                    </form>
+                    <p class="field-hint">Songsterr has no search API to call - <a id="songsterr-search-link" href="#" target="_blank" rel="noopener">search Songsterr directly</a> and paste the URL into the form below once you've found it.</p>
+                    <div id="song-web-results" class="song-web-results"></div>
+                </details>
+
+                <details class="manual-fallback" id="new-song-details">
+                    <summary>New song details</summary>
+                    <form id="new-song-form" class="cred-form">
+                        <label>Title <input type="text" name="title" required></label>
+                        <label>Original artist <input type="text" name="originalArtist"></label>
+                        <label>Album <input type="text" name="album"></label>
+                        <label>Key <input type="text" name="key" placeholder="e.g. E minor"></label>
+                        <label>Length (mm:ss) <input type="text" name="length" placeholder="e.g. 4:32" pattern="^\d{1,2}:\d{2}$"></label>
+                        <label>YouTube URL <input type="url" name="youTubeUrl"></label>
+                        <label>Spotify URL <input type="url" name="spotifyUrl"></label>
+                        <label>Songsterr URL <input type="url" name="songsterrUrl"></label>
+                        <button type="submit">Create &amp; add to repertoire</button>
+                        <p id="new-song-status" class="save-note"></p>
+                    </form>
+                </details>
+            </section>
+
+            <section class="platform-card">
+                <h2>Repertoire</h2>
+                <div class="repertoire-table-wrap">
+                    <table class="user-table repertoire-table" id="repertoire-table">
+                        <thead><tr id="repertoire-head-row"></tr></thead>
+                        <tbody id="repertoire-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script src="/assets/repertoire.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

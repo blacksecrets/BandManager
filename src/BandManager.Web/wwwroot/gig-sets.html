@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gig Sets</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/repertoire.css">
+<link rel="stylesheet" href="/assets/gig-sets.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Gig Sets</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main gig-sets-main">
+        <p id="gig-sets-no-band" class="save-note" hidden>Select a band from the switcher above to manage its gig sets.</p>
+
+        <div id="gig-sets-content" hidden>
+            <p class="intro">Every gig on this band's site, and the setlist built for it. Pick a gig to build or edit its set from the repertoire.</p>
+
+            <div class="gig-sets-layout">
+                <section class="platform-card gig-list-card">
+                    <h2>Gigs</h2>
+                    <div id="gig-list" class="gig-list">Loading...</div>
+                </section>
+
+                <section class="platform-card gig-set-card" id="gig-set-detail" hidden>
+                    <h2 id="gig-set-title">Set</h2>
+                    <p id="gig-set-meta" class="save-note"></p>
+
+                    <ol class="gig-set-song-list" id="gig-set-song-list"></ol>
+
+                    <div id="gig-set-add" class="add-membership-row">
+                        <select id="gig-set-add-select"></select>
+                        <button type="button" id="gig-set-add-btn">Add to set</button>
+                    </div>
+                    <p id="gig-set-status" class="save-note"></p>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <script src="/assets/gig-sets.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

@@ -1,0 +1,52 @@
+.gig-sets-layout { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+@media (max-width: 800px) {
+    .gig-sets-layout { grid-template-columns: 1fr; }
+}
+
+.gig-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; max-height: 70vh; overflow-y: auto; }
+.gig-list-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 10px 12px;
+    cursor: pointer;
+    color: #ddd;
+    font-size: 0.85rem;
+}
+.gig-list-item:hover { background: rgba(255, 255, 255, 0.07); }
+.gig-list-item.selected { border-color: #c00; background: rgba(204, 0, 0, 0.08); }
+.gig-list-item .gig-title { font-weight: bold; color: #eee; }
+.gig-list-item .gig-meta { color: #999; font-size: 0.78rem; margin-top: 2px; }
+.gig-list-item .gig-song-count { color: #8fb4d9; font-size: 0.78rem; margin-top: 2px; }
+
+.gig-set-song-list { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.gig-set-song-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    color: #ddd;
+}
+.gig-set-song-row .song-index { color: #999; width: 1.6em; text-align: right; flex-shrink: 0; }
+.gig-set-song-row .song-title-block { flex: 1; }
+.gig-set-song-row .song-title-block small { color: #999; display: block; }
+.gig-set-song-row .reorder-btns { display: flex; gap: 2px; }
+.gig-set-song-row .reorder-btns button, .gig-set-song-row .remove-btn {
+    background: none;
+    border: 1px solid #444;
+    color: #ccc;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+.gig-set-song-row .reorder-btns button:hover, .gig-set-song-row .remove-btn:hover { background: #333; }
+.gig-set-song-row .reorder-btns button:disabled { opacity: 0.3; cursor: default; }
+
+#gig-set-add-select { padding: 6px; border-radius: 4px; border: 1px solid #444; background: #1a1a1a; color: #eee; flex: 1; }
