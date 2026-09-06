@@ -1,5 +1,6 @@
 using System.Text.Json;
 using BandManager.Data;
+using BandManager.Data.Entities;
 using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
@@ -20,7 +21,12 @@ namespace BandManager.Web.Controllers;
 [ApiController]
 [Route("/api/settings/credentials")]
 [Authorize(Policy = "BandAdmin")]
-public class CredentialsController(ApplicationDbContext db, CredentialStore credentialStore, IActiveBandAccessor activeBand) : ControllerBase
+public class CredentialsController(
+    ApplicationDbContext db,
+    CredentialStore credentialStore,
+    IActiveBandAccessor activeBand,
+    GitHubSiteClient gitHub,
+    IHttpClientFactory httpClientFactory) : ControllerBase
 {
     private static readonly TimeSpan ExpiringSoonWindow = TimeSpan.FromDays(14);
 
@@ -119,6 +125,24 @@ public class CredentialsController(ApplicationDbContext db, CredentialStore cred
             var value = await credentialStore.GetCredentialAsync(bandId, id);
             if (value is not null) result[id] = value;
         }
+
+        // siteBaseUrl/githubOwner/githubRepo live on Band itself, not in
+        // the encrypted credential store (see Save's "website" branch) -
+        // merged in here so the Setup form can prefill them same as any
+        // other saved field.
+        if (platformIds.Contains("website"))
+        {
+            var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bandId);
+            if (band is not null && (band.SiteBaseUrl is not null || band.GitHubOwner is not null || band.GitHubRepo is not null))
+            {
+                result.TryGetValue("website", out var existing);
+                var merged = existing ?? new Dictionary<string, string>();
+                if (band.SiteBaseUrl is not null) merged["siteBaseUrl"] = band.SiteBaseUrl;
+                if (band.GitHubOwner is not null) merged["githubOwner"] = band.GitHubOwner;
+                if (band.GitHubRepo is not null) merged["githubRepo"] = band.GitHubRepo;
+                result["website"] = merged;
+            }
+        }
         return Ok(result);
     }
 
@@ -142,6 +166,55 @@ public class CredentialsController(ApplicationDbContext db, CredentialStore cred
                 return BadRequest(new { error = $"{field} can't contain a quote character" });
             value[field] = str;
         }
+
+        // Instagram has two connection modes with different required
+        // fields beyond the always-required igUserId above - "linked"
+        // deliberately stores no token of its own (InstagramPublisher
+        // reads Facebook's live pageAccessToken at publish time instead,
+        // so the two can never drift out of sync); "standalone" (Meta's
+        // separate "API with Instagram Login" flow, no Facebook Page
+        // needed) needs its own access token saved here.
+        if (platform == "instagram")
+        {
+            var mode = body.TryGetValue("mode", out var modeRaw) && modeRaw.ValueKind == JsonValueKind.String
+                ? modeRaw.GetString()!.Trim() : "linked";
+            if (mode is not ("linked" or "standalone"))
+                return BadRequest(new { error = "Invalid Instagram connection mode." });
+            value["mode"] = mode;
+
+            if (mode == "standalone")
+            {
+                if (!body.TryGetValue("igAccessToken", out var tokenRaw) || tokenRaw.ValueKind != JsonValueKind.String
+                    || string.IsNullOrWhiteSpace(tokenRaw.GetString()))
+                    return BadRequest(new { error = "Missing field: igAccessToken" });
+                value["igAccessToken"] = tokenRaw.GetString()!.Trim();
+            }
+        }
+
+        // Site base URL + GitHub owner/repo - per-band Website config that
+        // GigsSource/MediaSource/GallerySource (site content) and the
+        // GitHub push itself need, but which isn't part of the encrypted
+        // credential store since it's not a secret. Optional: leaving a
+        // field blank clears it rather than rejecting the save, so
+        // githubToken alone can still be saved before the site details
+        // are known.
+        Band? band = null;
+        if (platform == "website")
+        {
+            band = await db.Bands.FindAsync(bandId);
+            if (band is not null)
+            {
+                string? Get(string key) => body.TryGetValue(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()?.Trim() : null;
+                var siteBaseUrl = Get("siteBaseUrl");
+                band.SiteBaseUrl = string.IsNullOrEmpty(siteBaseUrl) ? null : siteBaseUrl;
+                var githubOwner = Get("githubOwner");
+                band.GitHubOwner = string.IsNullOrEmpty(githubOwner) ? null : githubOwner;
+                var githubRepo = Get("githubRepo");
+                band.GitHubRepo = string.IsNullOrEmpty(githubRepo) ? null : githubRepo;
+                await db.SaveChangesAsync();
+            }
+        }
+
         await credentialStore.SetCredentialAsync(bandId, platform, value);
 
         // Optional, not part of credential_fields - a blank string clears
@@ -163,11 +236,83 @@ public class CredentialsController(ApplicationDbContext db, CredentialStore cred
             }
         }
 
-        // Facebook's real-connection verification (posts+deletes a test
-        // post) needs the Facebook publisher, not yet ported - so saving
-        // Facebook credentials here just saves them, same as every other
-        // platform, until that lands.
-        return Ok(new { ok = true });
+        // Website's sanity check (unlike Facebook's, which needs a real
+        // post+delete and isn't ported): two cheap, safe, read-only calls -
+        // can the site itself be reached, and does GitHub actually accept
+        // this token for this exact repo, with write access. Every other
+        // platform still just saves, same as before, until each gets a
+        // real equivalent.
+        object? verification = null;
+        if (platform == "website" && band is not null)
+        {
+            verification = await VerifyWebsiteConnectionAsync(band, value.GetValueOrDefault("githubToken"));
+        }
+
+        return Ok(new { ok = true, verification });
+    }
+
+    private async Task<object> VerifyWebsiteConnectionAsync(Band band, string? githubToken)
+    {
+        var issues = new List<string>();
+
+        if (string.IsNullOrWhiteSpace(band.SiteBaseUrl))
+        {
+            issues.Add("Site base URL isn't set.");
+        }
+        else
+        {
+            try
+            {
+                var client = httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(10);
+                var res = await client.GetAsync(band.SiteBaseUrl.TrimEnd('/') + "/js/calendar.js");
+                if (!res.IsSuccessStatusCode)
+                    issues.Add($"Could not fetch js/calendar.js from the site (HTTP {(int)res.StatusCode}) - check the Site base URL.");
+            }
+            catch (Exception ex)
+            {
+                issues.Add($"Could not reach the site: {ex.Message}");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(band.GitHubOwner) || string.IsNullOrWhiteSpace(band.GitHubRepo))
+        {
+            issues.Add("GitHub owner/repo isn't set.");
+        }
+        else if (string.IsNullOrWhiteSpace(githubToken))
+        {
+            issues.Add("No GitHub token on record.");
+        }
+        else
+        {
+            // CheckRepoAccessAsync alone isn't enough: its "can push" signal
+            // comes from the repo-info endpoint's `permissions` object,
+            // which reflects the *account's* collaborator role - not
+            // whether this specific fine-grained token was actually
+            // granted Contents access. A token can pass that check and
+            // still 403 on the real Contents API calls this app makes
+            // (discovered live: a real save reported healthy here, then
+            // the next real edit 403'd on GET .../contents/js/calendar.js).
+            // So this also exercises the literal call GigsSiteEditor makes.
+            var access = await gitHub.CheckRepoAccessAsync(band);
+            if (!access.Ok || !access.CanPush)
+            {
+                issues.Add(access.Error ?? "GitHub rejected the request.");
+            }
+            else
+            {
+                try
+                {
+                    await gitHub.GetFileAsync(band, "js/calendar.js");
+                }
+                catch (InvalidOperationException ex)
+                {
+                    issues.Add($"The repo check passed, but reading js/calendar.js failed: {ex.Message} This usually means the token's fine-grained permissions don't include Contents: Read and write for this repo.");
+                }
+            }
+        }
+
+        return new { ok = issues.Count == 0, error = issues.Count > 0 ? string.Join(" ", issues) : null };
     }
 
     [HttpDelete("{platform}")]
