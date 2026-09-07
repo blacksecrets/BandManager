@@ -147,9 +147,9 @@
     color: #eee;
 }
 
-.instagram-mode-toggle { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; }
-.instagram-mode-toggle .radio-label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #eee; }
-.instagram-mode-toggle .radio-label input { width: auto; flex-shrink: 0; }
+.cred-radio-group { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 2px; }
+.cred-radio-group .radio-label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #eee; }
+.cred-radio-group .radio-label input { width: auto; flex-shrink: 0; }
 
 .cred-form {
     border-top: 1px solid #333;

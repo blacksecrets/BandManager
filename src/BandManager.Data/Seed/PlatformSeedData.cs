@@ -108,18 +108,68 @@ public static class PlatformSeedData
 
     public static readonly Platform[] All =
     [
-        new() { Id = "facebook", DisplayName = "Facebook", SupportsPosting = true, CredentialFields = ["pageId", "pageAccessToken"], SetupInstructions = MetaInstructions, SortOrder = 1 },
-        // igUserId is the only field CredentialsController.Save enforces
-        // generically - "mode" and the standalone-only "igAccessToken" get
-        // special-cased there instead, since which fields are required
-        // depends on which of the two connection modes was picked (see
-        // InstagramInstructions above and InstagramPublisher.RequireCredsAsync).
-        new() { Id = "instagram", DisplayName = "Instagram", SupportsPosting = true, CredentialFields = ["igUserId"], SetupInstructions = InstagramInstructions, SortOrder = 2 },
+        new()
+        {
+            Id = "facebook", DisplayName = "Facebook", SupportsPosting = true, SetupInstructions = MetaInstructions, SortOrder = 1,
+            CredentialFields =
+            [
+                new("pageId", "Page ID"),
+                new("pageAccessToken", "Page Access Token", CredentialFieldType.Password)
+            ]
+        },
+        // mode must come before igAccessToken in this list - Save's
+        // validation loop evaluates VisibleWhen against fields already
+        // processed earlier in the same pass (see InstagramInstructions
+        // above and InstagramPublisher.RequireCredsAsync for why "linked"
+        // stores no token of its own).
+        new()
+        {
+            Id = "instagram", DisplayName = "Instagram", SupportsPosting = true, SetupInstructions = InstagramInstructions, SortOrder = 2,
+            CredentialFields =
+            [
+                new("mode", "Connection type", CredentialFieldType.Radio, Options:
+                [
+                    new("linked", "Linked to Facebook", "(reuses the Facebook connection above)"),
+                    new("standalone", "Independent connection", "(no Facebook Page needed)")
+                ]),
+                new("igUserId", "Instagram Account ID"),
+                new("igAccessToken", "Instagram Access Token", CredentialFieldType.Password,
+                    VisibleWhen: new CredentialFieldVisibility("mode", "standalone"))
+            ]
+        },
         new() { Id = "tiktok", DisplayName = "TikTok", SupportsPosting = false, CredentialFields = null, SetupInstructions = NoApiNote, SortOrder = 3 },
         new() { Id = "youtube", DisplayName = "YouTube", SupportsPosting = false, CredentialFields = null, SetupInstructions = NoApiNote, SortOrder = 4 },
-        new() { Id = "bandsintown", DisplayName = "Bandsintown/Songkick", SupportsPosting = false, CredentialFields = ["artistName", "appId"], SetupInstructions = BandsintownInstructions, SortOrder = 5 },
-        new() { Id = "googleBusiness", DisplayName = "Google Business Profile", SupportsPosting = true, CredentialFields = ["accountId", "locationId", "accessToken"], SetupInstructions = GbpInstructions, SortOrder = 6 },
+        new()
+        {
+            Id = "bandsintown", DisplayName = "Bandsintown/Songkick", SupportsPosting = false, SetupInstructions = BandsintownInstructions, SortOrder = 5,
+            CredentialFields =
+            [
+                new("artistName", "Artist ID", Placeholder: "e.g. id_15662855", ForbidQuotes: true),
+                new("appId", "App ID", Placeholder: "e.g. 8c8cfd4dd08e15fcb7d6441b48d3081d", ForbidQuotes: true)
+            ]
+        },
+        new()
+        {
+            Id = "googleBusiness", DisplayName = "Google Business Profile", SupportsPosting = true, SetupInstructions = GbpInstructions, SortOrder = 6,
+            CredentialFields =
+            [
+                new("accountId", "Account ID"),
+                new("locationId", "Location ID"),
+                new("accessToken", "Access Token", CredentialFieldType.Password)
+            ]
+        },
         new() { Id = "spotify", DisplayName = "Spotify/Apple Music", SupportsPosting = false, CredentialFields = null, SetupInstructions = NoApiNote, SortOrder = 7 },
-        new() { Id = "website", DisplayName = "Website", SupportsPosting = true, CredentialFields = ["githubToken"], SetupInstructions = GitHubInstructions, SortOrder = 8 }
+        new()
+        {
+            Id = "website", DisplayName = "Website", SupportsPosting = true, SetupInstructions = GitHubInstructions, SortOrder = 8,
+            CredentialFields =
+            [
+                new("githubToken", "GitHub Token", CredentialFieldType.Password),
+                new("siteBaseUrl", "Site base URL", CredentialFieldType.Url, Required: false, StoreAsCredential: false,
+                    Hint: "e.g. https://yourband.com - used to read gigs/media/gallery for Gig Sets and the Website tiles"),
+                new("githubOwner", "GitHub owner", Required: false, StoreAsCredential: false, Placeholder: "e.g. yourband"),
+                new("githubRepo", "GitHub repo", Required: false, StoreAsCredential: false, Placeholder: "e.g. yourband-site")
+            ]
+        }
     ];
 }

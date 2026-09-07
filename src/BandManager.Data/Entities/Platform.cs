@@ -11,7 +11,7 @@ public class Platform
     public required string Id { get; set; } // e.g. "facebook", matches the old app's string ids
     public required string DisplayName { get; set; }
     public bool SupportsPosting { get; set; }
-    public List<string>? CredentialFields { get; set; }
+    public List<CredentialField>? CredentialFields { get; set; }
     public string? SetupInstructions { get; set; } // HTML, rendered as-is by the frontend
     public int SortOrder { get; set; }
 }

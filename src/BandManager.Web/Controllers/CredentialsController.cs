@@ -154,42 +154,38 @@ public class CredentialsController(
         var platformRow = await db.Platforms.FindAsync(platform);
         if (platformRow?.CredentialFields is null) return NotFound(new { error = "Unknown platform" });
 
-        var value = new Dictionary<string, string>();
+        // Schema-driven: each field's Required/VisibleWhen/ForbidQuotes
+        // comes from PlatformSeedData instead of being special-cased here
+        // per platform (this used to hand-roll Instagram's mode/
+        // igAccessToken logic inline - see CredentialField's doc comment).
+        // VisibleWhen is evaluated against fieldValues built so far in this
+        // same pass, so a field's dependency must be listed before it.
+        var fieldValues = new Dictionary<string, string>();
         foreach (var field in platformRow.CredentialFields)
         {
-            if (!body.TryGetValue(field, out var raw) || raw.ValueKind != JsonValueKind.String)
-                return BadRequest(new { error = $"Missing field: {field}" });
-            var str = raw.GetString()?.Trim();
-            if (string.IsNullOrEmpty(str)) return BadRequest(new { error = $"Missing field: {field}" });
-            if (str.Length > 2000) return BadRequest(new { error = $"{field} is too long" });
-            if (platform == "bandsintown" && str.Contains('"'))
-                return BadRequest(new { error = $"{field} can't contain a quote character" });
-            value[field] = str;
-        }
+            var isVisible = field.VisibleWhen is null
+                || (fieldValues.TryGetValue(field.VisibleWhen.Field, out var dependency) && dependency == field.VisibleWhen.Value);
+            if (!isVisible) continue;
 
-        // Instagram has two connection modes with different required
-        // fields beyond the always-required igUserId above - "linked"
-        // deliberately stores no token of its own (InstagramPublisher
-        // reads Facebook's live pageAccessToken at publish time instead,
-        // so the two can never drift out of sync); "standalone" (Meta's
-        // separate "API with Instagram Login" flow, no Facebook Page
-        // needed) needs its own access token saved here.
-        if (platform == "instagram")
-        {
-            var mode = body.TryGetValue("mode", out var modeRaw) && modeRaw.ValueKind == JsonValueKind.String
-                ? modeRaw.GetString()!.Trim() : "linked";
-            if (mode is not ("linked" or "standalone"))
-                return BadRequest(new { error = "Invalid Instagram connection mode." });
-            value["mode"] = mode;
+            body.TryGetValue(field.Name, out var raw);
+            var str = raw.ValueKind == JsonValueKind.String ? raw.GetString()?.Trim() : null;
 
-            if (mode == "standalone")
+            if (string.IsNullOrEmpty(str))
             {
-                if (!body.TryGetValue("igAccessToken", out var tokenRaw) || tokenRaw.ValueKind != JsonValueKind.String
-                    || string.IsNullOrWhiteSpace(tokenRaw.GetString()))
-                    return BadRequest(new { error = "Missing field: igAccessToken" });
-                value["igAccessToken"] = tokenRaw.GetString()!.Trim();
+                if (field.Required) return BadRequest(new { error = $"Missing field: {field.Name}" });
+                continue;
             }
+            if (str.Length > 2000) return BadRequest(new { error = $"{field.Name} is too long" });
+            if (field.ForbidQuotes && str.Contains('"'))
+                return BadRequest(new { error = $"{field.Name} can't contain a quote character" });
+            if (field.Type == CredentialFieldType.Radio && field.Options is not null && !field.Options.Any(o => o.Value == str))
+                return BadRequest(new { error = $"Invalid value for {field.Name}." });
+
+            fieldValues[field.Name] = str;
         }
+
+        var value = fieldValues.Where(kv => platformRow.CredentialFields.First(f => f.Name == kv.Key).StoreAsCredential)
+            .ToDictionary(kv => kv.Key, kv => kv.Value);
 
         // Site base URL + GitHub owner/repo - per-band Website config that
         // GigsSource/MediaSource/GallerySource (site content) and the
@@ -204,13 +200,9 @@ public class CredentialsController(
             band = await db.Bands.FindAsync(bandId);
             if (band is not null)
             {
-                string? Get(string key) => body.TryGetValue(key, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString()?.Trim() : null;
-                var siteBaseUrl = Get("siteBaseUrl");
-                band.SiteBaseUrl = string.IsNullOrEmpty(siteBaseUrl) ? null : siteBaseUrl;
-                var githubOwner = Get("githubOwner");
-                band.GitHubOwner = string.IsNullOrEmpty(githubOwner) ? null : githubOwner;
-                var githubRepo = Get("githubRepo");
-                band.GitHubRepo = string.IsNullOrEmpty(githubRepo) ? null : githubRepo;
+                band.SiteBaseUrl = fieldValues.GetValueOrDefault("siteBaseUrl");
+                band.GitHubOwner = fieldValues.GetValueOrDefault("githubOwner");
+                band.GitHubRepo = fieldValues.GetValueOrDefault("githubRepo");
                 await db.SaveChangesAsync();
             }
         }

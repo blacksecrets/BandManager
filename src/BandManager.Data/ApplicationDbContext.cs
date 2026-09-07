@@ -68,7 +68,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Platform>(b =>
         {
             b.Property(x => x.CredentialFields)
-                .HasConversion(JsonValueConverter.For<List<string>>(), JsonValueConverter.Comparer<List<string>>());
+                .HasConversion(JsonValueConverter.For<List<CredentialField>>(), JsonValueConverter.Comparer<List<CredentialField>>());
         });
 
         builder.Entity<ContentType>(b =>

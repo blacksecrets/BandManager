@@ -1,19 +1,20 @@
-// Which <template> holds a platform's hand-authored detail content (form
-// plus any bespoke tooling - auto-setup, verify, cover photo). Facebook
-// and Instagram are independently configured, each its own accordion row -
-// Instagram's own template offers a choice to reuse the Facebook
-// connection or connect independently, but neither platform requires the
-// other. A platform with no entry here and no credential_fields is purely
-// informational (no form, just instructions).
+// Which <template> holds a platform's hand-authored detail content -
+// reserved for platforms with real bespoke tooling beyond a plain
+// credential form (Facebook's auto-setup/verify/cover-photo modal).
+// Everything else renders generically from platform.credential_fields
+// (see renderGenericCredForm) - a platform with no entry here and no
+// credential_fields is purely informational (no form, just instructions).
 const TEMPLATE_FOR_PLATFORM = {
-    facebook: 'tpl-meta',
-    instagram: 'tpl-instagram',
-    googleBusiness: 'tpl-googleBusiness',
-    website: 'tpl-website',
-    bandsintown: 'tpl-bandsintown'
+    facebook: 'tpl-meta'
 };
 
 let platformsById = {};
+// platform id -> function that re-applies that platform's field
+// visibility (radio-controlled fields like Instagram's igAccessToken) -
+// populated per-form as renderGenericCredForm builds it, called again
+// after loadSavedCredentialValues prefills a saved mode (setting a
+// RadioNodeList's .value doesn't fire 'change' on its own).
+const visibilityReapplyByPlatform = {};
 
 function escapeHtml(str) {
     const div = document.createElement('div');
@@ -45,7 +46,6 @@ async function loadPlatforms() {
     wireInstructionsToggles();
     wireDisconnectButtons();
     wireCredForms();
-    wireInstagramModeToggle();
     wireMetaManualForm();
     wireCoverPhotoTool();
     wireAutoSetupTool();
@@ -137,7 +137,9 @@ function renderPlatformAccordion(platforms) {
         if (templateId) {
             const tpl = document.getElementById(templateId);
             if (tpl) body.appendChild(tpl.content.cloneNode(true));
-        } else if (!platform.credential_fields) {
+        } else if (platform.credential_fields) {
+            body.appendChild(renderGenericCredForm(platform));
+        } else {
             const note = document.createElement('p');
             note.className = 'tile-note';
             note.textContent = 'No usable posting API for this - "Fart it out" just records that you posted it yourself.';
@@ -152,6 +154,105 @@ function renderPlatformAccordion(platforms) {
             toggleBtn.querySelector('.chevron').innerHTML = body.hidden ? '&#9656;' : '&#9662;';
         });
     }
+}
+
+// Builds a full credential form (fields, save button, status line, plus a
+// disconnect-tool row) purely from platform.credential_fields - adding a
+// field, changing its type, or making one conditionally required (like
+// Instagram's igAccessToken) is a PlatformSeedData.cs edit, not new HTML/
+// JS here. Reserved for platforms without real bespoke tooling - Facebook
+// keeps its own hand-authored template (see TEMPLATE_FOR_PLATFORM).
+function renderGenericCredForm(platform) {
+    const wrap = document.createElement('div');
+
+    const form = document.createElement('form');
+    form.className = 'cred-form';
+    form.dataset.platform = platform.id;
+    form.innerHTML = `<h3>${escapeHtml(platform.display_name)} <span class="status-badge" data-platform="${platform.id}">checking...</span></h3>`;
+
+    for (const field of platform.credential_fields) {
+        form.appendChild(renderCredField(field));
+    }
+
+    const submitBtn = document.createElement('button');
+    submitBtn.type = 'submit';
+    submitBtn.textContent = `Save ${platform.display_name} credentials`;
+    form.appendChild(submitBtn);
+
+    const status = document.createElement('p');
+    status.className = 'save-note cred-form-status';
+    status.setAttribute('data-cred-status', '');
+    form.appendChild(status);
+
+    wrap.appendChild(form);
+
+    const disconnect = document.createElement('div');
+    disconnect.className = 'disconnect-tool';
+    disconnect.setAttribute('data-disconnect-tool', platform.id);
+    disconnect.hidden = true;
+    disconnect.innerHTML = `<button type="button" class="disconnect-btn" data-disconnect="${platform.id}">Disconnect ${escapeHtml(platform.display_name)}</button>`;
+    wrap.appendChild(disconnect);
+
+    const reapply = wireFieldVisibility(form, platform.credential_fields);
+    reapply();
+    visibilityReapplyByPlatform[platform.id] = reapply;
+
+    return wrap;
+}
+
+function renderCredField(field) {
+    if (field.type === 'Radio') {
+        const group = document.createElement('div');
+        group.className = 'cred-radio-group';
+        (field.options || []).forEach((opt, i) => {
+            const label = document.createElement('label');
+            label.className = 'radio-label';
+            label.innerHTML = `<input type="radio" name="${field.name}" value="${escapeHtml(opt.value)}" ${i === 0 ? 'checked' : ''}> ${escapeHtml(opt.label)}` +
+                (opt.hint ? ` <span class="field-hint">${escapeHtml(opt.hint)}</span>` : '');
+            group.appendChild(label);
+        });
+        return group;
+    }
+
+    const inputType = field.type === 'Password' ? 'password' : field.type === 'Url' ? 'url' : 'text';
+    const label = document.createElement('label');
+    label.innerHTML = `${escapeHtml(field.label)}` +
+        (field.hint ? ` <span class="field-hint">(${escapeHtml(field.hint)})</span>` : '') +
+        `<input type="${inputType}" name="${field.name}" ${field.required ? 'required' : ''}` +
+        (field.placeholder ? ` placeholder="${escapeHtml(field.placeholder)}"` : '') +
+        ` autocomplete="${inputType === 'password' ? 'new-password' : 'off'}">`;
+    return label;
+}
+
+// A field with visibleWhen is only shown (and only required) while its
+// controlling field currently equals that value - generalizes what used
+// to be Instagram-specific applyInstagramModeVisibility/
+// wireInstagramModeToggle to any field on any platform. Returns a reapply
+// function so a later programmatic prefill (which doesn't fire 'change')
+// can re-run the same logic.
+function wireFieldVisibility(form, fields) {
+    const dependents = fields.filter((f) => f.visibleWhen);
+
+    function reapply() {
+        for (const field of dependents) {
+            const controller = form.elements[field.visibleWhen.field];
+            const currentValue = controller instanceof RadioNodeList ? controller.value : controller?.value;
+            const visible = currentValue === field.visibleWhen.value;
+            const el = form.elements[field.name];
+            const wrapperLabel = el?.closest('label');
+            if (wrapperLabel) wrapperLabel.hidden = !visible;
+            if (el) el.required = visible && field.required;
+        }
+    }
+
+    for (const field of dependents) {
+        const controller = form.elements[field.visibleWhen.field];
+        if (!controller) continue;
+        const inputs = controller instanceof RadioNodeList ? Array.from(controller) : [controller];
+        for (const input of inputs) input.addEventListener('change', reapply);
+    }
+
+    return reapply;
 }
 
 function wireInstructionsToggles() {
@@ -470,33 +571,6 @@ function wireMetaManualForm() {
     });
 }
 
-// Instagram's "Linked to Facebook" mode needs only the account ID (its
-// form field is always visible); "Independent connection" additionally
-// needs its own access token. Toggling swaps which field is required so
-// the browser's own validation matches whichever mode is selected,
-// instead of demanding a token the linked mode never uses. Exported at
-// module scope (not just a listener closure) so loadSavedCredentialValues
-// can re-apply it after prefilling a saved mode - setting a radio's
-// .value programmatically doesn't fire 'change' on its own.
-function applyInstagramModeVisibility() {
-    const form = document.getElementById('instagram-cred-form');
-    if (!form) return;
-    const tokenField = form.querySelector('[data-instagram-field="standalone"]');
-    const tokenInput = tokenField?.querySelector('input');
-    const mode = form.mode.value;
-    if (tokenField) tokenField.hidden = mode !== 'standalone';
-    if (tokenInput) tokenInput.required = mode === 'standalone';
-}
-
-function wireInstagramModeToggle() {
-    const form = document.getElementById('instagram-cred-form');
-    if (!form) return;
-    for (const radio of form.querySelectorAll('input[name="mode"]')) {
-        radio.addEventListener('change', applyInstagramModeVisibility);
-    }
-    applyInstagramModeVisibility();
-}
-
 async function loadFlyerOptions() {
     const select = document.getElementById('cover-flyer-select');
     const res = await fetch('/api/facebook/cover/flyers');
@@ -711,18 +785,20 @@ async function loadSavedCredentialValues() {
 
     // Everything else is one form per platform with data-platform set and
     // field names matching that platform's credential_fields exactly, so
-    // this stays generic instead of hardcoding each one by hand. Instagram's
-    // "mode" radio group is included - setting a RadioNodeList's .value
-    // checks the matching radio - but that alone doesn't fire 'change', so
-    // its field visibility needs an explicit re-apply after prefilling.
-    for (const platform of ['instagram', 'googleBusiness', 'website', 'bandsintown']) {
-        const form = document.querySelector(`form[data-platform="${platform}"]`);
-        if (!form || !values[platform]) continue;
-        for (const [field, value] of Object.entries(values[platform])) {
+    // this stays fully generic instead of hardcoding each platform by
+    // hand. A field with visibleWhen (like Instagram's "mode" radio group)
+    // needs its form's reapply function re-run after prefilling - setting
+    // a RadioNodeList's .value checks the matching radio but doesn't fire
+    // 'change' on its own.
+    for (const platform of Object.values(platformsById)) {
+        if (platform.id === 'facebook' || !platform.credential_fields || !values[platform.id]) continue;
+        const form = document.querySelector(`form[data-platform="${platform.id}"]`);
+        if (!form) continue;
+        for (const [field, value] of Object.entries(values[platform.id])) {
             if (form.elements[field]) form.elements[field].value = value;
         }
+        visibilityReapplyByPlatform[platform.id]?.();
     }
-    applyInstagramModeVisibility();
 }
 
 loadPlatforms().then(loadStatus);
