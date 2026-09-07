@@ -9,16 +9,72 @@ async function loadSuperAdminPage() {
     document.getElementById('superadmin-bands-section').hidden = false;
     document.getElementById('superadmin-users-section').hidden = false;
     document.getElementById('song-search-section').hidden = false;
+    document.getElementById('song-import-section').hidden = false;
     document.getElementById('admin-branding-section').hidden = false;
 
     loadAllUsersPicker();
-    // Awaited before loadAllUsers - the manage-row's "add to a band" picker
-    // reads allBandsCache, which loadSuperAdminBands populates.
+    // Awaited before loadAllUsers/renderSongImportBandCheckboxes - both
+    // read allBandsCache, which loadSuperAdminBands populates.
     await loadSuperAdminBands();
     loadAllUsers();
     loadSongSearchCredentials();
     loadBranding();
+    renderSongImportBandCheckboxes();
 }
+
+// --- Bulk song CSV import ---
+function renderSongImportBandCheckboxes() {
+    const container = document.getElementById('song-import-bands-checkboxes');
+    if (!container) return;
+    container.innerHTML = '';
+    const list = document.createElement('div');
+    list.className = 'band-checkbox-list';
+    for (const b of allBandsCache.filter((b) => !b.isArchived)) {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="checkbox" value="${b.id}"> ${escapeHtml(b.name)}`;
+        list.appendChild(label);
+    }
+    container.appendChild(list);
+}
+
+document.getElementById('song-csv-upload').addEventListener('change', async () => {
+    const input = document.getElementById('song-csv-upload');
+    if (!input.files[0]) return;
+    const status = document.getElementById('song-import-status');
+    const errorsBox = document.getElementById('song-import-errors');
+    errorsBox.innerHTML = '';
+    status.textContent = 'Importing...';
+
+    const form = new FormData();
+    form.append('file', input.files[0]);
+    for (const cb of document.querySelectorAll('#song-import-bands-checkboxes input:checked')) {
+        form.append('bandIds', cb.value);
+    }
+
+    const res = await fetch('/api/superadmin/songs/import', { method: 'POST', body: form });
+    const body = await res.json();
+    input.value = '';
+
+    if (res.ok) {
+        status.textContent = `${body.songsCreated} created, ${body.songsReused} matched existing, ${body.repertoireEntriesAdded} band assignment(s) added.`;
+        return;
+    }
+
+    status.textContent = body.error || 'Import failed.';
+    if (Array.isArray(body.rowErrors) && body.rowErrors.length > 0) {
+        const table = document.createElement('table');
+        table.className = 'user-table';
+        table.innerHTML = '<thead><tr><th>Row</th><th>Column</th><th>Problem</th></tr></thead>';
+        const tbody = document.createElement('tbody');
+        for (const e of body.rowErrors) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${e.row}</td><td>${escapeHtml(e.column)}</td><td>${escapeHtml(e.message)}</td>`;
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        errorsBox.appendChild(table);
+    }
+});
 
 // --- Song search credentials (YouTube + Spotify) ---
 async function loadSongSearchCredentials() {
@@ -95,6 +151,14 @@ document.getElementById('spotify-disconnect-btn').addEventListener('click', asyn
     document.getElementById('spotify-cred-form').reset();
     loadSongSearchCredentials();
 });
+
+for (const btn of document.querySelectorAll('.instructions-toggle')) {
+    const panel = btn.nextElementSibling;
+    btn.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        btn.querySelector('.chevron').innerHTML = panel.hidden ? '&#9656;' : '&#9662;';
+    });
+}
 
 function escapeHtml(str) {
     const div = document.createElement('div');

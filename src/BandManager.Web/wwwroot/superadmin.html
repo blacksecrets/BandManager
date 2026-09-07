@@ -91,6 +91,17 @@
 
             <form id="spotify-cred-form" class="cred-form">
                 <h3>Spotify Web API <span class="status-badge" id="spotify-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>Go to the <a href="https://developer.spotify.com/dashboard" target="_blank">Spotify Developer Dashboard</a> and log in with any Spotify account (free or paid both work).</li>
+                            <li>Click <strong>Create app</strong>. Give it any name/description - a Redirect URI is required by the form but never used here (this app only calls Spotify's search API with the app's own credentials, not a per-user login), so put in any placeholder like <code>http://localhost/callback</code>.</li>
+                            <li>Open the new app's <strong>Settings</strong> and copy the <strong>Client ID</strong>, then click <strong>View client secret</strong> to reveal and copy the <strong>Client Secret</strong>.</li>
+                            <li>Paste both below and save. This uses Spotify's Client Credentials flow (app-level access, no per-user Spotify login) - it can search tracks but can't do anything on anyone's actual Spotify account.</li>
+                        </ol>
+                    </div>
+                </div>
                 <label>Client ID <input type="text" name="clientId" autocomplete="off"></label>
                 <label>Client Secret <input type="password" name="clientSecret" autocomplete="new-password"></label>
                 <button type="submit">Save Spotify credentials</button>
@@ -99,6 +110,17 @@
             <div class="disconnect-tool" id="spotify-disconnect-tool" hidden>
                 <button type="button" class="disconnect-btn" id="spotify-disconnect-btn">Remove Spotify credentials</button>
             </div>
+        </section>
+
+        <section class="platform-card" id="song-import-section" hidden>
+            <h2>Bulk-import songs</h2>
+            <p>Add songs to the shared catalog from a CSV file - <a href="/api/superadmin/songs/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Every row is validated before anything is imported; if any row fails, nothing is imported and every problem is listed below.</p>
+
+            <label class="upload-btn">Choose CSV file<input type="file" id="song-csv-upload" accept=".csv,text/csv" hidden></label>
+            <p class="field-hint">Optionally also add every imported/matched song to these bands' repertoire:</p>
+            <div id="song-import-bands-checkboxes"></div>
+            <p id="song-import-status" class="save-note"></p>
+            <div id="song-import-errors"></div>
         </section>
 
         <section class="platform-card" id="admin-branding-section" hidden>
