@@ -34,7 +34,14 @@ public class CadenceRule
     public CadenceKind Kind { get; set; }
     public required string Category { get; set; }
     public required string Description { get; set; }
-    public string? Owner { get; set; }
+
+    // Up to 2 band members responsible for what this rule generates -
+    // copied onto each generated ScheduleItem at generation time (see
+    // Scheduler.cs). Replaces the old free-text Owner field.
+    public Guid? AssigneeUserId1 { get; set; }
+    public ApplicationUser? AssigneeUser1 { get; set; }
+    public Guid? AssigneeUserId2 { get; set; }
+    public ApplicationUser? AssigneeUser2 { get; set; }
 
     public ScheduleType? ScheduleType { get; set; } // null for gig_* kinds
     public List<string>? ScheduleDays { get; set; } // weekday names, or day-of-month ints/"end-of-month"

@@ -25,7 +25,16 @@ public class ScheduleItem
     public required string TemplateKey { get; set; }
 
     public required string Platform { get; set; } // display name, kept alongside AccountId same as the old schema
-    public required string Owner { get; set; }
+
+    // Up to 2 band members responsible for this tile - copied from the
+    // generating CadenceRule (see Scheduler.cs), or set directly via
+    // ScheduleItemsController.SetAssignees. Replaces the old free-text
+    // Owner field.
+    public Guid? AssigneeUserId1 { get; set; }
+    public ApplicationUser? AssigneeUser1 { get; set; }
+    public Guid? AssigneeUserId2 { get; set; }
+    public ApplicationUser? AssigneeUser2 { get; set; }
+
     public required string ContentType { get; set; }
     public required string Category { get; set; }
     public string? Example { get; set; }

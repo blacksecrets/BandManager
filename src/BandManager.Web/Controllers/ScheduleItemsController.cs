@@ -12,6 +12,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record FartRequest(string? ImageUrl);
+public record SetAssigneesRequest(Guid? AssigneeUserId1, Guid? AssigneeUserId2);
 
 /// <summary>
 /// The Dashboard board - ported from the old app's routes/api.js GET
@@ -92,6 +93,49 @@ public partial class ScheduleItemsController(
         var contentTypes = await db.ContentTypes.ToDictionaryAsync(c => c.Id);
         var accounts = await db.Accounts.Where(a => a.BandId == bandId).ToDictionaryAsync(a => a.Id);
         return Ok(await SerializeAsync(item, contentTypes, accounts));
+    }
+
+    /// <summary>Reassigns one tile - any band member can do this (not
+    /// BandAdmin-gated, matching the collaborative "anyone can pick up or
+    /// hand off a task" spirit of the board). Notifies whoever is newly
+    /// added (not someone who was already assigned, and not someone being
+    /// removed) - Phase 6's NotificationPreference will gate whether that
+    /// notification actually gets emailed; for now it always lands
+    /// in-app.</summary>
+    [HttpPut("{id:guid}/assignees")]
+    public async Task<IActionResult> SetAssignees(Guid id, [FromBody] SetAssigneesRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (request.AssigneeUserId1 is not null && request.AssigneeUserId1 == request.AssigneeUserId2)
+            return BadRequest(new { error = "Can't assign the same person twice." });
+
+        var item = await db.ScheduleItems.FirstOrDefaultAsync(i => i.Id == id && i.BandId == bandId);
+        if (item is null) return NotFound(new { error = "Not found" });
+
+        var newIds = new[] { request.AssigneeUserId1, request.AssigneeUserId2 }.Where(i => i is not null).Select(i => i!.Value).ToList();
+        foreach (var newId in newIds)
+        {
+            if (!await db.BandMemberships.AnyAsync(m => m.UserId == newId && m.BandId == bandId))
+                return BadRequest(new { error = "Assignee must be a member of this band." });
+        }
+
+        var previousIds = new[] { item.AssigneeUserId1, item.AssigneeUserId2 }.Where(i => i is not null).Select(i => i!.Value).ToHashSet();
+        item.AssigneeUserId1 = request.AssigneeUserId1;
+        item.AssigneeUserId2 = request.AssigneeUserId2;
+        await db.SaveChangesAsync();
+
+        foreach (var newId in newIds.Where(i => !previousIds.Contains(i)))
+        {
+            db.Notifications.Add(new Notification
+            {
+                UserId = newId,
+                Message = $"You've been assigned to \"{item.ContentType} - {item.Category}\".",
+                Kind = NotificationKind.ResponsibilityChanged
+            });
+        }
+        await db.SaveChangesAsync();
+
+        return Ok(new { ok = true, assignee_user_id1 = item.AssigneeUserId1, assignee_user_id2 = item.AssigneeUserId2 });
     }
 
     /// <summary>Manually triggers full cadence generation (recurring +
@@ -450,7 +494,8 @@ public partial class ScheduleItemsController(
             id = item.Id,
             template_key = item.TemplateKey,
             platform = item.Platform,
-            owner = item.Owner,
+            assignee_user_id1 = item.AssigneeUserId1,
+            assignee_user_id2 = item.AssigneeUserId2,
             content_type = item.ContentType,
             category = item.Category,
             example = item.Example,

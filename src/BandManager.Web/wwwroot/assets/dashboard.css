@@ -735,3 +735,60 @@ body {
     cursor: pointer;
 }
 .edit-site-btn:hover { border-color: #6f93c5; }
+
+/* --- Assignee badges / picker / profile popover (assignee.js) --- */
+.assignee-badges { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.assignee-unassigned { color: #888; font-style: italic; }
+.assignee-name-link {
+    background: none;
+    border: none;
+    color: #8fb4d9;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    font: inherit;
+}
+.assignee-name-link:hover { color: #b3d0ec; }
+.assignee-reassign-btn {
+    background: #333;
+    color: #ccc;
+    border: 1px solid #555;
+    border-radius: 10px;
+    padding: 1px 9px;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+.assignee-reassign-btn:hover { background: #444; }
+
+.assignee-picker-modal { max-width: 360px; }
+.assignee-picker-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.assignee-picker-tile {
+    background: #222;
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+}
+.assignee-picker-tile.selected { background: #2d6a4f; border-color: #3a8863; }
+.assignee-picker-tile:disabled { opacity: 0.4; cursor: default; }
+.assignee-picker-confirm {
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    padding: 7px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.assignee-profile-popover {
+    position: absolute;
+    z-index: 500;
+    background: #222;
+    border: 1px solid #555;
+    border-radius: 8px;
+    padding: 10px 14px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+    min-width: 160px;
+}
+.assignee-profile-popover strong { display: block; margin-bottom: 4px; color: #eee; }

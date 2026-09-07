@@ -100,7 +100,8 @@ public class Scheduler(
                         AccountId = rule.AccountId,
                         TemplateKey = templateKey,
                         Platform = rule.Account.Platform.DisplayName,
-                        Owner = rule.Owner ?? "",
+                        AssigneeUserId1 = rule.AssigneeUserId1,
+                        AssigneeUserId2 = rule.AssigneeUserId2,
                         ContentType = rule.ContentTypeId,
                         Category = rule.Category,
                         Example = rule.Description,
@@ -177,7 +178,8 @@ public class Scheduler(
                         AccountId = rule.AccountId,
                         TemplateKey = templateKey,
                         Platform = rule.Account.Platform.DisplayName,
-                        Owner = rule.Owner ?? "",
+                        AssigneeUserId1 = rule.AssigneeUserId1,
+                        AssigneeUserId2 = rule.AssigneeUserId2,
                         ContentType = rule.ContentTypeId,
                         Category = rule.Category,
                         Example = $"{message} - {gig.Title}",
@@ -218,7 +220,8 @@ public class Scheduler(
                     AccountId = rule.AccountId,
                     TemplateKey = templateKey,
                     Platform = rule.Account.Platform.DisplayName,
-                    Owner = rule.Owner ?? "",
+                    AssigneeUserId1 = rule.AssigneeUserId1,
+                    AssigneeUserId2 = rule.AssigneeUserId2,
                     ContentType = rule.ContentTypeId,
                     Category = rule.Category,
                     Example = $"{rule.Description} - {gig.Title}",
@@ -256,7 +259,6 @@ public class Scheduler(
                 AccountId = websiteAccount.Id,
                 TemplateKey = templateKey,
                 Platform = "Website",
-                Owner = "",
                 ContentType = "Calendar Listing",
                 Category = "Show Details",
                 Example = $"Keep the calendar listing accurate - {gig.Title}",
@@ -291,7 +293,6 @@ public class Scheduler(
                 AccountId = websiteAccount.Id,
                 TemplateKey = templateKey,
                 Platform = "Website",
-                Owner = "",
                 ContentType = "Media Item",
                 Category = "Media",
                 Example = $"Keep the media entry accurate - {media.Title}",
@@ -325,7 +326,6 @@ public class Scheduler(
                 AccountId = websiteAccount.Id,
                 TemplateKey = templateKey,
                 Platform = "Website",
-                Owner = "",
                 ContentType = "Gallery Image",
                 Category = "Gallery",
                 Example = $"Keep the gallery entry accurate - {image.Alt}",
@@ -342,11 +342,11 @@ public class Scheduler(
     /// <summary>Bandsintown's two gig-driven rows are booking-triggered/
     /// platform-automatic, not something a human tunes a cadence for -
     /// kept as simple hardcoded generation rather than editable rules,
-    /// same as the old app. Owner is left blank (not hardcoded to a real
-    /// person's name, as this used to be - see Owner = "Bobby" fixed here,
-    /// a real latent bug: every band using Bandsintown got the same
-    /// hardcoded name regardless of their actual roster) - matches every
-    /// other auto-generated item's "unassigned by default" convention.</summary>
+    /// same as the old app. Left unassigned (not hardcoded to a real
+    /// person, as this used to be - a real latent bug: every band using
+    /// Bandsintown got the same hardcoded owner regardless of their actual
+    /// roster) - matches every other auto-generated item's "unassigned by
+    /// default" convention.</summary>
     public async Task GenerateBandsintownItemsAsync(Guid bandId, List<Gig> gigs)
     {
         var account = await GetAccountAsync(bandId, "bandsintown");
@@ -362,7 +362,7 @@ public class Scheduler(
                 db.ScheduleItems.Add(new ScheduleItem
                 {
                     BandId = bandId, AccountId = account.Id, TemplateKey = listingKey, Platform = "Bandsintown/Songkick",
-                    Owner = "", ContentType = "Event Listing", Category = "Show Promotion",
+                    ContentType = "Event Listing", Category = "Show Promotion",
                     Example = $"New tour date added w/ venue, ticket link - {gig.Title}",
                     DueDate = null, NoApi = true, AutoHandled = false, GigRef = gigRef
                 });
@@ -374,7 +374,7 @@ public class Scheduler(
                 db.ScheduleItems.Add(new ScheduleItem
                 {
                     BandId = bandId, AccountId = account.Id, TemplateKey = reminderKey, Platform = "Bandsintown/Songkick",
-                    Owner = "", ContentType = "Reminder Push", Category = "Show Promotion",
+                    ContentType = "Reminder Push", Category = "Show Promotion",
                     Example = $"Automated fan notification reminder - {gig.Title}",
                     DueDate = null, NoApi = false, AutoHandled = true, GigRef = gigRef
                 });
@@ -423,7 +423,8 @@ public class Scheduler(
                     AccountId = rule.AccountId,
                     TemplateKey = templateKey,
                     Platform = rule.Account.Platform.DisplayName,
-                    Owner = rule.Owner ?? "",
+                    AssigneeUserId1 = rule.AssigneeUserId1,
+                    AssigneeUserId2 = rule.AssigneeUserId2,
                     ContentType = rule.ContentTypeId,
                     Category = rule.Category,
                     Example = $"{rule.Description} - {nextGig.Title}",

@@ -9,7 +9,7 @@ namespace BandManager.Web.Controllers;
 
 public record CadenceRuleBody(
     Guid? AccountId, string? ContentTypeId, string? Kind, string? Category, string? Description,
-    string? Owner, string? ScheduleType, List<string>? ScheduleDays,
+    Guid? AssigneeUserId1, Guid? AssigneeUserId2, string? ScheduleType, List<string>? ScheduleDays,
     Dictionary<string, string>? MessageTemplates, string? ManualInstructions, bool? Active);
 
 /// <summary>
@@ -80,6 +80,8 @@ public class CadenceController(ApplicationDbContext db, IActiveBandAccessor acti
 
         var (validationError, account) = await ValidateAsync(body, bandId, existingKind: null);
         if (validationError is not null) return BadRequest(new { error = validationError });
+        if (await ValidateAssigneesAsync(body.AssigneeUserId1, body.AssigneeUserId2, bandId) is { } assigneeError)
+            return BadRequest(new { error = assigneeError });
 
         var rule = new CadenceRule
         {
@@ -88,7 +90,8 @@ public class CadenceController(ApplicationDbContext db, IActiveBandAccessor acti
             Kind = Enum.Parse<CadenceKind>(ToPascalCase(body.Kind!)),
             Category = body.Category!.Trim(),
             Description = body.Description!.Trim(),
-            Owner = Truncate(body.Owner, 100),
+            AssigneeUserId1 = body.AssigneeUserId1,
+            AssigneeUserId2 = body.AssigneeUserId2,
             ScheduleType = body.Kind == "recurring" ? Enum.Parse<ScheduleType>(ToPascalCase(body.ScheduleType!)) : null,
             ScheduleDays = body.Kind == "recurring" ? body.ScheduleDays : null,
             MessageTemplates = body.Kind == "gig_countdown" ? body.MessageTemplates : null,
@@ -125,9 +128,18 @@ public class CadenceController(ApplicationDbContext db, IActiveBandAccessor acti
         }, bandId, existingKind: existing.Kind);
         if (validationError is not null) return BadRequest(new { error = validationError });
 
+        // Unlike the other fields on this endpoint, assignees are always
+        // sent as the complete new pair by the picker UI (not a partial
+        // patch) - so this can't coalesce with null-meaning-"unchanged"
+        // the way Category/Description do, or clearing an assignee down
+        // to "nobody" would be impossible to express.
+        if (await ValidateAssigneesAsync(body.AssigneeUserId1, body.AssigneeUserId2, bandId) is { } assigneeError)
+            return BadRequest(new { error = assigneeError });
+
         existing.Category = (body.Category ?? existing.Category).Trim();
         existing.Description = (body.Description ?? existing.Description).Trim();
-        if (body.Owner is not null) existing.Owner = Truncate(body.Owner, 100);
+        existing.AssigneeUserId1 = body.AssigneeUserId1;
+        existing.AssigneeUserId2 = body.AssigneeUserId2;
         if (existing.Kind == CadenceKind.Recurring)
         {
             if (body.ScheduleType is not null) existing.ScheduleType = Enum.Parse<ScheduleType>(ToPascalCase(body.ScheduleType));
@@ -157,6 +169,18 @@ public class CadenceController(ApplicationDbContext db, IActiveBandAccessor acti
         db.CadenceRules.Remove(existing);
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
+    }
+
+    private async Task<string?> ValidateAssigneesAsync(Guid? assignee1, Guid? assignee2, Guid bandId)
+    {
+        if (assignee1 is not null && assignee1 == assignee2) return "Can't assign the same person twice.";
+        foreach (var id in new[] { assignee1, assignee2 })
+        {
+            if (id is null) continue;
+            if (!await db.BandMemberships.AnyAsync(m => m.UserId == id && m.BandId == bandId))
+                return "Assignee must be a member of this band.";
+        }
+        return null;
     }
 
     private async Task<(string? Error, Account? Account)> ValidateAsync(CadenceRuleBody body, Guid bandId, CadenceKind? existingKind)
@@ -209,7 +233,8 @@ public class CadenceController(ApplicationDbContext db, IActiveBandAccessor acti
         kind = ToSnakeCase(r.Kind.ToString()),
         category = r.Category,
         description = r.Description,
-        owner = r.Owner,
+        assignee_user_id1 = r.AssigneeUserId1,
+        assignee_user_id2 = r.AssigneeUserId2,
         schedule_type = r.ScheduleType is null ? null : ToSnakeCase(r.ScheduleType.ToString()!),
         schedule_days = r.ScheduleDays,
         message_templates = r.MessageTemplates,

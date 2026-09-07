@@ -161,7 +161,8 @@ function renderRuleRow(rule) {
             <span class="cadence-kind-badge">${KIND_LABELS[rule.kind] || rule.kind}</span>
             <strong>${escapeHtml(rule.content_type_id)}</strong> - ${escapeHtml(rule.category)}
             <p class="cadence-rule-desc">${escapeHtml(rule.description)}</p>
-            <p class="cadence-rule-schedule">${escapeHtml(scheduleSummary(rule))}${rule.owner ? ` &middot; ${escapeHtml(rule.owner)}` : ''}</p>
+            <p class="cadence-rule-schedule">${escapeHtml(scheduleSummary(rule))}</p>
+            <p class="cadence-rule-assignees"></p>
         </div>
         <div class="cadence-rule-actions">
             <label class="checkbox-label"><input type="checkbox" class="rule-active-toggle" ${rule.active ? 'checked' : ''}> Active</label>
@@ -169,6 +170,20 @@ function renderRuleRow(rule) {
             <button type="button" class="remove-btn delete-rule-btn">Delete</button>
         </div>
     `;
+
+    row.querySelector('.cadence-rule-assignees').appendChild(window.renderAssigneeBadges({
+        assigneeUserId1: rule.assignee_user_id1,
+        assigneeUserId2: rule.assignee_user_id2,
+        onReassign: async (id1, id2) => {
+            await fetch(`/api/cadence-rules/${rule.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ assigneeUserId1: id1, assigneeUserId2: id2 })
+            });
+            rule.assignee_user_id1 = id1;
+            rule.assignee_user_id2 = id2;
+        }
+    }));
 
     row.querySelector('.rule-active-toggle').addEventListener('change', async (e) => {
         await fetch(`/api/cadence-rules/${rule.id}`, {
@@ -230,7 +245,7 @@ function renderRuleForm(platform, rule) {
         </label>
         <label>Category <input type="text" name="category" maxlength="200" required></label>
         <label>Description (what to make) <input type="text" name="description" maxlength="1000" required></label>
-        <label>Owner <input type="text" name="owner" maxlength="100" placeholder="e.g. Bobby/Rich"></label>
+        <label>Assigned to <span class="cadence-form-assignees"></span></label>
         <div class="cadence-schedule-fields"></div>
         <button type="submit">${isEdit ? 'Save' : 'Add rule'}</button>
         <button type="button" class="cancel-btn">Cancel</button>
@@ -287,6 +302,21 @@ function renderRuleForm(platform, rule) {
         }
     }
 
+    let formAssigneeIds = rule ? [rule.assignee_user_id1, rule.assignee_user_id2].filter(Boolean) : [];
+    const assigneesContainer = form.querySelector('.cadence-form-assignees');
+    function renderFormAssignees() {
+        assigneesContainer.innerHTML = '';
+        assigneesContainer.appendChild(window.renderAssigneeBadges({
+            assigneeUserId1: formAssigneeIds[0] || null,
+            assigneeUserId2: formAssigneeIds[1] || null,
+            onReassign: (id1, id2) => {
+                formAssigneeIds = [id1, id2].filter(Boolean);
+                renderFormAssignees();
+            }
+        }));
+    }
+    renderFormAssignees();
+
     kindSelect.addEventListener('change', () => renderScheduleFields(kindSelect.value));
     renderScheduleFields(kindSelect.value);
     if (rule) contentTypeSelect.value = rule.content_type_id;
@@ -296,7 +326,6 @@ function renderRuleForm(platform, rule) {
         renderScheduleFields(rule.kind);
         form.category.value = rule.category;
         form.description.value = rule.description;
-        form.owner.value = rule.owner || '';
         if (rule.kind === 'recurring' && rule.schedule_days) {
             form.scheduleType.value = rule.schedule_type;
             form.scheduleType.dispatchEvent(new Event('change'));
@@ -329,7 +358,8 @@ function renderRuleForm(platform, rule) {
             contentTypeId: contentTypeSelect.value,
             category: form.category.value,
             description: form.description.value,
-            owner: form.owner.value
+            assigneeUserId1: formAssigneeIds[0] || null,
+            assigneeUserId2: formAssigneeIds[1] || null
         };
 
         if (kind === 'recurring') {

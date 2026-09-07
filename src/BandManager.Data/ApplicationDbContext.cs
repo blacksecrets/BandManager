@@ -126,6 +126,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.ContentType).WithMany().HasForeignKey(x => x.ContentTypeId).OnDelete(DeleteBehavior.Restrict);
+            // SetNull (not Cascade) - losing an account shouldn't be
+            // possible for a user row, but keep the rule itself intact and
+            // simply unassigned if it ever happens.
+            b.HasOne(x => x.AssigneeUser1).WithMany().HasForeignKey(x => x.AssigneeUserId1).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(x => x.AssigneeUser2).WithMany().HasForeignKey(x => x.AssigneeUserId2).OnDelete(DeleteBehavior.SetNull);
             b.Property(x => x.ScheduleDays)
                 .HasConversion(JsonValueConverter.For<List<string>>(), JsonValueConverter.Comparer<List<string>>());
             b.Property(x => x.MessageTemplates)
@@ -141,6 +146,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.AssigneeUser1).WithMany().HasForeignKey(x => x.AssigneeUserId1).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(x => x.AssigneeUser2).WithMany().HasForeignKey(x => x.AssigneeUserId2).OnDelete(DeleteBehavior.SetNull);
             // Idempotent cadence generation: INSERT-if-not-exists on this
             // key, mirrors the old app's UNIQUE(template_key, due_date, gig_ref)
             // - scoped per Band now, so two Bands' identically-named rules

@@ -85,6 +85,20 @@ const expandedCancelled = new Set(); // same, but for the "Cancelled" dropdowns
 // What actually needs doing right now vs. what's just scheduled ahead.
 const ACTIONABLE_COLORS = new Set(['red', 'neutral', 'yellow', 'complete', 'done-pending']);
 
+async function reassignItem(itemId, assigneeUserId1, assigneeUserId2) {
+    const res = await fetch(`/api/items/${itemId}/assignees`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assigneeUserId1, assigneeUserId2 })
+    });
+    if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(body.error || 'Could not reassign.');
+        return;
+    }
+    loadItems();
+}
+
 async function loadItems() {
     const [itemsRes, credsRes] = await Promise.all([
         fetch('/api/items'),
@@ -849,6 +863,13 @@ function renderCard(item) {
     node.querySelector('.example').remove();
     node.querySelector('.due').textContent = item.status.label;
 
+    const assigneeSlot = node.querySelector('.assignee-slot');
+    assigneeSlot.appendChild(window.renderAssigneeBadges({
+        assigneeUserId1: item.assignee_user_id1,
+        assigneeUserId2: item.assignee_user_id2,
+        onReassign: (id1, id2) => reassignItem(item.id, id1, id2)
+    }));
+
     const owedBadge = node.querySelector('.owed-badge');
     if (item.artifacts_owed) owedBadge.hidden = false;
 
@@ -1317,7 +1338,13 @@ function openDetailModal(item) {
 
     const meta = document.createElement('p');
     meta.className = 'detail-meta';
-    meta.textContent = `${item.platform} · ${item.category} · ${item.owner || 'unassigned'} · ${item.status.label}`;
+    meta.append(`${item.platform} · ${item.category} · `);
+    meta.appendChild(window.renderAssigneeBadges({
+        assigneeUserId1: item.assignee_user_id1,
+        assigneeUserId2: item.assignee_user_id2,
+        onReassign: (id1, id2) => reassignItem(item.id, id1, id2)
+    }));
+    meta.append(` · ${item.status.label}`);
     body.appendChild(meta);
 
     if (item.example) {

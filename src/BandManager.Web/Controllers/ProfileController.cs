@@ -204,7 +204,13 @@ public class ProfileController(
         var members = await db.BandMemberships.Include(m => m.User)
             .Where(m => m.BandId == bandId)
             .OrderBy(m => m.User.FirstName ?? m.User.UserName)
-            .Select(m => new { id = m.UserId, firstName = m.User.FirstName ?? m.User.UserName!.Split('@')[0] })
+            .Select(m => new
+            {
+                id = m.UserId,
+                firstName = m.User.FirstName ?? m.User.UserName!.Split('@')[0],
+                username = m.User.UserName,
+                role = m.Role.ToString()
+            })
             .ToListAsync();
         return Ok(members);
     }
