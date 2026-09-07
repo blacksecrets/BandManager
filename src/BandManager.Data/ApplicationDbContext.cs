@@ -21,6 +21,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BandSetting> BandSettings => Set<BandSetting>();
 
     public DbSet<CadenceRule> CadenceRules => Set<CadenceRule>();
+    public DbSet<CalendarFeedToken> CalendarFeedTokens => Set<CalendarFeedToken>();
     public DbSet<CatalogItem> CatalogItems => Set<CatalogItem>();
     public DbSet<ScheduleItem> ScheduleItems => Set<ScheduleItem>();
     public DbSet<Artifact> Artifacts => Set<Artifact>();
@@ -275,6 +276,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.BandId, x.UserId, x.Date }).IsUnique();
+        });
+
+        builder.Entity<CalendarFeedToken>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.UserId).IsUnique();
+            b.HasIndex(x => x.Token).IsUnique();
         });
 
         // --- Flyer management ---

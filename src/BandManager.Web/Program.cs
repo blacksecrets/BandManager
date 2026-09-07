@@ -96,6 +96,7 @@ var keyPath = builder.Configuration["CredentialKeyPath"]
     ?? Path.Combine(builder.Environment.ContentRootPath, "data", "secret.key");
 builder.Services.AddSingleton<ICredentialCipher>(new AesGcmCredentialCipher(keyPath));
 builder.Services.AddScoped<BandManager.Data.Services.CredentialStore>();
+builder.Services.AddScoped<BandManager.Data.Services.CalendarFeedService>();
 builder.Services.AddScoped<BandManager.Data.Services.BandMembershipService>();
 
 var uploadsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "uploads");

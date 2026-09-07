@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
 using BandManager.Data;
+using BandManager.Data.Entities;
+using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -16,8 +19,61 @@ namespace BandManager.Web.Controllers;
 [ApiController]
 [Route("/api/calendar")]
 [Authorize(Policy = "BandMember")]
-public class CalendarController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
+public class CalendarController(ApplicationDbContext db, IActiveBandAccessor activeBand, CalendarFeedService feedService) : ControllerBase
 {
+    /// <summary>Every non-archived band the given user actually belongs to
+    /// - the ICS feed/export cover all of them, not just whichever one
+    /// happens to be "active" right now (a subscribed calendar app has no
+    /// concept of that, and an export is a one-off snapshot anyway).</summary>
+    private async Task<List<Guid>> MemberBandIdsAsync(Guid userId) =>
+        await db.BandMemberships.Where(m => m.UserId == userId && !m.Band.IsArchived)
+            .Select(m => m.BandId).ToListAsync();
+
+    /// <summary>Get-or-create the caller's feed token and return the full
+    /// subscribable URL - BandMember-gated same as the rest of this
+    /// controller, even though the feed itself is anonymous once issued
+    /// (the token is what protects it after that point).</summary>
+    [HttpGet("feed-token")]
+    public async Task<IActionResult> GetFeedToken()
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var existing = await db.CalendarFeedTokens.FirstOrDefaultAsync(t => t.UserId == userId);
+        if (existing is null)
+        {
+            existing = new CalendarFeedToken { UserId = userId.Value, Token = Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLowerInvariant() };
+            db.CalendarFeedTokens.Add(existing);
+            await db.SaveChangesAsync();
+        }
+
+        var url = $"{Request.Scheme}://{Request.Host}/api/calendar/feed/{existing.Token}.ics";
+        return Ok(new { url });
+    }
+
+    [HttpGet("/api/calendar/feed/{token}.ics")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Feed(string token)
+    {
+        var feedToken = await db.CalendarFeedTokens.FirstOrDefaultAsync(t => t.Token == token);
+        if (feedToken is null) return NotFound();
+
+        var bandIds = await MemberBandIdsAsync(feedToken.UserId);
+        var ics = await feedService.BuildIcsAsync(bandIds);
+        return Content(ics, "text/calendar");
+    }
+
+    [HttpGet("export.ics")]
+    public async Task<IActionResult> Export()
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var bandIds = await MemberBandIdsAsync(userId.Value);
+        var ics = await feedService.BuildIcsAsync(bandIds);
+        return File(System.Text.Encoding.UTF8.GetBytes(ics), "text/calendar", "bandmanager-calendar.ics");
+    }
+
     private IActionResult? RequireActiveBand(out Guid bandId)
     {
         var id = activeBand.GetActiveBandId();

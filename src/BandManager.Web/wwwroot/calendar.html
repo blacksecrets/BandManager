@@ -30,6 +30,36 @@
             </div>
 
             <div class="calendar-grid" id="calendar-grid"></div>
+
+            <details class="calendar-sync-panel">
+                <summary>Sync to your calendar</summary>
+                <p class="save-note">Subscribe once and this calendar's gigs and rehearsals stay up to date in your own Google, Apple, or Outlook calendar - or export a snapshot file to import manually.</p>
+
+                <label>Your personal feed URL
+                    <div class="calendar-sync-url-row">
+                        <input type="text" id="calendar-feed-url" readonly>
+                        <button type="button" id="calendar-feed-copy">Copy</button>
+                    </div>
+                </label>
+                <p id="calendar-feed-copy-status" class="save-note"></p>
+
+                <div class="calendar-sync-instructions">
+                    <div>
+                        <strong>Google Calendar</strong>
+                        <p class="save-note">Other calendars &rarr; + &rarr; From URL, then paste the feed URL above.</p>
+                    </div>
+                    <div>
+                        <strong>Outlook</strong>
+                        <p class="save-note">Add calendar &rarr; Subscribe from web, then paste the feed URL above.</p>
+                    </div>
+                    <div>
+                        <strong>Apple Calendar</strong>
+                        <p class="save-note">File &rarr; New Calendar Subscription, then paste the feed URL above. Apple refreshes subscribed calendars on its own schedule - often a few hours, not instantly - so updates here may lag behind Google/Outlook a bit. That's a limit of Apple's own subscription feature, not something BandManager controls.</p>
+                    </div>
+                </div>
+
+                <button type="button" id="calendar-export-btn">Export to file (.ics)</button>
+            </details>
         </div>
     </main>
 

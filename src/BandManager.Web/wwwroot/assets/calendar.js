@@ -37,7 +37,30 @@ async function init() {
     const membersRes = await fetch('/api/profile/band-members');
     bandMembers = membersRes.ok ? await membersRes.json() : [];
 
+    initSyncPanel();
+
     await render();
+}
+
+async function initSyncPanel() {
+    const res = await fetch('/api/calendar/feed-token');
+    if (!res.ok) return;
+    const { url } = await res.json();
+    document.getElementById('calendar-feed-url').value = url;
+
+    document.getElementById('calendar-feed-copy').addEventListener('click', async () => {
+        const status = document.getElementById('calendar-feed-copy-status');
+        try {
+            await navigator.clipboard.writeText(url);
+            status.textContent = 'Copied.';
+        } catch {
+            status.textContent = 'Could not copy automatically - select and copy the URL manually.';
+        }
+    });
+
+    document.getElementById('calendar-export-btn').addEventListener('click', () => {
+        location.href = '/api/calendar/export.ics';
+    });
 }
 
 // A little padding on each side so the grid's leading/trailing days from
