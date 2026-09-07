@@ -9,14 +9,17 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record AddGigSetSongRequest(Guid SongId);
-public record ReorderGigSetRequest(List<Guid> SongIds);
+public record AddManualGigSetSongRequest(string Title, string? Artist, int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl);
+public record ReorderGigSetRequest(List<Guid> Ids);
 
 /// <summary>
 /// Gig setlists. Gigs are real DB rows now (see Entities.Gig) - "the gig
 /// management page" lists every Gig row for the band, and a GigSet row
-/// only exists once someone starts building that gig's set. Reading is
-/// open to the whole Band; building is BandAdmin-only, same split as
-/// RepertoireController.
+/// only exists once someone starts building that gig's set. Any band
+/// member can read AND build/edit a set - unlike most of this app's other
+/// write paths, setlist-building is deliberately not BandAdmin-gated,
+/// per the explicit "Any Band Member should be able to construct or edit
+/// a setlist" request.
 /// </summary>
 [ApiController]
 [Route("/api/gig-sets")]
@@ -30,6 +33,19 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         bandId = id.Value;
         return null;
     }
+
+    private static object Serialize(GigSetSong gs) => new
+    {
+        id = gs.Id,
+        songId = gs.SongId,
+        title = gs.Song?.Title ?? gs.ManualTitle,
+        originalArtist = gs.Song?.OriginalArtist ?? gs.ManualArtist,
+        key = gs.Song?.Key,
+        lengthSeconds = gs.Song?.LengthSeconds ?? gs.ManualLengthSeconds,
+        youTubeUrl = gs.Song?.YouTubeUrl ?? gs.ManualYouTubeUrl,
+        spotifyUrl = gs.Song?.SpotifyUrl ?? gs.ManualSpotifyUrl,
+        isManual = gs.SongId is null
+    };
 
     // The gig management page's own list - every gig on the Band's site,
     // with whether a set already exists and how many songs are in it.
@@ -112,13 +128,14 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         });
     }
 
-    // Copies a past gig's setlist into the current one - matches by
-    // SongId (never duplicates a song already in the target), appends
-    // after the target's current max SortOrder, iterating the source in
-    // its own order so relative order among the newly-imported songs is
-    // preserved even though absolute SortOrder values get renumbered.
+    // Copies a past gig's setlist into the current one - real songs are
+    // matched by SongId (never duplicated if already in the target);
+    // manual/ad-hoc entries have no SongId to dedupe on, so each one is
+    // copied fresh. Appends after the target's current max SortOrder,
+    // iterating the source in its own order so relative order among the
+    // newly-imported songs is preserved even though absolute SortOrder
+    // values get renumbered.
     [HttpPost("{gigRef}/import-from/{sourceGigRef}")]
-    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> ImportFromGig(string gigRef, string sourceGigRef)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -138,13 +155,29 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             await db.SaveChangesAsync();
         }
 
-        var existingSongIds = targetSet.Songs.Select(s => s.SongId).ToHashSet();
+        var existingSongIds = targetSet.Songs.Where(s => s.SongId is not null).Select(s => s.SongId!.Value).ToHashSet();
         var nextSort = targetSet.Songs.Count == 0 ? 0 : targetSet.Songs.Max(s => s.SortOrder) + 1;
         var imported = 0;
         foreach (var song in sourceSet.Songs.OrderBy(s => s.SortOrder))
         {
-            if (existingSongIds.Contains(song.SongId)) continue;
-            db.GigSetSongs.Add(new GigSetSong { GigSetId = targetSet.Id, SongId = song.SongId, SortOrder = nextSort++ });
+            if (song.SongId is { } sid)
+            {
+                if (existingSongIds.Contains(sid)) continue;
+                db.GigSetSongs.Add(new GigSetSong { GigSetId = targetSet.Id, SongId = sid, SortOrder = nextSort++ });
+            }
+            else
+            {
+                db.GigSetSongs.Add(new GigSetSong
+                {
+                    GigSetId = targetSet.Id,
+                    ManualTitle = song.ManualTitle,
+                    ManualArtist = song.ManualArtist,
+                    ManualLengthSeconds = song.ManualLengthSeconds,
+                    ManualYouTubeUrl = song.ManualYouTubeUrl,
+                    ManualSpotifyUrl = song.ManualSpotifyUrl,
+                    SortOrder = nextSort++
+                });
+            }
             imported++;
         }
         await db.SaveChangesAsync();
@@ -160,20 +193,11 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             .Include(s => s.Songs.OrderBy(gs => gs.SortOrder)).ThenInclude(gs => gs.Song)
             .FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == gigRef);
 
-        var songs = set?.Songs.OrderBy(gs => gs.SortOrder).Select(gs => new
-        {
-            songId = gs.SongId,
-            title = gs.Song.Title,
-            originalArtist = gs.Song.OriginalArtist,
-            key = gs.Song.Key,
-            lengthSeconds = gs.Song.LengthSeconds
-        }) ?? [];
-
+        var songs = set?.Songs.OrderBy(gs => gs.SortOrder).Select(Serialize) ?? [];
         return Ok(new { gigRef, songs });
     }
 
     [HttpPost("{gigRef}/songs")]
-    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> AddSong(string gigRef, [FromBody] AddGigSetSongRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -205,8 +229,46 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         return Ok(new { ok = true });
     }
 
+    // "Add manually" and "add from web search" share this one endpoint -
+    // a web-search result is just a pre-filled version of the same manual
+    // entry (see RepertoireController's own search-then-manual-form
+    // pattern), and neither is meant to create a permanent Song/
+    // RepertoireEntry row (Song creation stays BandAdmin-only, see
+    // SongsController.Create - a quick setlist add shouldn't require that).
+    [HttpPost("{gigRef}/manual-songs")]
+    public async Task<IActionResult> AddManualSong(string gigRef, [FromBody] AddManualGigSetSongRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var title = request.Title?.Trim();
+        if (string.IsNullOrEmpty(title)) return BadRequest(new { error = "Title is required." });
+
+        var set = await db.GigSets.Include(s => s.Songs)
+            .FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == gigRef);
+        if (set is null)
+        {
+            set = new GigSet { BandId = bandId, GigRef = gigRef };
+            db.GigSets.Add(set);
+            await db.SaveChangesAsync();
+        }
+
+        var nextSort = set.Songs.Count == 0 ? 0 : set.Songs.Max(s => s.SortOrder) + 1;
+        var entry = new GigSetSong
+        {
+            GigSetId = set.Id,
+            ManualTitle = title[..Math.Min(title.Length, 300)],
+            ManualArtist = string.IsNullOrWhiteSpace(request.Artist) ? null : request.Artist.Trim(),
+            ManualLengthSeconds = request.LengthSeconds,
+            ManualYouTubeUrl = string.IsNullOrWhiteSpace(request.YouTubeUrl) ? null : request.YouTubeUrl.Trim(),
+            ManualSpotifyUrl = string.IsNullOrWhiteSpace(request.SpotifyUrl) ? null : request.SpotifyUrl.Trim(),
+            SortOrder = nextSort
+        };
+        db.GigSetSongs.Add(entry);
+        await db.SaveChangesAsync();
+        return Ok(Serialize(entry));
+    }
+
     [HttpPut("{gigRef}/reorder")]
-    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Reorder(string gigRef, [FromBody] ReorderGigSetRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -215,27 +277,26 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             .FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == gigRef);
         if (set is null) return NotFound(new { error = "Not found" });
 
-        var currentIds = set.Songs.Select(s => s.SongId).ToHashSet();
-        if (request.SongIds.Count != currentIds.Count || !request.SongIds.All(currentIds.Contains))
+        var currentIds = set.Songs.Select(s => s.Id).ToHashSet();
+        if (request.Ids.Count != currentIds.Count || !request.Ids.All(currentIds.Contains))
             return BadRequest(new { error = "The song list doesn't match this set - reload and try again." });
 
-        for (var i = 0; i < request.SongIds.Count; i++)
+        for (var i = 0; i < request.Ids.Count; i++)
         {
-            set.Songs.First(s => s.SongId == request.SongIds[i]).SortOrder = i;
+            set.Songs.First(s => s.Id == request.Ids[i]).SortOrder = i;
         }
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }
 
-    [HttpDelete("{gigRef}/songs/{songId:guid}")]
-    [Authorize(Policy = "BandAdmin")]
-    public async Task<IActionResult> RemoveSong(string gigRef, Guid songId)
+    [HttpDelete("{gigRef}/songs/{id:guid}")]
+    public async Task<IActionResult> RemoveSong(string gigRef, Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
 
         var set = await db.GigSets.Include(s => s.Songs)
             .FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == gigRef);
-        var entry = set?.Songs.FirstOrDefault(s => s.SongId == songId);
+        var entry = set?.Songs.FirstOrDefault(s => s.Id == id);
         if (set is null || entry is null) return NotFound(new { error = "Not found" });
 
         set.Songs.Remove(entry);

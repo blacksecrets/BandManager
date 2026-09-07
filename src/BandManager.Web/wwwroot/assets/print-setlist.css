@@ -1,0 +1,81 @@
+/* Deliberately light/print-first, not dark-mode-aware like the rest of
+   this app - this page exists to be printed on white paper, and the
+   on-screen preview should look like what comes out of the printer. */
+* { box-sizing: border-box; }
+body {
+    background: #e8e8e8;
+    margin: 0;
+    padding: 20px;
+    font-family: system-ui, sans-serif;
+    color: #111;
+}
+
+.print-setlist-controls {
+    max-width: 720px;
+    margin: 0 auto 20px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 14px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px;
+}
+.print-setlist-controls label {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 0.8rem;
+    color: #333;
+}
+.print-setlist-controls label.checkbox-label { flex-direction: row; align-items: center; gap: 6px; }
+.print-setlist-controls select,
+.print-setlist-controls input[type="number"] {
+    padding: 5px 7px;
+    border: 1px solid #999;
+    border-radius: 4px;
+}
+.print-setlist-controls input[type="number"] { width: 60px; }
+.print-setlist-controls button {
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    cursor: pointer;
+    align-self: flex-end;
+}
+.print-setlist-controls #pref-status { margin: 0; color: #555; font-size: 0.78rem; }
+
+.print-setlist-sheet {
+    max-width: 720px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 40px;
+    color: #000;
+}
+.print-setlist-sheet h1 { margin: 0 0 4px; font-size: 1.6em; }
+.print-setlist-meta { margin: 0 0 24px; color: #444; }
+
+.print-setlist-list { padding-left: 1.6em; margin: 0; }
+.print-setlist-list.no-numbers { list-style: none; padding-left: 0; }
+.print-setlist-list li { margin-bottom: 4px; }
+.print-setlist-sheet.spacing-none .print-setlist-list li { margin-bottom: 2px; }
+.print-setlist-sheet.spacing-single .print-setlist-list li { margin-bottom: 10px; }
+.print-setlist-sheet.spacing-double .print-setlist-list li { margin-bottom: 26px; }
+
+.print-setlist-note {
+    font-weight: normal;
+    font-style: normal;
+    font-size: 0.75em;
+    color: #333;
+    margin-top: 2px;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    body { background: #fff; padding: 0; }
+    .print-setlist-sheet { border: none; max-width: none; padding: 0.5in; }
+}

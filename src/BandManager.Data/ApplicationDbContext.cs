@@ -32,6 +32,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RepertoireEntry> RepertoireEntries => Set<RepertoireEntry>();
     public DbSet<GigSet> GigSets => Set<GigSet>();
     public DbSet<GigSetSong> GigSetSongs => Set<GigSetSong>();
+    public DbSet<SongNote> SongNotes => Set<SongNote>();
+    public DbSet<PrintPreference> PrintPreferences => Set<PrintPreference>();
 
     // --- Site content, now DB-backed (source of truth), site is an
     // optional best-effort publish target - see Gig.cs's doc comment ---
@@ -191,7 +193,20 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<GigSetSong>(b =>
         {
             b.HasOne(x => x.GigSet).WithMany(s => s.Songs).HasForeignKey(x => x.GigSetId).OnDelete(DeleteBehavior.Cascade);
-            b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Restrict).IsRequired(false);
+        });
+
+        builder.Entity<SongNote>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.RepertoireEntry).WithMany().HasForeignKey(x => x.RepertoireEntryId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.UserId, x.RepertoireEntryId }).IsUnique();
+        });
+
+        builder.Entity<PrintPreference>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.UserId).IsUnique();
         });
 
         // --- Site content (Gigs/Media/Gallery), DB-backed ---

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Print Setlist</title>
+<link rel="stylesheet" href="/assets/print-setlist.css">
+</head>
+<body>
+    <div class="print-setlist-controls no-print">
+        <label>Font
+            <select id="pref-font">
+                <option>Arial</option>
+                <option>Helvetica</option>
+                <option>Times New Roman</option>
+                <option>Georgia</option>
+                <option>Courier New</option>
+                <option>Verdana</option>
+            </select>
+        </label>
+        <label class="checkbox-label"><input type="checkbox" id="pref-bold"> Bold</label>
+        <label class="checkbox-label"><input type="checkbox" id="pref-italic"> Italic</label>
+        <label>Size <input type="number" id="pref-size" min="8" max="36"></label>
+        <label>Spacing
+            <select id="pref-spacing">
+                <option value="None">Single (none)</option>
+                <option value="Single">Single</option>
+                <option value="Double">Double</option>
+            </select>
+        </label>
+        <label class="checkbox-label"><input type="checkbox" id="pref-numbers"> Numbered</label>
+        <button type="button" id="pref-save-btn">Save as my default</button>
+        <button type="button" id="print-now-btn">Print</button>
+        <p id="pref-status" class="save-note"></p>
+    </div>
+
+    <div id="print-setlist-sheet" class="print-setlist-sheet"></div>
+
+    <script src="/assets/print-setlist.js"></script>
+</body>
+</html>

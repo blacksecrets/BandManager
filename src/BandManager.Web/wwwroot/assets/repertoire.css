@@ -123,3 +123,13 @@
 
 .catalog-edit-row td { background: rgba(255, 255, 255, 0.02); white-space: normal; }
 .catalog-edit-row .cred-form { max-width: 480px; }
+
+.song-note-input {
+    width: 160px;
+    background: #1a1a1a;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 0.8rem;
+}

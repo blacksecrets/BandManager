@@ -4,6 +4,7 @@ let catalog = [];
 let isAdmin = false;
 let isSuperAdmin = false;
 let pendingWebResult = null; // {title, artist, url, source} - last-clicked web search hit, prefilled into the new-song form
+let myNotes = {}; // repertoireEntryId -> text, this user's own notes (see SongNotesController)
 
 function escapeHtml(str) {
     const div = document.createElement('div');
@@ -106,7 +107,7 @@ if (addInstrumentForm) {
 function renderTableHeader() {
     const row = document.getElementById('repertoire-head-row');
     row.innerHTML = '';
-    const labels = ['Title', 'Original Artist', ...instruments.map((i) => i.name), 'Key', 'Length', 'Links', 'Status', ''];
+    const labels = ['Title', 'Original Artist', ...instruments.map((i) => i.name), 'Key', 'Length', 'Links', 'Status', 'My Note', ''];
     for (const label of labels) {
         const th = document.createElement('th');
         th.textContent = label;
@@ -115,9 +116,16 @@ function renderTableHeader() {
 }
 
 async function loadRepertoire() {
-    const res = await fetch('/api/repertoire');
-    if (!res.ok) return;
-    repertoire = await res.json();
+    const [repRes, notesRes] = await Promise.all([
+        fetch('/api/repertoire'),
+        fetch('/api/song-notes')
+    ]);
+    if (!repRes.ok) return;
+    repertoire = await repRes.json();
+    myNotes = {};
+    if (notesRes.ok) {
+        for (const n of await notesRes.json()) myNotes[n.repertoireEntryId] = n.text;
+    }
     renderRepertoireBody();
 }
 
@@ -130,7 +138,7 @@ function renderRepertoireBody() {
     if (repertoire.length === 0) {
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        td.colSpan = 6 + instruments.length;
+        td.colSpan = 7 + instruments.length;
         td.textContent = 'Nothing in the repertoire yet - add a song above to get started.';
         tr.appendChild(td);
         tbody.appendChild(tr);
@@ -220,6 +228,29 @@ function renderRepertoireRow(entry) {
         statusTd.textContent = entry.status === 'InProgress' ? 'In Progress' : entry.status;
     }
     tr.appendChild(statusTd);
+
+    const noteTd = document.createElement('td');
+    const noteInput = document.createElement('input');
+    noteInput.type = 'text';
+    noteInput.className = 'song-note-input';
+    noteInput.placeholder = 'e.g. capo 3, watch the key change...';
+    noteInput.value = myNotes[entry.id] || '';
+    noteInput.title = 'Only you see this note (until you choose to print it on a setlist)';
+    let noteSaveTimer = null;
+    noteInput.addEventListener('input', () => {
+        clearTimeout(noteSaveTimer);
+        noteSaveTimer = setTimeout(async () => {
+            const text = noteInput.value.trim();
+            await fetch(`/api/song-notes/${entry.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            myNotes[entry.id] = text;
+        }, 500);
+    });
+    noteTd.appendChild(noteInput);
+    tr.appendChild(noteTd);
 
     const actionsTd = document.createElement('td');
     if (isAdmin) {

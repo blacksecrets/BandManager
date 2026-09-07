@@ -226,7 +226,7 @@ MapAuthenticatedStaticFiles("/band-branding", bandBrandingRootPath);
 // disclosed gap: unlike the old app, that path doesn't require login -
 // no secrets live in the page shells themselves, just markup/JS, but
 // worth tightening later if that stops being true).
-foreach (var page in new[] { "dashboard", "settings", "cadence", "catalog", "profile", "band-admin", "superadmin", "repertoire", "gig-sets", "notifications", "calendar" })
+foreach (var page in new[] { "dashboard", "settings", "cadence", "catalog", "profile", "band-admin", "superadmin", "repertoire", "gig-sets", "notifications", "calendar", "print-setlist" })
 {
     // Plain "logged in" (not the BandMember policy) - same as "/" (the
     // Dashboard, served unconditionally above) needs no active Band just

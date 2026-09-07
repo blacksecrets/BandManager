@@ -44,15 +44,42 @@
                     <div class="gig-set-actions">
                         <button type="button" id="gig-set-import-btn">Import from Past Gig</button>
                         <button type="button" id="gig-set-flyer-btn">Create/Edit Flyer</button>
+                        <button type="button" id="gig-set-print-btn">Print Setlist</button>
                     </div>
 
-                    <ol class="gig-set-song-list" id="gig-set-song-list"></ol>
+                    <div class="gig-set-builder">
+                        <div class="gig-set-repertoire-panel">
+                            <h3>Repertoire <span class="save-note">(drag into the set)</span></h3>
+                            <div id="gig-set-repertoire-list" class="gig-set-repertoire-list"></div>
 
-                    <div id="gig-set-add" class="add-membership-row">
-                        <select id="gig-set-add-select"></select>
-                        <button type="button" id="gig-set-add-btn">Add to set</button>
+                            <details class="manual-fallback">
+                                <summary>Add manually</summary>
+                                <form id="gig-set-manual-form" class="cred-form">
+                                    <label>Title <input type="text" name="title" required maxlength="300"></label>
+                                    <label>Artist <input type="text" name="artist" maxlength="300"></label>
+                                    <label>Length (mm:ss) <input type="text" name="length" placeholder="4:32"></label>
+                                    <input type="hidden" name="youTubeUrl">
+                                    <input type="hidden" name="spotifyUrl">
+                                    <button type="submit">Add to set</button>
+                                    <p id="gig-set-manual-status" class="save-note"></p>
+                                </form>
+                            </details>
+
+                            <details class="manual-fallback">
+                                <summary>Add from web search</summary>
+                                <form id="gig-set-web-search-form" class="cred-form">
+                                    <label>Search YouTube &amp; Spotify <input type="search" name="q" placeholder="Song title or artist..."></label>
+                                    <button type="submit">Search</button>
+                                </form>
+                                <div id="gig-set-web-results"></div>
+                            </details>
+                        </div>
+
+                        <div class="gig-set-list-panel">
+                            <ol class="gig-set-song-list" id="gig-set-song-list"></ol>
+                            <p id="gig-set-status" class="save-note"></p>
+                        </div>
                     </div>
-                    <p id="gig-set-status" class="save-note"></p>
 
                     <div id="gig-artifact-panel"></div>
                 </section>
@@ -64,6 +91,18 @@
         <div class="detail-modal">
             <button type="button" class="detail-modal-close" id="import-gig-modal-close">&times;</button>
             <div id="import-gig-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="print-setlist-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="print-setlist-modal-close">&times;</button>
+            <h2>Print Setlist</h2>
+            <p class="save-note">Optionally include any band member's notes on the printed sheet.</p>
+            <div id="print-setlist-user-list" class="print-setlist-user-list"></div>
+            <div class="gig-set-actions">
+                <button type="button" id="print-setlist-go-btn">Print</button>
+            </div>
         </div>
     </div>
 
