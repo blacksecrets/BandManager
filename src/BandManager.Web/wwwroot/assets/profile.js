@@ -309,6 +309,88 @@ loadGearTypes();
 loadGear();
 loadUspsConfigured();
 
+// --- Gig Prep Defaults ---
+let gigPrepDefaults = [];
+let gigPrepDefaultGear = [];
+let gigPrepDefaultActiveType = 0;
+
+async function loadGigPrepDefaults() {
+    const res = await fetch('/api/gig-prep/defaults');
+    gigPrepDefaults = res.ok ? await res.json() : [];
+    const gearRes = await fetch('/api/gear');
+    gigPrepDefaultGear = gearRes.ok ? await gearRes.json() : [];
+    renderGigPrepDefaultTabs();
+}
+
+function renderGigPrepDefaultTabs() {
+    renderGigPrepTabs(document.getElementById('gig-prep-default-tabs'), gigPrepDefaultActiveType, (type) => {
+        gigPrepDefaultActiveType = type;
+        renderGigPrepDefaultTabs();
+    });
+    renderGigPrepDefaultList();
+
+    const gearPanel = document.getElementById('gig-prep-default-gear-panel');
+    gearPanel.hidden = gigPrepDefaultActiveType !== 1; // Packing
+    if (!gearPanel.hidden) {
+        renderGigPrepGearPanel(
+            document.getElementById('gig-prep-default-gear-list'),
+            gigPrepDefaultGear,
+            document.getElementById('gig-prep-default-list'),
+            addGigPrepDefaultFromGear
+        );
+    }
+}
+
+function renderGigPrepDefaultList() {
+    const items = gigPrepDefaults.filter((i) => i.listType === gigPrepDefaultActiveType);
+    renderGigPrepList(document.getElementById('gig-prep-default-list'), items, {
+        showCheckbox: false,
+        onRemove: async (id) => {
+            await fetch(`/api/gig-prep/defaults/${id}`, { method: 'DELETE' });
+            gigPrepDefaults = gigPrepDefaults.filter((i) => i.id !== id);
+            renderGigPrepDefaultList();
+        },
+        onReorder: async (ids) => {
+            const byId = new Map(gigPrepDefaults.filter((i) => i.listType === gigPrepDefaultActiveType).map((i) => [i.id, i]));
+            const others = gigPrepDefaults.filter((i) => i.listType !== gigPrepDefaultActiveType);
+            gigPrepDefaults = [...others, ...ids.map((id) => byId.get(id))];
+            renderGigPrepDefaultList();
+            await fetch('/api/gig-prep/defaults/reorder', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ listType: gigPrepDefaultActiveType, ids })
+            });
+        }
+    });
+}
+
+async function addGigPrepDefaultItem(text) {
+    const res = await fetch('/api/gig-prep/defaults', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listType: gigPrepDefaultActiveType, text })
+    });
+    if (res.ok) {
+        gigPrepDefaults.push(await res.json());
+        renderGigPrepDefaultList();
+    }
+}
+
+function addGigPrepDefaultFromGear(gear) {
+    addGigPrepDefaultItem(gigPrepGearLabel(gear));
+}
+
+document.getElementById('gig-prep-default-add-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const text = form.text.value.trim();
+    if (!text) return;
+    await addGigPrepDefaultItem(text);
+    form.reset();
+});
+
+loadGigPrepDefaults();
+
 // --- Password change ---
 document.getElementById('password-form').addEventListener('submit', async (e) => {
     e.preventDefault();

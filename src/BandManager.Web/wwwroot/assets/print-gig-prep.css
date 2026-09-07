@@ -1,0 +1,8 @@
+.print-gig-prep-section-title { margin: 24px 0 10px; font-size: 1.1em; border-bottom: 1px solid #999; padding-bottom: 4px; }
+.print-gig-prep-list li:first-child, .print-gig-prep-section-title:first-of-type { margin-top: 0; }
+.print-gig-prep-box { display: inline-block; width: 1.2em; margin-right: 6px; }
+.print-gig-prep-page-break { break-after: page; }
+
+@media print {
+    .print-gig-prep-page-break { break-after: page; }
+}

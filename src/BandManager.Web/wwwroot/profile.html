@@ -100,6 +100,24 @@
         </section>
 
         <section class="platform-card">
+            <h2>Gig Prep Defaults</h2>
+            <p class="save-note">Your reusable Pre-gig, Packing, and Post-gig checklist items - the starting point for every new gig's Gig Prep. The first time you build one of these out from scratch on an actual gig, it becomes this default going forward.</p>
+
+            <div class="gig-prep-tabs" id="gig-prep-default-tabs"></div>
+            <ol class="gig-prep-list" id="gig-prep-default-list"></ol>
+
+            <form id="gig-prep-default-add-form" class="cred-form">
+                <label>Add item <input type="text" name="text" maxlength="300" placeholder="e.g. Charge wireless packs"></label>
+                <button type="submit">Add</button>
+            </form>
+
+            <div id="gig-prep-default-gear-panel" hidden>
+                <h4>Add from your gear <span class="save-note">(click, or drag into the list above)</span></h4>
+                <div id="gig-prep-default-gear-list" class="gig-prep-gear-list"></div>
+            </div>
+        </section>
+
+        <section class="platform-card">
             <h2>Notifications</h2>
             <p class="save-note">Choose what you're notified about, in-app and/or by email, and how far ahead of gigs/rehearsals/availability you want the heads-up.</p>
             <div id="notification-prefs-list"></div>
@@ -109,6 +127,7 @@
 
     </main>
 
+    <script src="/assets/gigPrepShared.js"></script>
     <script src="/assets/profile.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>

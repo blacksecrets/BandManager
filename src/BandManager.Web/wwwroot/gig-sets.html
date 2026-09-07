@@ -45,6 +45,7 @@
                         <button type="button" id="gig-set-import-btn">Import from Past Gig</button>
                         <button type="button" id="gig-set-flyer-btn">Create/Edit Flyer</button>
                         <button type="button" id="gig-set-print-btn">Print Setlist</button>
+                        <button type="button" id="gig-set-prep-btn">Gig Prep</button>
                     </div>
 
                     <div class="gig-set-builder">
@@ -106,6 +107,32 @@
         </div>
     </div>
 
+    <div id="gig-prep-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal gig-prep-modal">
+            <button type="button" class="detail-modal-close" id="gig-prep-modal-close">&times;</button>
+            <h2>Gig Prep</h2>
+            <p class="save-note">Your own Pre-gig, Packing, and Post-gig checklist for this gig - not shared with the rest of the band.</p>
+
+            <div class="gig-prep-tabs" id="gig-prep-tabs"></div>
+            <ol class="gig-prep-list" id="gig-prep-list"></ol>
+
+            <form id="gig-prep-add-form" class="cred-form">
+                <label>Add item <input type="text" name="text" maxlength="300" placeholder="e.g. Print setlist"></label>
+                <button type="submit">Add</button>
+            </form>
+
+            <div id="gig-prep-gear-panel" hidden>
+                <h4>Add from your gear <span class="save-note">(click, or drag into the list above)</span></h4>
+                <div id="gig-prep-gear-list" class="gig-prep-gear-list"></div>
+            </div>
+
+            <div class="gig-set-actions">
+                <button type="button" id="gig-prep-print-one-btn">Print this list</button>
+                <button type="button" id="gig-prep-print-all-btn">Print all three</button>
+            </div>
+        </div>
+    </div>
+
     <div id="template-picker-modal-backdrop" class="detail-modal-backdrop" hidden>
         <div class="detail-modal">
             <button type="button" class="detail-modal-close" id="template-picker-modal-close">&times;</button>
@@ -131,6 +158,7 @@
     </div>
 
     <script src="/assets/catalog.js"></script>
+    <script src="/assets/gigPrepShared.js"></script>
     <script src="/assets/gig-sets.js"></script>
     <script src="/assets/flyerEditor.js"></script>
     <script src="/assets/branding.js"></script>

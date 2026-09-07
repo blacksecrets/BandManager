@@ -514,4 +514,111 @@ document.getElementById('print-setlist-go-btn').addEventListener('click', () => 
     window.open(`/print-setlist.html?${params.toString()}`, '_blank');
 });
 
+// --- Gig Prep (per-user, per-gig checklist) ---
+let gigPrepItems = [];
+let gigPrepGear = [];
+let gigPrepActiveType = 0;
+
+function closeGigPrepModal() { document.getElementById('gig-prep-modal-backdrop').hidden = true; }
+document.getElementById('gig-prep-modal-close').addEventListener('click', closeGigPrepModal);
+document.getElementById('gig-prep-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'gig-prep-modal-backdrop') closeGigPrepModal(); });
+
+document.getElementById('gig-set-prep-btn').addEventListener('click', async () => {
+    if (!selectedGigRef) return;
+    document.getElementById('gig-prep-modal-backdrop').hidden = false;
+    gigPrepActiveType = 0;
+    const res = await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}`);
+    gigPrepItems = res.ok ? await res.json() : [];
+    if (gigPrepGear.length === 0) {
+        const gearRes = await fetch('/api/gear');
+        gigPrepGear = gearRes.ok ? await gearRes.json() : [];
+    }
+    renderGigPrepTabsAndList();
+});
+
+function renderGigPrepTabsAndList() {
+    renderGigPrepTabs(document.getElementById('gig-prep-tabs'), gigPrepActiveType, (type) => {
+        gigPrepActiveType = type;
+        renderGigPrepTabsAndList();
+    });
+    renderGigPrepListPanel();
+
+    const gearPanel = document.getElementById('gig-prep-gear-panel');
+    gearPanel.hidden = gigPrepActiveType !== 1; // Packing
+    if (!gearPanel.hidden) {
+        renderGigPrepGearPanel(
+            document.getElementById('gig-prep-gear-list'),
+            gigPrepGear,
+            document.getElementById('gig-prep-list'),
+            addGigPrepItemFromGear
+        );
+    }
+}
+
+function renderGigPrepListPanel() {
+    const items = gigPrepItems.filter((i) => i.listType === gigPrepActiveType);
+    renderGigPrepList(document.getElementById('gig-prep-list'), items, {
+        showCheckbox: true,
+        onToggle: async (id, checked) => {
+            await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/items/${id}/check`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(checked)
+            });
+            const item = gigPrepItems.find((i) => i.id === id);
+            if (item) item.isChecked = checked;
+        },
+        onRemove: async (id) => {
+            await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/items/${id}`, { method: 'DELETE' });
+            gigPrepItems = gigPrepItems.filter((i) => i.id !== id);
+            renderGigPrepListPanel();
+        },
+        onReorder: async (ids) => {
+            const byId = new Map(gigPrepItems.filter((i) => i.listType === gigPrepActiveType).map((i) => [i.id, i]));
+            const others = gigPrepItems.filter((i) => i.listType !== gigPrepActiveType);
+            gigPrepItems = [...others, ...ids.map((id) => byId.get(id))];
+            renderGigPrepListPanel();
+            await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/reorder`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ listType: gigPrepActiveType, ids })
+            });
+        }
+    });
+}
+
+async function addGigPrepItem(text) {
+    const res = await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listType: gigPrepActiveType, text })
+    });
+    if (res.ok) {
+        gigPrepItems.push(await res.json());
+        renderGigPrepListPanel();
+    }
+}
+
+function addGigPrepItemFromGear(gear) {
+    addGigPrepItem(gigPrepGearLabel(gear));
+}
+
+document.getElementById('gig-prep-add-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const text = form.text.value.trim();
+    if (!text) return;
+    await addGigPrepItem(text);
+    form.reset();
+});
+
+document.getElementById('gig-prep-print-one-btn').addEventListener('click', () => {
+    const params = new URLSearchParams({ gigRef: selectedGigRef, listType: gigPrepActiveType });
+    window.open(`/print-gig-prep.html?${params.toString()}`, '_blank');
+});
+document.getElementById('gig-prep-print-all-btn').addEventListener('click', () => {
+    const params = new URLSearchParams({ gigRef: selectedGigRef });
+    window.open(`/print-gig-prep.html?${params.toString()}`, '_blank');
+});
+
 init();
