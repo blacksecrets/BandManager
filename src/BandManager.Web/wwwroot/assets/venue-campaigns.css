@@ -1,0 +1,80 @@
+.venue-grid-wrap { overflow-x: auto; }
+.venue-grid { width: 100%; }
+.venue-grid-row { cursor: pointer; }
+.venue-grid-row:hover { background: rgba(255, 255, 255, 0.05); }
+.venue-grid-row.due-now { background: rgba(192, 57, 43, 0.12); }
+.venue-grid-row small { display: block; color: #999; }
+
+.venue-status-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    background: #444;
+    color: #ddd;
+}
+.venue-status-badge.status-Active { background: #2d6a4f; color: #fff; }
+.venue-status-badge.status-Paused { background: #7a6a1f; color: #fff; }
+.venue-status-badge.status-CompleteBooked { background: #1f5a8a; color: #fff; }
+.venue-status-badge.status-CompleteRejected { background: #7a2d2d; color: #fff; }
+.venue-status-badge.status-NotStarted { background: #444; color: #aaa; }
+
+.due-badge {
+    display: inline-block;
+    background: #c0392b;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+}
+
+.venue-detail-modal { max-width: 640px; max-height: 85vh; overflow-y: auto; }
+.venue-status-detail {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin: 10px 0;
+}
+.venue-detail-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.venue-detail-actions button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+.venue-detail-actions button:hover { background: #555; }
+
+.venue-contact-panel {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #4a6fa5;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+}
+.venue-contact-panel h3 { margin: 0 0 10px; font-size: 0.95rem; }
+
+.venue-comm-row {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: #ddd;
+}
+.venue-comm-body { white-space: pre-wrap; margin-top: 4px; color: #ccc; }
+
+.cadence-step-row {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: #ddd;
+    position: relative;
+}
+.cadence-step-row.inactive { opacity: 0.5; }
+.cadence-step-row .remove-btn { position: absolute; top: 10px; right: 12px; }

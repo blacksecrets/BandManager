@@ -22,6 +22,14 @@ public class Gig
     public required string Title { get; set; }
     public string? Venue { get; set; }
     public string? VenueUrl { get; set; }
+
+    // Set when this gig was created from a booked VenueCampaign (see
+    // GigsController.Create's optional venueId) - purely for traceability
+    // back to the outreach that landed it; Venue/VenueUrl above stay the
+    // real display fields, filled from the Venue record at creation time
+    // but editable independently afterward.
+    public Guid? VenueId { get; set; }
+    public Venue? VenueEntity { get; set; }
     public required string Date { get; set; }
     public string? Time { get; set; }
     public string? Address { get; set; }

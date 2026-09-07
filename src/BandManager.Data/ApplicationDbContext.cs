@@ -42,6 +42,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // optional best-effort publish target - see Gig.cs's doc comment ---
     public DbSet<Gig> Gigs => Set<Gig>();
     public DbSet<GigWithBand> GigWithBands => Set<GigWithBand>();
+    public DbSet<Venue> Venues => Set<Venue>();
+    public DbSet<VenueContact> VenueContacts => Set<VenueContact>();
+    public DbSet<VenueCadenceStep> VenueCadenceSteps => Set<VenueCadenceStep>();
+    public DbSet<VenueCampaign> VenueCampaigns => Set<VenueCampaign>();
+    public DbSet<VenueCommunication> VenueCommunications => Set<VenueCommunication>();
     public DbSet<MediaItem> MediaItems => Set<MediaItem>();
     public DbSet<GalleryImage> GalleryImages => Set<GalleryImage>();
 
@@ -235,6 +240,38 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.BandId, x.Ref }).IsUnique();
+            b.HasOne(x => x.VenueEntity).WithMany().HasForeignKey(x => x.VenueId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        // --- Venue outreach ---
+
+        builder.Entity<Venue>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<VenueContact>(b =>
+        {
+            b.HasOne(x => x.Venue).WithMany(v => v.Contacts).HasForeignKey(x => x.VenueId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<VenueCadenceStep>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.StepNumber }).IsUnique();
+        });
+
+        builder.Entity<VenueCampaign>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Venue).WithOne(v => v.Campaign).HasForeignKey<VenueCampaign>(x => x.VenueId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.BookedGig).WithMany().HasForeignKey(x => x.BookedGigId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<VenueCommunication>(b =>
+        {
+            b.HasOne(x => x.VenueCampaign).WithMany(c => c.Communications).HasForeignKey(x => x.VenueCampaignId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.LoggedByUser).WithMany().HasForeignKey(x => x.LoggedByUserId).OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<GigWithBand>(b =>

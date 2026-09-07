@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Venue Campaigns</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/venue-campaigns.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Venue Campaigns</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <p id="venue-campaigns-no-band" class="save-note" hidden>Select a band from the switcher above to manage its venue campaigns.</p>
+
+        <div id="venue-campaigns-content" hidden>
+            <p class="intro">All past and future outreach to every venue this band has (or might) play - a mini booking CRM. Each venue gets one campaign that walks a cadence of initial contact and follow-ups until it's booked or rejected.</p>
+
+            <section class="platform-card">
+                <details class="manual-fallback">
+                    <summary>Add a venue</summary>
+                    <form id="venue-add-form" class="cred-form">
+                        <label>Name <input type="text" name="name" required maxlength="300"></label>
+                        <label>Address <input type="text" name="addressLine1" maxlength="200"></label>
+                        <label>City <input type="text" name="city" maxlength="100"></label>
+                        <label>State <input type="text" name="state" maxlength="2"></label>
+                        <label>ZIP <input type="text" name="postalCode" maxlength="10"></label>
+                        <label>Phone <input type="tel" name="phone" maxlength="30"></label>
+                        <label>Website <input type="url" name="website" maxlength="300"></label>
+                        <label>Contact name <input type="text" name="contactName" maxlength="200"></label>
+                        <label>Contact email <input type="email" name="contactEmail" maxlength="300"></label>
+                        <label>Contact phone <input type="tel" name="contactPhone" maxlength="30"></label>
+                        <button type="submit">Add venue</button>
+                        <p id="venue-add-status" class="save-note"></p>
+                    </form>
+                </details>
+
+                <details class="manual-fallback">
+                    <summary>Bulk-import venues (CSV)</summary>
+                    <p class="save-note"><a href="/api/venues/import/template">Download the template</a> for the exact columns. Existing venues (matched by name) are skipped, not duplicated.</p>
+                    <label class="upload-btn">Choose CSV file<input type="file" id="venue-csv-upload" accept=".csv,text/csv" hidden></label>
+                    <p id="venue-import-status" class="save-note"></p>
+                    <div id="venue-import-errors"></div>
+                </details>
+
+                <details class="manual-fallback">
+                    <summary>Bulk-import past communications (CSV)</summary>
+                    <p class="save-note"><a href="/api/venues/import-communications/template">Download the template</a>. Each row's VenueName must match an existing venue exactly - unmatched rows are skipped.</p>
+                    <label class="upload-btn">Choose CSV file<input type="file" id="comm-csv-upload" accept=".csv,text/csv" hidden></label>
+                    <p id="comm-import-status" class="save-note"></p>
+                    <div id="comm-import-errors"></div>
+                </details>
+
+                <details class="manual-fallback" id="cadence-steps-section" hidden>
+                    <summary>Outreach cadence (Band Admin)</summary>
+                    <p class="save-note">The sequence every venue campaign walks - initial contact, then follow-ups, each due N days after the last communication.</p>
+                    <div id="cadence-steps-list"></div>
+                    <form id="cadence-step-add-form" class="cred-form">
+                        <label>Type
+                            <select name="type"><option value="Email">Email</option><option value="Phone">Phone</option></select>
+                        </label>
+                        <label>Days after previous step <input type="number" name="daysAfterPrevious" value="0" min="0"></label>
+                        <label>Default subject (email only) <input type="text" name="defaultSubject" maxlength="300"></label>
+                        <label>Default body / phone script <textarea name="defaultBody" rows="4" required></textarea></label>
+                        <button type="submit">Add step</button>
+                        <p id="cadence-step-add-status" class="save-note"></p>
+                    </form>
+                </details>
+            </section>
+
+            <section class="platform-card">
+                <h2>Campaigns</h2>
+                <div class="venue-grid-wrap">
+                    <table class="user-table venue-grid">
+                        <thead><tr><th>Venue</th><th>Status</th><th>Due</th><th>Last contact</th><th>Primary contact</th><th></th></tr></thead>
+                        <tbody id="venue-grid-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div id="venue-detail-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal venue-detail-modal">
+            <button type="button" class="detail-modal-close" id="venue-detail-modal-close">&times;</button>
+            <div id="venue-detail-modal-body"></div>
+        </div>
+    </div>
+
+    <script src="/assets/venue-campaigns.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

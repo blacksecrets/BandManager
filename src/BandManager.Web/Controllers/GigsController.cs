@@ -271,12 +271,20 @@ public class GigsController(
             catch (JsonException) { return BadRequest(new { error = "Invalid with-acts payload." }); }
         }
 
+        // Optional traceability back to the VenueCampaign this gig came
+        // from (see Venue.cs/VenueCampaign.cs) - Venue/Address above stay
+        // independently editable either way, this is just a pointer.
+        Guid? venueId = null;
+        if (Guid.TryParse(F("venueId"), out var parsedVenueId) && await db.Venues.AnyAsync(v => v.Id == parsedVenueId && v.BandId == band.Id))
+            venueId = parsedVenueId;
+
         var gig = new Gig
         {
             BandId = band.Id,
             Ref = Guid.NewGuid().ToString(),
             Title = title,
             Venue = venue,
+            VenueId = venueId,
             Address = address,
             Date = date,
             VenueUrl = F("venueUrl") is { Length: > 0 } vu ? vu : null,

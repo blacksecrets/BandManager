@@ -1,4 +1,5 @@
 using BandManager.Data;
+using BandManager.Data.Entities;
 using BandManager.Data.Services;
 using BandManager.Web.Services;
 using Microsoft.EntityFrameworkCore;
@@ -61,6 +62,40 @@ public class CadenceGenerationBackgroundService(IServiceScopeFactory scopeFactor
             {
                 logger.LogError(ex, "Reminder generation failed for band {BandId}", band.Id);
             }
+
+            try
+            {
+                await ReactivateDueVenueCampaignsAsync(db, band.Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Venue campaign retry-date reactivation failed for band {BandId}", band.Id);
+            }
         }
+    }
+
+    // A rejected VenueCampaign with a RetryDate (not NeverRetry) reopens
+    // itself once that date arrives - same reset Start-over does
+    // (VenueCampaignsController.Start), just triggered by time instead of
+    // a click. NeverRetry campaigns are never touched here.
+    private static async Task ReactivateDueVenueCampaignsAsync(ApplicationDbContext db, Guid bandId)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var due = await db.VenueCampaigns
+            .Where(c => c.BandId == bandId && c.Status == VenueCampaignStatus.CompleteRejected
+                && !c.NeverRetry && c.RetryDate != null && c.RetryDate <= today)
+            .ToListAsync();
+        if (due.Count == 0) return;
+
+        foreach (var campaign in due)
+        {
+            campaign.Status = VenueCampaignStatus.Active;
+            campaign.CurrentStepNumber = 1;
+            campaign.StartedAt = DateTime.UtcNow;
+            campaign.LastCommunicationAt = null;
+            campaign.RejectionReason = null;
+            campaign.RetryDate = null;
+        }
+        await db.SaveChangesAsync();
     }
 }
