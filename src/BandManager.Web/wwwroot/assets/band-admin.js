@@ -13,6 +13,7 @@ async function loadBandAdmin() {
     noBandEl.textContent = 'Select a band from the switcher above to manage it.';
     noBandEl.hidden = hasBand;
     document.getElementById('band-web-presence-section').hidden = !hasBand;
+    document.getElementById('band-repertoire-import-section').hidden = !hasBand;
     document.getElementById('band-branding-section').hidden = !hasBand;
     document.getElementById('band-users-section').hidden = !hasBand;
     if (!hasBand) return;
@@ -162,6 +163,50 @@ document.getElementById('add-user-form').addEventListener('submit', async (e) =>
         loadUsers();
     } else {
         status.textContent = result.error || 'Could not add user.';
+    }
+});
+
+// --- Repertoire CSV import ---
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+}
+
+document.getElementById('repertoire-csv-upload').addEventListener('change', async () => {
+    const input = document.getElementById('repertoire-csv-upload');
+    if (!input.files[0]) return;
+    const status = document.getElementById('repertoire-import-status');
+    const errorsBox = document.getElementById('repertoire-import-errors');
+    errorsBox.innerHTML = '';
+    status.textContent = 'Importing...';
+
+    const form = new FormData();
+    form.append('file', input.files[0]);
+
+    const res = await fetch('/api/repertoire/import', { method: 'POST', body: form });
+    const body = await res.json();
+    input.value = '';
+
+    if (res.ok) {
+        status.textContent = `${body.newSongsAdded} new song(s) added (pending review), ${body.changesSubmittedForReview} change(s) submitted for review, ${body.unchanged} already matched exactly.` +
+            (body.alreadyPendingSkipped ? ` ${body.alreadyPendingSkipped} skipped - already has an edit under review.` : '');
+        return;
+    }
+
+    status.textContent = body.error || 'Import failed.';
+    if (Array.isArray(body.rowErrors) && body.rowErrors.length > 0) {
+        const table = document.createElement('table');
+        table.className = 'user-table';
+        table.innerHTML = '<thead><tr><th>Row</th><th>Column</th><th>Problem</th></tr></thead>';
+        const tbody = document.createElement('tbody');
+        for (const e of body.rowErrors) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${e.row}</td><td>${escapeHtml(e.column)}</td><td>${escapeHtml(e.message)}</td>`;
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        errorsBox.appendChild(table);
     }
 });
 

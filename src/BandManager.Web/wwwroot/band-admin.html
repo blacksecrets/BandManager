@@ -29,6 +29,14 @@
             </div>
         </section>
 
+        <section class="platform-card" id="band-repertoire-import-section" hidden>
+            <h2>Bulk-import songs to this band's repertoire</h2>
+            <p>Add songs to this band's repertoire from a CSV file - <a href="/api/repertoire/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Rows are merged against the shared catalog: an exact match is just added here; a new song, or one with different details than the catalog already has, is added right away but flagged for SuperAdmin review - it stays visible and stays in this band's repertoire either way.</p>
+            <label class="upload-btn">Choose CSV file<input type="file" id="repertoire-csv-upload" accept=".csv,text/csv" hidden></label>
+            <p id="repertoire-import-status" class="save-note"></p>
+            <div id="repertoire-import-errors"></div>
+        </section>
+
         <section class="platform-card" id="band-branding-section" hidden>
             <h2>This band's branding</h2>
             <p>Applied everywhere once this band is selected (by anyone) - background, logo, and favicon all switch over automatically, replacing the BandManager shell's own branding until a different band is picked.</p>

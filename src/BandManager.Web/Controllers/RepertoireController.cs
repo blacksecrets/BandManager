@@ -1,6 +1,9 @@
+using System.Text;
 using BandManager.Data;
 using BandManager.Data.Entities;
+using BandManager.Data.Services;
 using BandManager.Web.Auth;
+using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +27,8 @@ public record AddBandInstrumentRequest(string Name);
 [Authorize(Policy = "BandMember")]
 public class RepertoireController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
 {
+    private const long MaxImportBytes = 5 * 1024 * 1024;
+
     private IActionResult? RequireActiveBand(out Guid bandId)
     {
         var id = activeBand.GetActiveBandId();
@@ -119,6 +124,124 @@ public class RepertoireController(ApplicationDbContext db, IActiveBandAccessor a
         db.RepertoireEntries.Remove(entry);
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
+    }
+
+    // --- CSV bulk import, merged into this Band's repertoire ---
+
+    [HttpGet("import/template")]
+    [Authorize(Policy = "BandAdmin")]
+    public IActionResult ImportTemplate()
+    {
+        var bytes = Encoding.UTF8.GetBytes(SongCsvImportService.BuildTemplateCsv());
+        return File(bytes, "text/csv", "song-catalog-template.csv");
+    }
+
+    // Every row lands in this Band's repertoire either way. Against the
+    // shared catalog (matched by Title+OriginalArtist, case-insensitive):
+    // an exact match with no field differences just needs the repertoire
+    // entry; a match with different fields stages a SongEditRequest for
+    // just those fields (same review path as SongsController.ProposeEdit -
+    // the catalog keeps showing the old value until SuperAdmin approves,
+    // but this Band's repertoire entry is added immediately regardless);
+    // no match at all creates the Song immediately (so it's visible to
+    // everyone right away) plus a SongEditRequest whose "old" side is null
+    // for every field, purely so SuperAdmin can review it - approving or
+    // rejecting a brand-new song never touches the Song itself, since there
+    // was never an accepted prior value to fall back to.
+    [HttpPost("import")]
+    [Authorize(Policy = "BandAdmin")]
+    [RequestSizeLimit(MaxImportBytes)]
+    public async Task<IActionResult> Import()
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (!Request.HasFormContentType) return BadRequest(new { error = "No file provided" });
+        var form = await Request.ReadFormAsync();
+        var payload = await form.Files.GetFile("file").ToUploadedFilePayloadAsync();
+        if (payload is null) return BadRequest(new { error = "No file provided" });
+
+        var parsed = SongCsvImportService.Parse(payload.Bytes);
+        if (parsed.Errors.Count > 0)
+        {
+            return BadRequest(new
+            {
+                error = $"{parsed.Errors.Count} row(s) failed validation - fix and re-upload.",
+                rowErrors = parsed.Errors
+            });
+        }
+
+        var newSongsAdded = 0;
+        var changesSubmittedForReview = 0;
+        var unchanged = 0;
+        var alreadyPendingSkipped = 0;
+
+        await using var tx = await db.Database.BeginTransactionAsync();
+
+        var seen = new HashSet<(string, string)>();
+        foreach (var row in parsed.Rows)
+        {
+            var key = (row.Title.ToLowerInvariant(), row.OriginalArtist.ToLowerInvariant());
+            if (!seen.Add(key)) continue; // same row twice in one file - only process once
+
+            var existing = await db.Songs.FirstOrDefaultAsync(s =>
+                s.Title.ToLower() == row.Title.ToLower() && s.OriginalArtist != null && s.OriginalArtist.ToLower() == row.OriginalArtist.ToLower());
+
+            Guid songId;
+            if (existing is null)
+            {
+                var song = new Song
+                {
+                    Title = row.Title,
+                    OriginalArtist = row.OriginalArtist,
+                    Album = row.Album,
+                    Key = row.Key,
+                    LengthSeconds = row.LengthSeconds,
+                    YouTubeUrl = row.YouTubeUrl,
+                    SpotifyUrl = row.SpotifyUrl,
+                    SongsterrUrl = row.SongsterrUrl
+                };
+                db.Songs.Add(song);
+                await db.SaveChangesAsync(); // song.Id needed below
+                songId = song.Id;
+
+                var newChanges = SongEditDiff.Build(
+                    null, null, null, null, null, null, null, null,
+                    row.Title, row.OriginalArtist, row.Album, row.Key, row.LengthSeconds, row.YouTubeUrl, row.SpotifyUrl, row.SongsterrUrl);
+                db.SongEditRequests.Add(new SongEditRequest { SongId = songId, RequestedByUserId = userId.Value, BandId = bandId, Changes = newChanges });
+                newSongsAdded++;
+            }
+            else
+            {
+                songId = existing.Id;
+                var fieldChanges = SongEditDiff.Build(
+                    existing.Title, existing.OriginalArtist, existing.Album, existing.Key, existing.LengthSeconds, existing.YouTubeUrl, existing.SpotifyUrl, existing.SongsterrUrl,
+                    row.Title, row.OriginalArtist, row.Album, row.Key, row.LengthSeconds, row.YouTubeUrl, row.SpotifyUrl, row.SongsterrUrl);
+
+                if (fieldChanges.Count == 0)
+                {
+                    unchanged++;
+                }
+                else if (await db.SongEditRequests.AnyAsync(r => r.SongId == songId && r.Status == EditRequestStatus.Pending))
+                {
+                    alreadyPendingSkipped++;
+                }
+                else
+                {
+                    db.SongEditRequests.Add(new SongEditRequest { SongId = songId, RequestedByUserId = userId.Value, BandId = bandId, Changes = fieldChanges });
+                    changesSubmittedForReview++;
+                }
+            }
+
+            if (!await db.RepertoireEntries.AnyAsync(e => e.BandId == bandId && e.SongId == songId))
+                db.RepertoireEntries.Add(new RepertoireEntry { BandId = bandId, SongId = songId, Status = RepertoireStatus.New });
+        }
+
+        await db.SaveChangesAsync();
+        await tx.CommitAsync();
+
+        return Ok(new { ok = true, newSongsAdded, changesSubmittedForReview, unchanged, alreadyPendingSkipped });
     }
 
     // --- This Band's instrument roster (drives which Song.Tunings keys show up) ---
