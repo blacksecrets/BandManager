@@ -161,6 +161,32 @@
             </div>
         </section>
 
+        <section class="platform-card" id="usps-section" hidden>
+            <h2>Address validation (USPS)</h2>
+            <p>Powers the address lookup/pick on every member's Profile page - standardizes and corrects a typed US mailing address against USPS's own database.</p>
+
+            <form id="usps-cred-form" class="cred-form">
+                <h3>USPS Addresses API <span class="status-badge" id="usps-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>Register a free account at the <a href="https://developers.usps.com/" target="_blank">USPS Developer Portal</a>.</li>
+                            <li>Create an app and request access to the <strong>Addresses API</strong>.</li>
+                            <li>Copy the app's <strong>Consumer Key</strong> and <strong>Consumer Secret</strong> and paste them below.</li>
+                        </ol>
+                    </div>
+                </div>
+                <label>Consumer Key (Client ID) <input type="text" name="clientId" autocomplete="off"></label>
+                <label>Consumer Secret (Client Secret) <input type="password" name="clientSecret" autocomplete="new-password"></label>
+                <button type="submit">Save USPS credentials</button>
+                <p id="usps-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="usps-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="usps-disconnect-btn">Remove USPS credentials</button>
+            </div>
+        </section>
+
         <section class="platform-card" id="song-import-section" hidden>
             <h2>Bulk-import songs</h2>
             <p>Add songs to the shared catalog from a CSV file - <a href="/api/superadmin/songs/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Every row is validated before anything is imported; if any row fails, nothing is imported and every problem is listed below.</p>

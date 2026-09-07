@@ -20,6 +20,7 @@ public record AddBandMembershipRequest(Guid BandId, string Role);
 public record SetYouTubeCredentialsRequest(string ApiKey);
 public record SetSpotifyCredentialsRequest(string ClientId, string ClientSecret);
 public record SetCalendarOAuthCredentialsRequest(string ClientId, string ClientSecret);
+public record SetUspsCredentialsRequest(string ClientId, string ClientSecret);
 
 /// <summary>
 /// The SuperAdmin config screen's backend - band onboarding/archiving, and
@@ -147,6 +148,36 @@ public class SuperAdminController(
     public async Task<IActionResult> ClearOutlookOAuthCredentials()
     {
         await SongSearchService.ClearCredentialAsync(db, OutlookOAuthKey);
+        return Ok(new { ok = true });
+    }
+
+    // --- USPS address validation (Profile page's address fields) ---
+    // Same global/SuperAdmin-managed/PlatformSettings-backed shape as
+    // everything else in this section - see AddressLookupService.
+
+    [HttpGet("usps-credentials")]
+    public async Task<IActionResult> GetUspsCredentials()
+    {
+        var creds = await SongSearchService.GetCredentialAsync(db, cipher, AddressLookupService.CredentialKey);
+        return Ok(creds);
+    }
+
+    [HttpPut("usps-credentials")]
+    public async Task<IActionResult> SetUspsCredentials([FromBody] SetUspsCredentialsRequest request)
+    {
+        var clientId = request.ClientId?.Trim();
+        var clientSecret = request.ClientSecret?.Trim();
+        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+            return BadRequest(new { error = "Consumer Key and Consumer Secret are both required." });
+        await SongSearchService.SetCredentialAsync(db, cipher, AddressLookupService.CredentialKey,
+            new() { ["clientId"] = clientId, ["clientSecret"] = clientSecret });
+        return Ok(new { ok = true });
+    }
+
+    [HttpDelete("usps-credentials")]
+    public async Task<IActionResult> ClearUspsCredentials()
+    {
+        await SongSearchService.ClearCredentialAsync(db, AddressLookupService.CredentialKey);
         return Ok(new { ok = true });
     }
 

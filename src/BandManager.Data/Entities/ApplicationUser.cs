@@ -25,6 +25,7 @@ public class ApplicationUser : IdentityUser<Guid>
     // see DisplayName below for the fallback every caller should use
     // instead of reading this directly.
     public string? FirstName { get; set; }
+    public string? LastName { get; set; }
 
     // The one place "what do we call this person" is decided - was
     // duplicated locally in SongEditRequestsController before being
@@ -32,5 +33,17 @@ public class ApplicationUser : IdentityUser<Guid>
     // too, rather than triplicating the same fallback a third time.
     public string DisplayName => FirstName ?? UserName!.Split('@')[0];
 
+    // Self-service contact/address, same "nobody's forced to fill this
+    // in" spirit as FirstName. Address fields are US-shaped (see
+    // AddressLookupService's USPS integration) - AddressLine2 is the
+    // only optional one (apartment/suite/unit).
+    public string? CellNumber { get; set; }
+    public string? AddressLine1 { get; set; }
+    public string? AddressLine2 { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? PostalCode { get; set; }
+
     public ICollection<BandMembership> BandMemberships { get; set; } = new List<BandMembership>();
+    public ICollection<Gear> Gear { get; set; } = new List<Gear>();
 }

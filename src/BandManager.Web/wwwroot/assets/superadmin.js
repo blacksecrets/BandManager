@@ -11,6 +11,7 @@ async function loadSuperAdminPage() {
     document.getElementById('song-search-section').hidden = false;
     document.getElementById('song-import-section').hidden = false;
     document.getElementById('calendar-oauth-section').hidden = false;
+    document.getElementById('usps-section').hidden = false;
     document.getElementById('admin-branding-section').hidden = false;
 
     loadAllUsersPicker();
@@ -20,6 +21,7 @@ async function loadSuperAdminPage() {
     loadAllUsers();
     loadSongSearchCredentials();
     loadCalendarOAuthCredentials();
+    loadUspsCredentials();
     loadBranding();
     renderSongImportBandCheckboxes();
 }
@@ -233,6 +235,47 @@ document.getElementById('outlook-disconnect-btn').addEventListener('click', asyn
     await fetch('/api/superadmin/calendar-oauth-credentials/outlook', { method: 'DELETE' });
     document.getElementById('outlook-cred-form').reset();
     loadCalendarOAuthCredentials();
+});
+
+// --- USPS address validation ---
+async function loadUspsCredentials() {
+    const res = await fetch('/api/superadmin/usps-credentials');
+    if (!res.ok) return;
+    const creds = await res.json();
+    const badge = document.getElementById('usps-status-badge');
+    const form = document.getElementById('usps-cred-form');
+    if (creds) {
+        badge.textContent = 'Configured';
+        badge.classList.add('configured');
+        form.clientId.value = creds.clientId || '';
+        form.clientSecret.value = creds.clientSecret || '';
+        document.getElementById('usps-disconnect-tool').hidden = false;
+    } else {
+        badge.textContent = 'Not configured';
+        badge.classList.remove('configured');
+        document.getElementById('usps-disconnect-tool').hidden = true;
+    }
+}
+
+document.getElementById('usps-cred-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('usps-cred-status');
+    const res = await fetch('/api/superadmin/usps-credentials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: form.clientId.value.trim(), clientSecret: form.clientSecret.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save.');
+    if (res.ok) loadUspsCredentials();
+});
+
+document.getElementById('usps-disconnect-btn').addEventListener('click', async () => {
+    if (!confirm('Remove the USPS credentials? Address validation will stop working until new ones are saved.')) return;
+    await fetch('/api/superadmin/usps-credentials', { method: 'DELETE' });
+    document.getElementById('usps-cred-form').reset();
+    loadUspsCredentials();
 });
 
 for (const btn of document.querySelectorAll('.instructions-toggle')) {

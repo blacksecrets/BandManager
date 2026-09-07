@@ -19,7 +19,7 @@ async function loadBandAdmin() {
     if (!hasBand) return;
 
     loadBandBranding();
-    loadUsers();
+    loadBandRoleOptions().then(loadUsers);
 }
 
 // --- Branding (this band's own logo/background/favicon/accent color) ---
@@ -86,6 +86,15 @@ document.getElementById('band-accent-save').addEventListener('click', async () =
 });
 
 // --- User management (moved from profile.js) ---
+let bandRoleOptions = [];
+
+async function loadBandRoleOptions() {
+    const res = await fetch('/api/profile/band-roles');
+    bandRoleOptions = res.ok ? await res.json() : [];
+    const box = document.getElementById('add-user-roles');
+    box.innerHTML = bandRoleOptions.map((r) => `<label><input type="checkbox" name="roles" value="${r}"> ${r}</label>`).join('');
+}
+
 async function loadUsers() {
     const res = await fetch('/api/profile/users');
     if (!res.ok) return;
@@ -102,10 +111,16 @@ async function loadUsers() {
         tr.innerHTML = `
             <td>${user.username}${isSelf ? ' (you)' : ''}</td>
             <td>${user.is_admin ? 'Admin' : 'User'}</td>
+            <td class="user-roles-cell">${(user.roles || []).join(', ') || '—'}</td>
             <td>${user.email_confirmed ? 'Verified' : 'Unverified'}</td>
             <td>${user.created_at}</td>
             <td></td>
         `;
+        const editRolesBtn = document.createElement('button');
+        editRolesBtn.className = 'remove-btn';
+        editRolesBtn.textContent = 'Edit roles';
+        editRolesBtn.addEventListener('click', () => openEditRolesModal(user));
+        tr.lastElementChild.appendChild(editRolesBtn);
         if (!user.email_confirmed) {
             const verifyBtn = document.createElement('button');
             verifyBtn.className = 'remove-btn';
@@ -122,6 +137,29 @@ async function loadUsers() {
         }
         tbody.appendChild(tr);
     }
+}
+
+function closeEditRolesModal() { document.getElementById('edit-roles-modal-backdrop').hidden = true; }
+document.getElementById('edit-roles-modal-close').addEventListener('click', closeEditRolesModal);
+document.getElementById('edit-roles-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'edit-roles-modal-backdrop') closeEditRolesModal(); });
+
+function openEditRolesModal(user) {
+    const box = document.getElementById('edit-roles-list');
+    const current = new Set(user.roles || []);
+    box.innerHTML = bandRoleOptions.map((r) =>
+        `<label><input type="checkbox" name="roles" value="${r}" ${current.has(r) ? 'checked' : ''}> ${r}</label>`
+    ).join('');
+    document.getElementById('edit-roles-save-btn').onclick = async () => {
+        const roles = [...box.querySelectorAll('input:checked')].map((i) => i.value);
+        await fetch(`/api/profile/users/${user.id}/roles`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roles })
+        });
+        closeEditRolesModal();
+        loadUsers();
+    };
+    document.getElementById('edit-roles-modal-backdrop').hidden = false;
 }
 
 async function verifyUserEmail(id) {
@@ -151,10 +189,11 @@ document.getElementById('add-user-form').addEventListener('submit', async (e) =>
     const status = document.getElementById('add-user-status');
     const username = form.username.value.trim();
 
+    const roles = [...form.querySelectorAll('input[name="roles"]:checked')].map((i) => i.value);
     const res = await fetch('/api/profile/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, role: form.isAdmin.checked ? 'BandAdmin' : 'User' })
+        body: JSON.stringify({ username, role: form.isAdmin.checked ? 'BandAdmin' : 'User', roles })
     });
     const result = await res.json();
     if (res.ok) {

@@ -10,6 +10,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 {
     public DbSet<Band> Bands => Set<Band>();
     public DbSet<BandMembership> BandMemberships => Set<BandMembership>();
+    public DbSet<BandMemberRole> BandMemberRoles => Set<BandMemberRole>();
+    public DbSet<Gear> Gear => Set<Gear>();
+    public DbSet<GearSetting> GearSettings => Set<GearSetting>();
 
     public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
     public DbSet<Platform> Platforms => Set<Platform>();
@@ -76,6 +79,23 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithMany(band => band.Memberships)
                 .HasForeignKey(x => x.BandId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<BandMemberRole>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.UserId, x.BandId, x.Role }).IsUnique();
+        });
+
+        builder.Entity<Gear>(b =>
+        {
+            b.HasOne(x => x.User).WithMany(u => u.Gear).HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<GearSetting>(b =>
+        {
+            b.HasOne(x => x.Gear).WithMany(g => g.Settings).HasForeignKey(x => x.GearId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // --- Global reference data (identical for every Band) ---

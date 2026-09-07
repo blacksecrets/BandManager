@@ -32,12 +32,13 @@
                 <p id="username-status" class="save-note"></p>
             </form>
 
-            <form id="first-name-form" class="cred-form">
+            <form id="name-form" class="cred-form">
                 <label>First name <span class="field-hint">(shown to a SuperAdmin reviewing a song edit you proposed)</span>
                     <input type="text" name="firstName" maxlength="100">
                 </label>
-                <button type="submit">Save first name</button>
-                <p id="first-name-status" class="save-note"></p>
+                <label>Last name <input type="text" name="lastName" maxlength="100"></label>
+                <button type="submit">Save name</button>
+                <p id="name-status" class="save-note"></p>
             </form>
 
             <form id="password-form" class="cred-form">
@@ -48,6 +49,54 @@
                 <button type="submit">Change password</button>
                 <p id="password-status" class="save-note"></p>
             </form>
+        </section>
+
+        <section class="platform-card">
+            <h2>Contact info</h2>
+
+            <form id="contact-form" class="cred-form">
+                <label>Cell number <input type="tel" name="cellNumber" maxlength="30"></label>
+
+                <label>Address line 1 <input type="text" name="addressLine1" maxlength="200"></label>
+                <label>Address line 2 <span class="field-hint">(apartment, suite, unit)</span>
+                    <input type="text" name="addressLine2" maxlength="200">
+                </label>
+                <label>City <input type="text" name="city" maxlength="100"></label>
+                <label>State <input type="text" name="state" maxlength="2" placeholder="e.g. VA"></label>
+                <label>ZIP code <input type="text" name="postalCode" maxlength="10"></label>
+
+                <div class="cred-form-buttons">
+                    <button type="button" id="address-validate-btn">Validate address</button>
+                    <button type="submit">Save contact info</button>
+                </div>
+                <p id="usps-setup-note" class="verify-error-banner" hidden>Address validation isn't set up yet - a SuperAdmin can enable it in Setup. You can still save your address as typed.</p>
+                <div id="address-suggestion" hidden></div>
+                <p id="contact-status" class="save-note"></p>
+            </form>
+        </section>
+
+        <section class="platform-card">
+            <h2>My gear</h2>
+            <p class="save-note">Your personal gear list - instruments, amps, pedals, cables, clothing, anything you bring. Follows you across every band you're in.</p>
+
+            <div id="gear-list"></div>
+
+            <details class="manual-fallback">
+                <summary>Add gear</summary>
+                <form id="gear-add-form" class="cred-form">
+                    <label>Type
+                        <select id="gear-add-type" name="type"></select>
+                    </label>
+                    <label>Make <input type="text" name="make" maxlength="200"></label>
+                    <label>Model <input type="text" name="model" maxlength="200"></label>
+                    <label>Length (in) <input type="number" step="0.01" name="lengthInches"></label>
+                    <label>Width (in) <input type="number" step="0.01" name="widthInches"></label>
+                    <label>Depth (in) <input type="number" step="0.01" name="depthInches"></label>
+                    <label>Weight (lb) <input type="number" step="0.01" name="weightPounds"></label>
+                    <button type="submit">Add gear</button>
+                    <p id="gear-add-status" class="save-note"></p>
+                </form>
+            </details>
         </section>
 
         <section class="platform-card">

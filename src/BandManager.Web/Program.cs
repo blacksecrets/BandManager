@@ -86,6 +86,7 @@ builder.Services.AddScoped<BandManager.Web.Services.IEmailSender, BandManager.We
 builder.Services.AddScoped<BandManager.Web.Services.UserProvisioningService>();
 builder.Services.AddScoped<BandManager.Web.Services.SongSearchService>();
 builder.Services.AddScoped<BandManager.Web.Services.NotificationReminderService>();
+builder.Services.AddScoped<BandManager.Web.Services.AddressLookupService>();
 builder.Services.AddScoped<BandManager.Web.Services.GoogleCalendarPushService>();
 builder.Services.AddScoped<BandManager.Web.Services.OutlookCalendarPushService>();
 

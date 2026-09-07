@@ -74,7 +74,7 @@
             <p>Anyone you add here can log in and access this band. Band Admins can also manage this band's users and Setup. Adding an existing username just attaches them to this band - it doesn't create a second account. A brand-new username gets emailed a temporary password (logged to the server console for now - see "Verify email" below for why that's fine during this stretch without real email delivery).</p>
 
             <table class="user-table">
-                <thead><tr><th>Username</th><th>Role</th><th>Email</th><th>Added</th><th></th></tr></thead>
+                <thead><tr><th>Username</th><th>Access</th><th>Band role(s)</th><th>Email</th><th>Added</th><th></th></tr></thead>
                 <tbody id="user-table-body"></tbody>
             </table>
 
@@ -83,11 +83,22 @@
                 <form id="add-user-form" class="cred-form">
                     <label>Username / Email <input type="email" name="username" required></label>
                     <label class="checkbox-label"><input type="checkbox" name="isAdmin"> Band Admin (can manage this band's users and Setup)</label>
+                    <label>Role(s) in the band <span class="field-hint">(what they do - not access level)</span></label>
+                    <div id="add-user-roles" class="band-checkbox-list"></div>
                     <button type="submit">Add user</button>
                     <p id="add-user-status" class="save-note"></p>
                 </form>
             </details>
         </section>
+
+        <div id="edit-roles-modal-backdrop" class="detail-modal-backdrop" hidden>
+            <div class="detail-modal">
+                <button type="button" class="detail-modal-close" id="edit-roles-modal-close">&times;</button>
+                <h2>Edit roles</h2>
+                <div id="edit-roles-list" class="band-checkbox-list"></div>
+                <button type="button" id="edit-roles-save-btn" class="upload-btn">Save</button>
+            </div>
+        </div>
     </main>
 
     <script src="/assets/band-admin.js"></script>

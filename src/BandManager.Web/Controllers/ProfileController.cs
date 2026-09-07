@@ -11,9 +11,11 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
-public record AddBandUserRequest(string Username, string Role);
+public record AddBandUserRequest(string Username, string Role, List<string>? Roles);
+public record SetMemberRolesRequest(List<string> Roles);
 public record UpdateUsernameRequest(string Username);
-public record UpdateFirstNameRequest(string? FirstName);
+public record UpdateNameRequest(string? FirstName, string? LastName);
+public record UpdateContactRequest(string? CellNumber, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode);
 
 /// <summary>
 /// Self-service profile (any logged-in user) + Band-scoped user
@@ -80,6 +82,13 @@ public class ProfileController(
             username = user.UserName,
             email = user.Email,
             firstName = user.FirstName,
+            lastName = user.LastName,
+            cellNumber = user.CellNumber,
+            addressLine1 = user.AddressLine1,
+            addressLine2 = user.AddressLine2,
+            city = user.City,
+            state = user.State,
+            postalCode = user.PostalCode,
             isSuperAdmin = user.IsSuperAdmin,
             activeBandRole,
             activeBandName,
@@ -136,18 +145,44 @@ public class ProfileController(
     // Self-service only - see ApplicationUser.FirstName's doc comment for
     // why it isn't collected at account creation. Shown to a SuperAdmin
     // reviewing a song edit request so they know who proposed it.
-    [HttpPut("first-name")]
+    [HttpPut("name")]
     [Authorize]
-    public async Task<IActionResult> UpdateFirstName([FromBody] UpdateFirstNameRequest request)
+    public async Task<IActionResult> UpdateName([FromBody] UpdateNameRequest request)
     {
         var user = await userManager.GetUserAsync(User);
         if (user is null) return Unauthorized();
 
         var firstName = request.FirstName?.Trim();
+        var lastName = request.LastName?.Trim();
         user.FirstName = string.IsNullOrEmpty(firstName) ? null : firstName;
+        user.LastName = string.IsNullOrEmpty(lastName) ? null : lastName;
         await userManager.UpdateAsync(user);
 
-        return Ok(new { ok = true, firstName = user.FirstName });
+        return Ok(new { ok = true, firstName = user.FirstName, lastName = user.LastName });
+    }
+
+    // Self-service contact info + mailing address - AddressLookupController
+    // is the separate USPS-validation step a client can call before this,
+    // but nothing here requires that a lookup ever ran (an unvalidated
+    // address is still saved as typed).
+    [HttpPut("contact")]
+    [Authorize]
+    public async Task<IActionResult> UpdateContact([FromBody] UpdateContactRequest request)
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+        user.CellNumber = Clean(request.CellNumber);
+        user.AddressLine1 = Clean(request.AddressLine1);
+        user.AddressLine2 = Clean(request.AddressLine2);
+        user.City = Clean(request.City);
+        user.State = Clean(request.State);
+        user.PostalCode = Clean(request.PostalCode);
+        await userManager.UpdateAsync(user);
+
+        return Ok(new { ok = true });
     }
 
     [HttpPost("password")]
@@ -215,6 +250,18 @@ public class ProfileController(
         return Ok(members);
     }
 
+    // The seed picklist for "role(s) in the band" (Bassist, Sound
+    // Engineer, ...) - see BandMemberRoles.cs. Any logged-in user can
+    // read it (it's just a static list, not sensitive), so both the
+    // add-member form and an existing member's own "edit my roles"
+    // affordance can populate the same checkboxes from one source.
+    [HttpGet("band-roles")]
+    [Authorize]
+    public IActionResult BandRoles() => Ok(BandManager.Data.BandMemberRoles.All);
+
+    private static List<string> CleanRoles(IEnumerable<string>? roles) =>
+        (roles ?? []).Select(r => r.Trim()).Where(r => BandManager.Data.BandMemberRoles.All.Contains(r)).Distinct().ToList();
+
     [HttpGet("users")]
     [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> ListUsers()
@@ -224,16 +271,20 @@ public class ProfileController(
         var members = await db.BandMemberships.Include(m => m.User)
             .Where(m => m.BandId == bandId)
             .OrderBy(m => m.User.UserName)
-            .Select(m => new
-            {
-                id = m.UserId,
-                username = m.User.UserName,
-                is_admin = m.Role == BandRole.BandAdmin,
-                email_confirmed = m.User.EmailConfirmed,
-                created_at = m.CreatedAt
-            })
             .ToListAsync();
-        return Ok(members);
+        var rolesByUser = await db.BandMemberRoles.Where(r => r.BandId == bandId)
+            .GroupBy(r => r.UserId)
+            .ToDictionaryAsync(g => g.Key, g => g.Select(r => r.Role).ToList());
+
+        return Ok(members.Select(m => new
+        {
+            id = m.UserId,
+            username = m.User.UserName,
+            is_admin = m.Role == BandRole.BandAdmin,
+            email_confirmed = m.User.EmailConfirmed,
+            created_at = m.CreatedAt,
+            roles = rolesByUser.GetValueOrDefault(m.UserId, [])
+        }));
     }
 
     [HttpPost("users")]
@@ -264,8 +315,34 @@ public class ProfileController(
         }
 
         db.BandMemberships.Add(new BandMembership { UserId = user!.Id, BandId = bandId, Role = role });
+        foreach (var r in CleanRoles(request.Roles))
+        {
+            db.BandMemberRoles.Add(new BandMemberRole { UserId = user.Id, BandId = bandId, Role = r });
+        }
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
+    }
+
+    // Replaces the full role set for an existing member - the picker UI
+    // always sends the complete new selection (same "not a partial patch"
+    // reasoning as CadenceController's assignee fields), so this is a
+    // delete-and-reinsert rather than a diff.
+    [HttpPut("users/{userId:guid}/roles")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> SetMemberRoles(Guid userId, [FromBody] SetMemberRolesRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.BandMemberships.AnyAsync(m => m.UserId == userId && m.BandId == bandId))
+            return NotFound(new { error = "Not found" });
+
+        var existing = db.BandMemberRoles.Where(r => r.UserId == userId && r.BandId == bandId);
+        db.BandMemberRoles.RemoveRange(existing);
+        foreach (var r in CleanRoles(request.Roles))
+        {
+            db.BandMemberRoles.Add(new BandMemberRole { UserId = userId, BandId = bandId, Role = r });
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, roles = CleanRoles(request.Roles) });
     }
 
     // Manual override for "this email is actually good" while there's no
@@ -314,6 +391,7 @@ public class ProfileController(
         }
 
         db.BandMemberships.Remove(membership);
+        db.BandMemberRoles.RemoveRange(db.BandMemberRoles.Where(r => r.UserId == userId && r.BandId == bandId));
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }
