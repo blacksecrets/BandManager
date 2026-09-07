@@ -1,5 +1,6 @@
 using BandManager.Data;
 using BandManager.Data.Services;
+using BandManager.Web.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web;
@@ -35,6 +36,7 @@ public class CadenceGenerationBackgroundService(IServiceScopeFactory scopeFactor
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var scheduler = scope.ServiceProvider.GetRequiredService<Scheduler>();
+        var reminders = scope.ServiceProvider.GetRequiredService<NotificationReminderService>();
 
         var bands = await db.Bands.Where(b => b.IsOnboarded).ToListAsync(ct);
         foreach (var band in bands)
@@ -49,6 +51,15 @@ public class CadenceGenerationBackgroundService(IServiceScopeFactory scopeFactor
                 // rule, or its site being unreachable) shouldn't block
                 // every other Band's - log and move on.
                 logger.LogError(ex, "Cadence generation failed for band {BandId}", band.Id);
+            }
+
+            try
+            {
+                await reminders.GenerateDueRemindersAsync(band.Id);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Reminder generation failed for band {BandId}", band.Id);
             }
         }
     }

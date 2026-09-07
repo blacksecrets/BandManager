@@ -85,6 +85,7 @@ builder.Services.AddScoped<IActiveBandAccessor, ActiveBandAccessor>();
 builder.Services.AddScoped<BandManager.Web.Services.IEmailSender, BandManager.Web.Services.LoggingEmailSender>();
 builder.Services.AddScoped<BandManager.Web.Services.UserProvisioningService>();
 builder.Services.AddScoped<BandManager.Web.Services.SongSearchService>();
+builder.Services.AddScoped<BandManager.Web.Services.NotificationReminderService>();
 
 // The one genuinely irreplaceable piece of local state - see
 // AesGcmCredentialCipher's doc comment. Configurable via

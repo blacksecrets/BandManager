@@ -84,4 +84,55 @@ document.getElementById('password-form').addEventListener('submit', async (e) =>
     }
 });
 
+// --- Notification preferences ---
+const NOTIFICATION_KIND_LABELS = {
+    SongEditReviewed: 'A song edit you proposed was approved/rejected',
+    GigReminder: 'Upcoming gig',
+    RehearsalReminder: 'Upcoming rehearsal',
+    AvailabilityReminder: "Reminder to set your availability",
+    ResponsibilityChanged: "You've been assigned to a task"
+};
+
+async function loadNotificationPrefs() {
+    const res = await fetch('/api/notification-preferences');
+    const prefs = res.ok ? await res.json() : [];
+    const list = document.getElementById('notification-prefs-list');
+    list.innerHTML = '';
+
+    for (const pref of prefs) {
+        const row = document.createElement('div');
+        row.className = 'notification-pref-row';
+        row.dataset.kind = pref.kind;
+        row.innerHTML = `
+            <p class="notification-pref-label">${NOTIFICATION_KIND_LABELS[pref.kind] || pref.kind}</p>
+            <label class="checkbox-label"><input type="checkbox" name="email" ${pref.emailEnabled ? 'checked' : ''}> Email</label>
+            <label class="checkbox-label"><input type="checkbox" name="inApp" ${pref.inAppEnabled ? 'checked' : ''}> In-app</label>
+            ${pref.leadTimeApplies ? `<label>Days ahead <input type="number" name="leadTimeDays" min="0" max="60" value="${pref.leadTimeDays ?? 1}"></label>` : ''}
+        `;
+        list.appendChild(row);
+    }
+}
+
+document.getElementById('notification-prefs-save').addEventListener('click', async () => {
+    const status = document.getElementById('notification-prefs-status');
+    const items = Array.from(document.querySelectorAll('.notification-pref-row')).map((row) => {
+        const leadInput = row.querySelector('[name="leadTimeDays"]');
+        return {
+            kind: row.dataset.kind,
+            emailEnabled: row.querySelector('[name="email"]').checked,
+            inAppEnabled: row.querySelector('[name="inApp"]').checked,
+            leadTimeDays: leadInput ? parseInt(leadInput.value, 10) : null
+        };
+    });
+
+    const res = await fetch('/api/notification-preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(items)
+    });
+    status.textContent = res.ok ? 'Notification settings saved.' : 'Could not save notification settings.';
+});
+
+loadNotificationPrefs();
+
 loadMe();

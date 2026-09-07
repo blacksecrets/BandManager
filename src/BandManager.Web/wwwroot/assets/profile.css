@@ -106,3 +106,24 @@
 .band-checkbox-list { display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
 .band-checkbox-list label { flex-direction: row !important; align-items: center; gap: 8px !important; color: #ddd; }
 .band-checkbox-list input { width: auto; }
+
+.notification-pref-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    padding: 10px 0;
+    border-bottom: 1px solid #2a2a2a;
+}
+.notification-pref-row .notification-pref-label { flex: 1 1 220px; min-width: 200px; margin: 0; color: #ddd; font-size: 0.88rem; }
+.notification-pref-row label { flex-direction: row !important; align-items: center; gap: 6px !important; color: #ccc; font-size: 0.85rem; }
+.notification-pref-row input[type="number"] { width: 60px; padding: 4px 6px; border-radius: 4px; border: 1px solid #444; background: #1a1a1a; color: #eee; }
+#notification-prefs-save {
+    margin-top: 14px;
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    padding: 8px 18px;
+    border-radius: 6px;
+    cursor: pointer;
+}
