@@ -47,9 +47,11 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             .Select(s => new { s.GigRef, Count = s.Songs.Count })
             .ToDictionaryAsync(x => x.GigRef, x => x.Count);
 
+        var today = DateTime.Today;
         var result = gigs.Select(g =>
         {
             var gigRef = SiteContentRef.GigRef(g);
+            var isPast = DateTime.TryParse(g.Date, out var parsed) && parsed.Date < today;
             return new
             {
                 gigRef,
@@ -57,10 +59,98 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
                 venue = g.Venue,
                 date = g.Date,
                 time = g.Time,
-                songCount = setCounts.GetValueOrDefault(gigRef, 0)
+                songCount = setCounts.GetValueOrDefault(gigRef, 0),
+                isPast
             };
         });
         return Ok(result);
+    }
+
+    // "Everything associated with this gig" for Gig Management's past-gig
+    // viewer - every ScheduleItem+Artifacts tied to it, plus its most
+    // recent Flyer (and which FlyerTemplate built it, if any). A new,
+    // dedicated endpoint rather than a ?gigRef= filter bolted onto
+    // ScheduleItemsController's general-purpose GET /api/items, which
+    // serves the Dashboard's own heavily-used query path - keeping this
+    // gig-scoped concern here, where GigSetsController already owns it.
+    [HttpGet("{gigRef}/items")]
+    public async Task<IActionResult> GetGigItems(string gigRef)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bandId);
+        if (band is null) return NotFound();
+        var gig = await gigsSource.FindGigByRefAsync(band, gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        var items = await db.ScheduleItems.AsNoTracking()
+            .Include(s => s.Artifacts)
+            .Where(s => s.BandId == bandId && s.GigRef == gigRef)
+            .ToListAsync();
+
+        var flyer = await db.Flyers.AsNoTracking()
+            .Include(f => f.FlyerTemplate)
+            .Where(f => f.BandId == bandId && f.GigRef == gigRef)
+            .OrderByDescending(f => f.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        return Ok(new
+        {
+            gig = new { title = gig.Title, venue = gig.Venue, date = gig.Date, flyerMain = gig.FlyerMain },
+            items = items.Select(i => new
+            {
+                i.Id,
+                i.ContentType,
+                i.Category,
+                i.PostedAt,
+                artifacts = i.Artifacts.Select(a => new { a.ArtifactType, a.FilePath, a.TextValue })
+            }),
+            flyer = flyer is null ? null : new
+            {
+                flyer.Id,
+                flyer.GeneratedCatalogItemId,
+                flyerTemplateId = flyer.FlyerTemplateId,
+                flyerTemplateName = flyer.FlyerTemplate?.Name
+            }
+        });
+    }
+
+    // Copies a past gig's setlist into the current one - matches by
+    // SongId (never duplicates a song already in the target), appends
+    // after the target's current max SortOrder, iterating the source in
+    // its own order so relative order among the newly-imported songs is
+    // preserved even though absolute SortOrder values get renumbered.
+    [HttpPost("{gigRef}/import-from/{sourceGigRef}")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> ImportFromGig(string gigRef, string sourceGigRef)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var sourceSet = await db.GigSets.AsNoTracking()
+            .Include(s => s.Songs)
+            .FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == sourceGigRef);
+        if (sourceSet is null || sourceSet.Songs.Count == 0)
+            return BadRequest(new { error = "That gig has no set to import." });
+
+        var targetSet = await db.GigSets.Include(s => s.Songs)
+            .FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == gigRef);
+        if (targetSet is null)
+        {
+            targetSet = new GigSet { BandId = bandId, GigRef = gigRef };
+            db.GigSets.Add(targetSet);
+            await db.SaveChangesAsync();
+        }
+
+        var existingSongIds = targetSet.Songs.Select(s => s.SongId).ToHashSet();
+        var nextSort = targetSet.Songs.Count == 0 ? 0 : targetSet.Songs.Max(s => s.SortOrder) + 1;
+        var imported = 0;
+        foreach (var song in sourceSet.Songs.OrderBy(s => s.SortOrder))
+        {
+            if (existingSongIds.Contains(song.SongId)) continue;
+            db.GigSetSongs.Add(new GigSetSong { GigSetId = targetSet.Id, SongId = song.SongId, SortOrder = nextSort++ });
+            imported++;
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, imported });
     }
 
     [HttpGet("{gigRef}")]

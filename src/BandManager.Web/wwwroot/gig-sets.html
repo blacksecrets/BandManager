@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gig Sets</title>
+<title>Gig Management</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/profile.css">
 <link rel="stylesheet" href="/assets/repertoire.css">
 <link rel="stylesheet" href="/assets/gig-sets.css">
+<link rel="stylesheet" href="/assets/flyerEditor.css">
 </head>
 <body>
     <header class="topbar">
         <span class="brand-logo-slot"></span>
         <span class="role-badge" id="role-badge" hidden></span>
-        <h1>Gig Sets</h1>
+        <h1>Gig Management</h1>
         <nav class="main-nav" id="main-nav"></nav>
         <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
     </header>
@@ -23,17 +24,27 @@
         <p id="gig-sets-no-band" class="save-note" hidden>Select a band from the switcher above to manage its gig sets.</p>
 
         <div id="gig-sets-content" hidden>
-            <p class="intro">Every gig on this band's site, and the setlist built for it. Pick a gig to build or edit its set from the repertoire.</p>
+            <p class="intro">Every gig on this band's site, and the setlist built for it. Pick a gig to build or edit its set from the repertoire, view everything associated with a past gig, or import a past gig's set into this one.</p>
 
             <div class="gig-sets-layout">
                 <section class="platform-card gig-list-card">
                     <h2>Gigs</h2>
-                    <div id="gig-list" class="gig-list">Loading...</div>
+                    <h3>Upcoming</h3>
+                    <div id="gig-list-upcoming" class="gig-list">Loading...</div>
+                    <details class="manual-fallback">
+                        <summary>Past gigs</summary>
+                        <div id="gig-list-past" class="gig-list"></div>
+                    </details>
                 </section>
 
                 <section class="platform-card gig-set-card" id="gig-set-detail" hidden>
                     <h2 id="gig-set-title">Set</h2>
                     <p id="gig-set-meta" class="save-note"></p>
+
+                    <div class="gig-set-actions">
+                        <button type="button" id="gig-set-import-btn">Import from Past Gig</button>
+                        <button type="button" id="gig-set-flyer-btn">Create/Edit Flyer</button>
+                    </div>
 
                     <ol class="gig-set-song-list" id="gig-set-song-list"></ol>
 
@@ -42,12 +53,47 @@
                         <button type="button" id="gig-set-add-btn">Add to set</button>
                     </div>
                     <p id="gig-set-status" class="save-note"></p>
+
+                    <div id="gig-artifact-panel"></div>
                 </section>
             </div>
         </div>
     </main>
 
+    <div id="import-gig-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="import-gig-modal-close">&times;</button>
+            <div id="import-gig-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="template-picker-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="template-picker-modal-close">&times;</button>
+            <div id="template-picker-modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Loaded here purely for window.openCatalogPicker (the Flyer Editor's
+         "choose a logo" step) - catalog.js's own page-mode wiring only runs
+         if #catalog-grid exists, so including it here is a no-op beyond
+         that export, same as how dashboard.html already does this. -->
+    <div id="catalog-picker-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="catalog-picker-modal">
+            <button type="button" class="detail-modal-close" id="catalog-picker-close">&times;</button>
+            <div class="catalog-picker-toolbar">
+                <input type="search" id="catalog-picker-search" class="catalog-search" placeholder="Search by label or filename...">
+            </div>
+            <div id="catalog-picker-grid" class="catalog-picker-grid"></div>
+            <div class="catalog-picker-actions">
+                <button type="button" id="catalog-picker-cancel" class="catalog-toolbar-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/catalog.js"></script>
     <script src="/assets/gig-sets.js"></script>
+    <script src="/assets/flyerEditor.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>
