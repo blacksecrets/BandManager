@@ -8,11 +8,11 @@ namespace BandManager.Data.Services;
 public class MediaSource(HttpClient http)
 {
     private static readonly TimeSpan CacheTtl = TimeSpan.FromSeconds(60);
-    private static readonly ConcurrentDictionary<Guid, (DateTime FetchedAt, List<MediaItem> Items)> Cache = new();
+    private static readonly ConcurrentDictionary<Guid, (DateTime FetchedAt, List<SiteMediaItem> Items)> Cache = new();
 
     public void InvalidateCache(Guid bandId) => Cache.TryRemove(bandId, out _);
 
-    public async Task<List<MediaItem>> LoadMediaItemsAsync(Band band)
+    public async Task<List<SiteMediaItem>> LoadSiteMediaItemsAsync(Band band)
     {
         if (Cache.TryGetValue(band.Id, out var cached) && DateTime.UtcNow - cached.FetchedAt < CacheTtl)
             return cached.Items;
@@ -23,7 +23,7 @@ public class MediaSource(HttpClient http)
         {
             var url = band.SiteBaseUrl.TrimEnd('/') + "/js/media.js";
             var code = await http.GetStringAsync(url);
-            var items = SiteJsArrayParser.ParseArray<MediaItem>(code, "mediaItems");
+            var items = SiteJsArrayParser.ParseArray<SiteMediaItem>(code, "mediaItems");
             Cache[band.Id] = (DateTime.UtcNow, items);
             return items;
         }
@@ -33,9 +33,9 @@ public class MediaSource(HttpClient http)
         }
     }
 
-    public async Task<MediaItem?> FindMediaByRefAsync(Band band, string reference)
+    public async Task<SiteMediaItem?> FindMediaByRefAsync(Band band, string reference)
     {
-        var items = await LoadMediaItemsAsync(band);
+        var items = await LoadSiteMediaItemsAsync(band);
         return items.FirstOrDefault(m => SiteContentRef.MediaRef(m) == reference);
     }
 }

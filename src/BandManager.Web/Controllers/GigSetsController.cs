@@ -12,17 +12,16 @@ public record AddGigSetSongRequest(Guid SongId);
 public record ReorderGigSetRequest(List<Guid> SongIds);
 
 /// <summary>
-/// Gig setlists. Gigs themselves aren't stored here - they're read live
-/// from the Band's own site via GigsSource (same source ScheduleItems'
-/// GigRef already points at), so "the gig management page" lists whatever
-/// that returns and a GigSet row only exists once someone starts building
-/// that gig's set. Reading is open to the whole Band; building is
-/// BandAdmin-only, same split as RepertoireController.
+/// Gig setlists. Gigs are real DB rows now (see Entities.Gig) - "the gig
+/// management page" lists every Gig row for the band, and a GigSet row
+/// only exists once someone starts building that gig's set. Reading is
+/// open to the whole Band; building is BandAdmin-only, same split as
+/// RepertoireController.
 /// </summary>
 [ApiController]
 [Route("/api/gig-sets")]
 [Authorize(Policy = "BandMember")]
-public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor activeBand, GigsSource gigsSource) : ControllerBase
+public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
     {
@@ -41,7 +40,7 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bandId);
         if (band is null) return NotFound();
 
-        var gigs = await gigsSource.LoadGigsAsync(band);
+        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId).ToListAsync();
         var setCounts = await db.GigSets.AsNoTracking()
             .Where(s => s.BandId == bandId)
             .Select(s => new { s.GigRef, Count = s.Songs.Count })
@@ -50,16 +49,15 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         var today = DateTime.Today;
         var result = gigs.Select(g =>
         {
-            var gigRef = SiteContentRef.GigRef(g);
             var isPast = DateTime.TryParse(g.Date, out var parsed) && parsed.Date < today;
             return new
             {
-                gigRef,
+                gigRef = g.Ref,
                 title = g.Title,
                 venue = g.Venue,
                 date = g.Date,
                 time = g.Time,
-                songCount = setCounts.GetValueOrDefault(gigRef, 0),
+                songCount = setCounts.GetValueOrDefault(g.Ref, 0),
                 isPast
             };
         });
@@ -79,7 +77,7 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         if (RequireActiveBand(out var bandId) is { } err) return err;
         var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bandId);
         if (band is null) return NotFound();
-        var gig = await gigsSource.FindGigByRefAsync(band, gigRef);
+        var gig = await db.Gigs.AsNoTracking().FirstOrDefaultAsync(g => g.BandId == bandId && g.Ref == gigRef);
         if (gig is null) return NotFound(new { error = "Gig not found" });
 
         var items = await db.ScheduleItems.AsNoTracking()

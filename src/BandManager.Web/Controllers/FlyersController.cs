@@ -27,10 +27,10 @@ public record SaveFlyerRequest(Guid TemplateId, string GigRef, List<SaveFlyerFie
 public class FlyersController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
-    GigsSource gigsSource,
     GigsSiteEditor gigsSiteEditor,
     GitHubSiteClient gitHub,
     CatalogStore catalogStore,
+    CredentialStore credentialStore,
     FlyerCache flyerCache,
     IWebHostEnvironment env) : ControllerBase
 {
@@ -50,13 +50,17 @@ public class FlyersController(
         return (band, null);
     }
 
+    private async Task<bool> HasSiteConfiguredAsync(Band band) =>
+        !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
+        && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SaveFlyerRequest request)
     {
         var (band, err) = await RequireActiveBandAsync();
         if (err is not null) return err;
 
-        var gig = await gigsSource.FindGigByRefAsync(band, request.GigRef);
+        var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == request.GigRef);
         if (gig is null) return NotFound(new { error = "Gig not found" });
 
         var template = await db.FlyerTemplates.Include(t => t.BackgroundCatalogItem)
@@ -83,7 +87,7 @@ public class FlyersController(
         try { rendered = FlyerRenderer.RenderFlyer(backgroundBytes, fields, FontsRootPath, LogoResolver); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
 
-        var gigRef = SiteContentRef.GigRef(gig);
+        var gigRef = gig.Ref;
         var catalogItem = await catalogStore.RegisterCatalogItemAsync(
             band.Id, rendered, "image/png", $"flyer-{gigRef}.png",
             CatalogSource.Upload, sourceUrl: null, uploadedBy: User.Identity?.Name,
@@ -98,15 +102,23 @@ public class FlyersController(
             Fields = fields
         };
         db.Flyers.Add(flyer);
-        await db.SaveChangesAsync();
+
+        // Still requires a site to push the rendered image live, same
+        // "known interim limitation" as GigsController's own flyer paths -
+        // the Flyer/Catalog rows above are saved either way.
+        if (!await HasSiteConfiguredAsync(band))
+        {
+            await db.SaveChangesAsync();
+            return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id });
+        }
 
         try
         {
             if (string.IsNullOrEmpty(gig.FlyerMain))
             {
-                var newPath = $"flyers/{gig.Id ?? gigRef}.png";
+                var newPath = $"flyers/{gigRef}.png";
                 await gitHub.PutBinaryFileAsync(band, newPath, rendered, $"Add flyer for {gig.Title}");
-                await gigsSiteEditor.UpdateGigFieldsAsync(band, gig, new Dictionary<string, string> { ["flyerMain"] = newPath });
+                gig.FlyerMain = newPath;
                 await flyerCache.WriteDirectlyAsync(band, newPath, rendered);
             }
             else
@@ -115,6 +127,12 @@ public class FlyersController(
                 await gitHub.PutBinaryFileAsync(band, gig.FlyerMain, rendered, $"Update flyer for {gig.Title}", sha);
                 await flyerCache.WriteDirectlyAsync(band, gig.FlyerMain, rendered);
             }
+            gig.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+
+            var withActs = await db.GigWithBands.Where(w => w.GigId == gig.Id).Include(w => w.WithBand)
+                .OrderBy(w => w.SortOrder).Select(w => new WithAct(w.WithBand.Name, w.Url)).ToListAsync();
+            await gigsSiteEditor.PublishGigAsync(band, gig, withActs);
         }
         catch (InvalidOperationException ex)
         {
@@ -122,6 +140,7 @@ public class FlyersController(
             // flyer exists and is viewable even if pushing it live to the
             // site failed (e.g. a transient GitHub error), so this reports
             // the problem without pretending nothing was saved.
+            await db.SaveChangesAsync();
             return StatusCode(502, new { error = $"Flyer saved to Catalog, but could not push it live: {ex.Message}", flyerId = flyer.Id, catalogItemId = catalogItem.Id });
         }
 

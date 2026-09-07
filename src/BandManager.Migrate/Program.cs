@@ -3,6 +3,7 @@ using BandManager.Data;
 using BandManager.Data.Crypto;
 using BandManager.Data.Entities;
 using BandManager.Data.Seed;
+using BandManager.Data.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +51,134 @@ if (args_.ContainsKey("create-superadmin"))
     db2.Users.Add(newAdmin);
     await db2.SaveChangesAsync();
     Console.WriteLine($"Created SuperAdmin '{email}' ({newAdmin.Id}).");
+    return;
+}
+
+// One-time cutover to the DB-rows-as-source-of-truth model for Gigs/
+// Media/Gallery (see Gig.cs's doc comment): for every Band with a site
+// configured, reads its current calendar.js/media.js/gallery.js one last
+// time (via GigsSource/MediaSource/GallerySource, exactly like the app
+// used to for every request) and inserts DB rows preserving each item's
+// existing SiteContentRef-derived Ref - so already-existing Flyer/GigSet/
+// ScheduleItem rows (which key off that same ref by string) resolve
+// against the new tables with zero migration of their own. Safe to
+// re-run: skips any (BandId, Ref) that's already a DB row, matching every
+// other idempotent-by-existence-check pattern in this codebase.
+if (args_.ContainsKey("backfill-site-content"))
+{
+    var connStr = Require("connection");
+    var keyPath = Require("key");
+    var cipher = new AesGcmCredentialCipher(keyPath);
+
+    var opts = new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(connStr).Options;
+    await using var bfDb = new ApplicationDbContext(opts);
+
+    using var http = new HttpClient();
+    var gigsSource = new GigsSource(http);
+    var mediaSource = new MediaSource(http);
+    var gallerySource = new GallerySource(http);
+
+    async Task<bool> HasWebsiteCredentialAsync(Guid bandId)
+    {
+        var account = await bfDb.Accounts.FirstOrDefaultAsync(a => a.BandId == bandId && a.PlatformId == "website");
+        return account?.EncryptedCredentials is not null;
+    }
+
+    var siteBands = await bfDb.Bands.Where(b => b.IsOnboarded && b.SiteBaseUrl != null).ToListAsync();
+    Console.WriteLine($"Backfilling site content for {siteBands.Count} band(s) with a site configured...");
+
+    foreach (var siteBand in siteBands)
+    {
+        if (!await HasWebsiteCredentialAsync(siteBand.Id))
+        {
+            Console.WriteLine($"  '{siteBand.Name}': SiteBaseUrl set but no website credential - skipping (read-only fetch below only needs SiteBaseUrl, so this is just a heads-up, not a hard block).");
+        }
+
+        // --- Gigs + With-acts ---
+        var siteGigs = await gigsSource.LoadGigsAsync(siteBand);
+        var gigCount = 0;
+        // Scoped to this one band's backfill run only - real historical
+        // gigs commonly repeat the same with-band across many shows, and
+        // this avoids one duplicate stub Band row per appearance. The
+        // ongoing (post-backfill) create/edit flow deliberately does NOT
+        // do this cross-gig matching - see GigsController.ResolveWithActsAsync.
+        var withBandCache = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var siteGig in siteGigs)
+        {
+            var gigRef = SiteContentRef.GigRef(siteGig);
+            if (await bfDb.Gigs.AnyAsync(g => g.BandId == siteBand.Id && g.Ref == gigRef)) continue;
+
+            var gig = new Gig
+            {
+                BandId = siteBand.Id,
+                Ref = gigRef,
+                Title = siteGig.Title,
+                Venue = siteGig.Venue,
+                VenueUrl = siteGig.VenueUrl,
+                Date = siteGig.Date,
+                Time = siteGig.Time,
+                Address = siteGig.Address,
+                DoorsTime = siteGig.DoorsTime,
+                OpenerTime = siteGig.OpenerTime,
+                HeadlinerTime = siteGig.HeadlinerTime,
+                TicketsUrl = siteGig.TicketsUrl,
+                FlyerMain = siteGig.FlyerMain,
+                FreeAdmission = siteGig.FreeAdmission,
+                CustomTicketsText = siteGig.CustomTicketsText,
+                TicketMode = siteGig.TicketMode,
+            };
+            bfDb.Gigs.Add(gig);
+            await bfDb.SaveChangesAsync();
+
+            var order = 0;
+            foreach (var w in siteGig.EffectiveWith())
+            {
+                var name = (w.Name ?? "").Trim();
+                if (name.Length == 0) continue;
+                if (!withBandCache.TryGetValue(name, out var withBandId))
+                {
+                    var stub = new Band { Name = name, Slug = Guid.NewGuid().ToString("N"), IsOnboarded = false };
+                    bfDb.Bands.Add(stub);
+                    await bfDb.SaveChangesAsync();
+                    withBandId = stub.Id;
+                    withBandCache[name] = withBandId;
+                }
+                bfDb.GigWithBands.Add(new GigWithBand { GigId = gig.Id, WithBandId = withBandId, Url = w.Url, SortOrder = order++ });
+            }
+            await bfDb.SaveChangesAsync();
+            gigCount++;
+        }
+        Console.WriteLine($"  '{siteBand.Name}': {gigCount} gig(s) backfilled ({withBandCache.Count} distinct with-band(s)), {siteGigs.Count - gigCount} already present.");
+
+        // --- Media ---
+        var siteMedia = await mediaSource.LoadSiteMediaItemsAsync(siteBand);
+        var mediaCount = 0;
+        foreach (var siteItem in siteMedia)
+        {
+            var mediaRef = SiteContentRef.MediaRef(siteItem);
+            if (await bfDb.MediaItems.AnyAsync(m => m.BandId == siteBand.Id && m.Ref == mediaRef)) continue;
+            bfDb.MediaItems.Add(new MediaItem { BandId = siteBand.Id, Ref = mediaRef, Title = siteItem.Title, Url = siteItem.Url, Thumbnail = siteItem.Thumbnail });
+            mediaCount++;
+        }
+        await bfDb.SaveChangesAsync();
+        Console.WriteLine($"  '{siteBand.Name}': {mediaCount} media item(s) backfilled, {siteMedia.Count - mediaCount} already present.");
+
+        // --- Gallery ---
+        var siteGallery = await gallerySource.LoadSiteGalleryImagesAsync(siteBand);
+        var galleryCount = 0;
+        foreach (var siteImage in siteGallery)
+        {
+            var galleryRef = SiteContentRef.GalleryRef(siteImage);
+            if (await bfDb.GalleryImages.AnyAsync(g => g.BandId == siteBand.Id && g.Ref == galleryRef)) continue;
+            bfDb.GalleryImages.Add(new GalleryImage { BandId = siteBand.Id, Ref = galleryRef, Alt = siteImage.Alt, Thumb = siteImage.Thumb, Full = siteImage.Full });
+            galleryCount++;
+        }
+        await bfDb.SaveChangesAsync();
+        Console.WriteLine($"  '{siteBand.Name}': {galleryCount} gallery image(s) backfilled, {siteGallery.Count - galleryCount} already present.");
+    }
+
+    Console.WriteLine("Backfill complete.");
     return;
 }
 

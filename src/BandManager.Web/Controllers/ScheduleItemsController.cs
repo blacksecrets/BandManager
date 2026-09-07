@@ -43,10 +43,7 @@ public partial class ScheduleItemsController(
     FacebookPublisher facebookPublisher,
     InstagramPublisher instagramPublisher,
     GoogleBusinessPublisher googleBusinessPublisher,
-    CatalogStore catalogStore,
-    GigsSource gigsSource,
-    MediaSource mediaSource,
-    GallerySource gallerySource) : ControllerBase
+    CatalogStore catalogStore) : ControllerBase
 {
     [GeneratedRegex(@"^cadence-([0-9a-fA-F-]{36})")]
     private static partial Regex CadenceRuleIdInTemplateKey();
@@ -430,13 +427,22 @@ public partial class ScheduleItemsController(
         var band = await db.Bands.FindAsync(item.BandId);
 
         Gig? gig = null;
+        List<WithAct> gigWithActs = [];
         MediaItem? media = null;
         GalleryImage? gallery = null;
         if (band is not null)
         {
-            if (!string.IsNullOrEmpty(item.GigRef)) gig = await gigsSource.FindGigByRefAsync(band, item.GigRef);
-            if (!string.IsNullOrEmpty(item.MediaRef)) media = await mediaSource.FindMediaByRefAsync(band, item.MediaRef);
-            if (!string.IsNullOrEmpty(item.GalleryRef)) gallery = await gallerySource.FindGalleryByRefAsync(band, item.GalleryRef);
+            if (!string.IsNullOrEmpty(item.GigRef))
+            {
+                gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == item.GigRef);
+                if (gig is not null)
+                {
+                    gigWithActs = await db.GigWithBands.Where(w => w.GigId == gig.Id).Include(w => w.WithBand)
+                        .OrderBy(w => w.SortOrder).Select(w => new WithAct(w.WithBand.Name, w.Url)).ToListAsync();
+                }
+            }
+            if (!string.IsNullOrEmpty(item.MediaRef)) media = await db.MediaItems.FirstOrDefaultAsync(m => m.BandId == band.Id && m.Ref == item.MediaRef);
+            if (!string.IsNullOrEmpty(item.GalleryRef)) gallery = await db.GalleryImages.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == item.GalleryRef);
         }
 
         return new
@@ -472,7 +478,7 @@ public partial class ScheduleItemsController(
             gig_title = gig?.Title,
             gig = gig is null ? null : new
             {
-                id = gig.Id,
+                id = gig.Ref,
                 title = gig.Title,
                 venue = gig.Venue,
                 venueUrl = gig.VenueUrl,
@@ -482,9 +488,7 @@ public partial class ScheduleItemsController(
                 openerTime = gig.OpenerTime,
                 headlinerTime = gig.HeadlinerTime,
                 address = gig.Address,
-                withArtists = gig.WithArtists,
-                withArtistsUrl = gig.WithArtistsUrl,
-                with = gig.EffectiveWith(),
+                with = gigWithActs,
                 ticketsUrl = gig.TicketsUrl,
                 flyerMain = gig.FlyerMain,
                 freeAdmission = gig.FreeAdmission,
@@ -495,7 +499,7 @@ public partial class ScheduleItemsController(
             media_title = media?.Title,
             media = media is null ? null : new
             {
-                id = media.Id,
+                id = media.Ref,
                 title = media.Title,
                 url = media.Url,
                 thumbnail = media.Thumbnail
@@ -503,7 +507,7 @@ public partial class ScheduleItemsController(
             gallery_title = gallery?.Alt,
             gallery = gallery is null ? null : new
             {
-                id = gallery.Id,
+                id = gallery.Ref,
                 alt = gallery.Alt,
                 thumb = gallery.Thumb,
                 full = gallery.Full

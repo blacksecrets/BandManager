@@ -270,10 +270,13 @@ public class SuperAdminController(
         return Ok(new { ok = true });
     }
 
+    // IsOnboarded excludes with-band stubs (see Band.IsOnboarded) - real
+    // tenant management has nothing to do with an unclaimed identity row
+    // that exists purely so a Gig's With-acts can reference a real Band.
     [HttpGet("bands")]
     public async Task<IActionResult> ListBands()
     {
-        var bands = await db.Bands.OrderBy(b => b.Name)
+        var bands = await db.Bands.Where(b => b.IsOnboarded).OrderBy(b => b.Name)
             .Select(b => new { id = b.Id, name = b.Name, slug = b.Slug, createdAt = b.CreatedAt, isArchived = b.IsArchived, archivedAt = b.ArchivedAt })
             .ToListAsync();
         return Ok(bands);

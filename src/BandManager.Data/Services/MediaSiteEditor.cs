@@ -6,17 +6,17 @@ using static BandManager.Data.Services.SiteTextEditing;
 namespace BandManager.Data.Services;
 
 /// <summary>
-/// Edits a Band's own public site's js/media.js - ported from the old
-/// app's mediaEditor.js. Unlike calendar.js (where gigs are added by
-/// hand), media items only ever come into existence through this
-/// dashboard, so this does genuine add/delete of whole entries.
+/// Publishes a DB MediaItem row (the source of truth - see MediaItem.cs)
+/// to a Band's public site's js/media.js, best-effort and one-way -
+/// mirrors GigsSiteEditor's PublishGigAsync exactly (always rewrites the
+/// whole block from the DB row's current state; a band with no site
+/// simply never calls this). ToEmbedUrl/thumbnail-derivation stay here as
+/// media-specific business logic, independent of whether a site push
+/// happens.
 /// </summary>
-public class MediaSiteEditor(GitHubSiteClient gitHub, MediaSource mediaSource, HttpClient http)
+public class MediaSiteEditor(GitHubSiteClient gitHub, HttpClient http)
 {
     private const string FilePath = "js/media.js";
-
-    private static TextBlock? FindMediaBlock(string code, MediaItem item) =>
-        !string.IsNullOrEmpty(item.Id) ? FindBlock(code, "id", item.Id) : FindBlock(code, "title", item.Title);
 
     /// <summary>A YouTube watch/share link or a SoundCloud track link,
     /// turned into the embeddable URL media.js's modal iframe needs.
@@ -63,7 +63,7 @@ public class MediaSiteEditor(GitHubSiteClient gitHub, MediaSource mediaSource, H
     /// thumbnail at a predictable URL. SoundCloud needs the actual oEmbed
     /// lookup. Either way this is just an external URL, nothing to
     /// mirror into the site repo.</summary>
-    private async Task<string?> DeriveAutoThumbnailAsync(string rawUrl)
+    public async Task<string?> DeriveAutoThumbnailAsync(string rawUrl)
     {
         var ytId = ExtractYouTubeId(rawUrl);
         if (ytId is not null) return $"https://img.youtube.com/vi/{ytId}/hqdefault.jpg";
@@ -71,95 +71,53 @@ public class MediaSiteEditor(GitHubSiteClient gitHub, MediaSource mediaSource, H
         return null;
     }
 
-    /// <summary>fields: {title, url (raw link - converted to embed form
-    /// here), thumbnail}. Only keys present are changed.</summary>
-    public async Task UpdateMediaItemAsync(Band band, MediaItem item, Dictionary<string, string> fields)
+    /// <summary>Writes item's current full state to media.js - replacing
+    /// its existing block (matched by id == item.Ref) if present, else
+    /// appending a new one.</summary>
+    public async Task PublishMediaItemAsync(Band band, MediaItem item)
     {
         var file = await gitHub.GetFileAsync(band, FilePath)
             ?? throw new InvalidOperationException("Could not read media.js from the site repo.");
-
-        var block = FindMediaBlock(file.Content, item)
-            ?? throw new InvalidOperationException($"Couldn't find \"{item.Id ?? item.Title}\" in media.js - it may have already changed on the site.");
-
-        var newBlock = block.Text;
-        foreach (var (field, rawValue) in fields)
-        {
-            if (field == "url")
-            {
-                var embed = ToEmbedUrl(rawValue) ?? throw new InvalidOperationException("That link doesn't look like a YouTube or SoundCloud URL.");
-                newBlock = SetField(newBlock, "url", embed);
-            }
-            else
-            {
-                newBlock = SetField(newBlock, field, rawValue);
-            }
-        }
-
-        var newContent = file.Content[..block.Start] + newBlock + file.Content[block.End..];
-        await gitHub.PutTextFileAsync(band, FilePath, newContent, $"Update \"{fields.GetValueOrDefault("title", item.Title)}\" media item", file.Sha);
-        mediaSource.InvalidateCache(band.Id);
-    }
-
-    /// <summary>fields: {title, url} - both required. artBytes/artExt:
-    /// the tile art image, optional - if omitted, the thumbnail is auto-
-    /// derived from the link instead; a provided file always overrides
-    /// that. Art is uploaded before the text edit, so a failure partway
-    /// through never leaves an entry pointing at a nonexistent
-    /// image.</summary>
-    public async Task<(string Id, string Thumbnail)> AddMediaItemAsync(Band band, string title, string url, byte[]? artBytes, string? artExt)
-    {
-        var embed = ToEmbedUrl(url) ?? throw new InvalidOperationException("That link doesn't look like a YouTube or SoundCloud URL.");
-
-        string? thumbnail = null;
-        if (artBytes is null)
-        {
-            thumbnail = await DeriveAutoThumbnailAsync(url)
-                ?? throw new InvalidOperationException("Couldn't automatically find a thumbnail for that link - please upload tile art.");
-        }
-
-        var file = await gitHub.GetFileAsync(band, FilePath)
-            ?? throw new InvalidOperationException("Could not read media.js from the site repo.");
-
-        var bounds = FindArrayBounds(file.Content, "mediaItems")
-            ?? throw new InvalidOperationException("Could not find the mediaItems array in media.js.");
-        var arrayText = file.Content[bounds.Start..bounds.End];
-
-        var id = UniqueId(file.Content, Slugify(title, "media-item"));
-        if (artBytes is not null)
-        {
-            thumbnail = $"media/{id}.{artExt}";
-            await gitHub.PutBinaryFileAsync(band, thumbnail, artBytes, $"Add tile art for \"{title}\"");
-        }
 
         var blockText = string.Join('\n',
             "    {",
-            $"        id: \"{id}\",",
-            $"        title: \"{EscapeForQuotes(title)}\",",
-            $"        url: \"{embed}\",",
-            $"        thumbnail: \"{thumbnail}\"",
+            $"        id: \"{EscapeForQuotes(item.Ref)}\",",
+            $"        title: \"{EscapeForQuotes(item.Title)}\",",
+            $"        url: \"{EscapeForQuotes(item.Url ?? "")}\",",
+            $"        thumbnail: \"{EscapeForQuotes(item.Thumbnail ?? "")}\"",
             "    }");
 
-        var newArrayText = InsertBeforeClose(arrayText, ']', blockText)
-            ?? throw new InvalidOperationException("Could not figure out where to insert the new media item.");
+        var existingBlock = FindBlock(file.Content, "id", item.Ref);
+        string newContent;
+        if (existingBlock is not null)
+        {
+            newContent = file.Content[..existingBlock.Start] + blockText + file.Content[existingBlock.End..];
+        }
+        else
+        {
+            var bounds = FindArrayBounds(file.Content, "mediaItems")
+                ?? throw new InvalidOperationException("Could not find the mediaItems array in media.js.");
+            var arrayText = file.Content[bounds.Start..bounds.End];
+            var newArrayText = InsertBeforeClose(arrayText, ']', blockText)
+                ?? throw new InvalidOperationException("Could not figure out where to insert the media item.");
+            newContent = file.Content[..bounds.Start] + newArrayText + file.Content[bounds.End..];
+        }
 
-        var newContent = file.Content[..bounds.Start] + newArrayText + file.Content[bounds.End..];
-        await gitHub.PutTextFileAsync(band, FilePath, newContent, $"Add \"{title}\" media item", file.Sha);
-        mediaSource.InvalidateCache(band.Id);
-        return (id, thumbnail!);
+        await gitHub.PutTextFileAsync(band, FilePath, newContent, $"Update \"{item.Title}\" media item", file.Sha);
     }
 
-    /// <summary>Removes the whole entry, including whichever neighboring
-    /// comma keeps the array valid.</summary>
-    public async Task DeleteMediaItemAsync(Band band, MediaItem item)
+    /// <summary>Removes item's block from media.js, if present - a no-op
+    /// if the site never had it (e.g. created before this band had a
+    /// site).</summary>
+    public async Task UnpublishMediaItemAsync(Band band, string mediaRef, string title)
     {
         var file = await gitHub.GetFileAsync(band, FilePath)
             ?? throw new InvalidOperationException("Could not read media.js from the site repo.");
 
-        var block = FindMediaBlock(file.Content, item)
-            ?? throw new InvalidOperationException($"Couldn't find \"{item.Id ?? item.Title}\" in media.js - it may have already changed on the site.");
+        var block = FindBlock(file.Content, "id", mediaRef);
+        if (block is null) return;
 
         var newContent = RemoveBlock(file.Content, block);
-        await gitHub.PutTextFileAsync(band, FilePath, newContent, $"Remove \"{item.Title}\" media item", file.Sha);
-        mediaSource.InvalidateCache(band.Id);
+        await gitHub.PutTextFileAsync(band, FilePath, newContent, $"Remove \"{title}\" media item", file.Sha);
     }
 }

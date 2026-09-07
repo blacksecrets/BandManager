@@ -66,7 +66,7 @@ public class WithActJsonRegressionTests
     [Fact]
     public void EffectiveWith_PrefersNewListOverLegacyScalarPair_WhenBothPresent()
     {
-        var gig = new Gig(
+        var gig = new SiteGig(
             Id: "g1", Title: "Test", Venue: null, VenueUrl: null, Date: "2026-01-01", Time: null,
             Address: null,
             WithArtists: "Legacy Band", WithArtistsUrl: "https://legacy.example.com",
@@ -83,7 +83,7 @@ public class WithActJsonRegressionTests
     [Fact]
     public void EffectiveWith_FallsBackToLegacyScalarPair_WhenNewListIsAbsent()
     {
-        var gig = new Gig(
+        var gig = new SiteGig(
             Id: "g1", Title: "Test", Venue: null, VenueUrl: null, Date: "2026-01-01", Time: null,
             Address: null,
             WithArtists: "Legacy Band", WithArtistsUrl: "https://legacy.example.com",
@@ -101,7 +101,7 @@ public class WithActJsonRegressionTests
     [Fact]
     public void EffectiveWith_ReturnsEmpty_WhenNeitherIsSet()
     {
-        var gig = new Gig(
+        var gig = new SiteGig(
             Id: "g1", Title: "Test", Venue: null, VenueUrl: null, Date: "2026-01-01", Time: null,
             Address: null,
             WithArtists: null, WithArtistsUrl: null,

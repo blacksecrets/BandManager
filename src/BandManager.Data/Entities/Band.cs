@@ -38,5 +38,15 @@ public class Band
     public bool IsArchived { get; set; }
     public DateTime? ArchivedAt { get; set; }
 
+    // False for a "with-band" stub row - an unclaimed identity created so
+    // a Gig's With-acts can reference a real Band instead of free text
+    // (see GigWithBand), with no BandMembership/login/access of its own.
+    // May become a real onboarded tenant later if that band signs up.
+    // Migration default true, so every already-real Band (Black Secrets,
+    // Attica, ...) is unaffected. SuperAdmin's band list, the band
+    // switcher, and archive/unarchive UI all filter to IsOnboarded so
+    // stub rows don't clutter real tenant management.
+    public bool IsOnboarded { get; set; } = true;
+
     public ICollection<BandMembership> Memberships { get; set; } = new List<BandMembership>();
 }

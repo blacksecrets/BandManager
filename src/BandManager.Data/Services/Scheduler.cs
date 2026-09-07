@@ -5,20 +5,18 @@ namespace BandManager.Data.Services;
 
 /// <summary>
 /// Generates ScheduleItems from CadenceRules (and, for the gig-driven
-/// kinds, the Band's own live gig/media/gallery data) for one Band -
-/// ported from the old app's src/scheduler.js. Idempotent: re-running
-/// never duplicates a row (checked via existence query rather than
-/// relying on a DB unique-constraint catch, since Postgres treats each
-/// NULL as distinct in a unique index the same way SQLite does, and
-/// several fields here are legitimately nullable). uploadsRootPath is a
-/// plain constructor parameter (same pattern as CatalogStore's
-/// catalogRootPath), resolved by the Web project's DI registration.
+/// kinds, the Band's own Gigs/MediaItems/GalleryImages - all DB rows now,
+/// see Gig.cs's doc comment) for one Band - ported from the old app's
+/// src/scheduler.js. Idempotent: re-running never duplicates a row
+/// (checked via existence query rather than relying on a DB unique-
+/// constraint catch, since Postgres treats each NULL as distinct in a
+/// unique index the same way SQLite does, and several fields here are
+/// legitimately nullable). uploadsRootPath is a plain constructor
+/// parameter (same pattern as CatalogStore's catalogRootPath), resolved
+/// by the Web project's DI registration.
 /// </summary>
 public class Scheduler(
     ApplicationDbContext db,
-    GigsSource gigsSource,
-    MediaSource mediaSource,
-    GallerySource gallerySource,
     FlyerCache flyerCache,
     CatalogStore catalogStore,
     string uploadsRootPath)
@@ -65,6 +63,9 @@ public class Scheduler(
     }
 
     private static bool TryParseGigDate(Gig gig, out DateTime date) => DateTime.TryParse(gig.Date, out date);
+
+    private static string EffectiveWithNames(Gig gig) =>
+        string.Join(", ", gig.WithBands.OrderBy(w => w.SortOrder).Select(w => w.WithBand.Name).Where(n => !string.IsNullOrEmpty(n)));
 
     private async Task<Account?> GetAccountAsync(Guid bandId, string platformId) =>
         await db.Accounts.FirstOrDefaultAsync(a => a.BandId == bandId && a.PlatformId == platformId);
@@ -141,7 +142,7 @@ public class Scheduler(
         foreach (var gig in gigs)
         {
             if (!TryParseGigDate(gig, out var showDate) || showDate <= today) continue;
-            var gigRef = SiteContentRef.GigRef(gig);
+            var gigRef = gig.Ref;
 
             foreach (var rule in rules)
             {
@@ -159,7 +160,7 @@ public class Scheduler(
                     var message = eventUrl is not null
                         ? template.Replace("{event_url}", eventUrl)
                         : System.Text.RegularExpressions.Regex.Replace(template, @"\{event_url\}\s*", "");
-                    var withNames = string.Join(", ", gig.EffectiveWith().Select(w => w.Name).Where(n => !string.IsNullOrEmpty(n)));
+                    var withNames = EffectiveWithNames(gig);
                     message = withNames.Length > 0
                         ? message.Replace("{with}", withNames)
                         : System.Text.RegularExpressions.Regex.Replace(message, @"\{with\}\s*", "");
@@ -203,7 +204,7 @@ public class Scheduler(
 
         foreach (var gig in gigs)
         {
-            var gigRef = SiteContentRef.GigRef(gig);
+            var gigRef = gig.Ref;
             foreach (var rule in rules)
             {
                 var templateKey = $"cadence-{rule.Id}-{gigRef}";
@@ -233,7 +234,9 @@ public class Scheduler(
 
     /// <summary>One "keep the site listing accurate" tile per upcoming
     /// gig - shares one TemplateKey across every gig (disambiguated by
-    /// GigRef, same as the old app relied on).</summary>
+    /// GigRef, same as the old app relied on). Requires a "website"
+    /// Account (i.e. a site actually configured) - there's no live site
+    /// page to "keep accurate" without one.</summary>
     public async Task GenerateWebsiteItemsAsync(Guid bandId, List<Gig> gigs)
     {
         var websiteAccount = await GetAccountAsync(bandId, "website");
@@ -241,7 +244,7 @@ public class Scheduler(
 
         foreach (var gig in gigs)
         {
-            var gigRef = SiteContentRef.GigRef(gig);
+            var gigRef = gig.Ref;
             const string templateKey = "website-listing";
             var exists = await db.ScheduleItems.AnyAsync(s =>
                 s.BandId == bandId && s.TemplateKey == templateKey && s.DueDate == null && s.GigRef == gigRef);
@@ -266,6 +269,10 @@ public class Scheduler(
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Requires a "website" Account (a site actually configured) -
+    /// same reasoning as GenerateWebsiteItemsAsync. A siteless band can
+    /// still fully manage MediaItems in the DB, it just gets no "keep it
+    /// accurate on the site" reminder tile, since there's no site.</summary>
     public async Task GenerateMediaItemsAsync(Guid bandId, List<MediaItem> mediaList)
     {
         var websiteAccount = await GetAccountAsync(bandId, "website");
@@ -273,7 +280,7 @@ public class Scheduler(
 
         foreach (var media in mediaList)
         {
-            var mediaRef = SiteContentRef.MediaRef(media);
+            var mediaRef = media.Ref;
             var templateKey = $"media-item-{mediaRef}";
             var exists = await db.ScheduleItems.AnyAsync(s => s.BandId == bandId && s.TemplateKey == templateKey);
             if (exists) continue;
@@ -298,6 +305,8 @@ public class Scheduler(
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Same "requires a website Account" reasoning as
+    /// GenerateMediaItemsAsync.</summary>
     public async Task GenerateGalleryItemsAsync(Guid bandId, List<GalleryImage> galleryImages)
     {
         var websiteAccount = await GetAccountAsync(bandId, "website");
@@ -305,7 +314,7 @@ public class Scheduler(
 
         foreach (var image in galleryImages)
         {
-            var galleryRef = SiteContentRef.GalleryRef(image);
+            var galleryRef = image.Ref;
             var templateKey = $"gallery-image-{galleryRef}";
             var exists = await db.ScheduleItems.AnyAsync(s => s.BandId == bandId && s.TemplateKey == templateKey);
             if (exists) continue;
@@ -333,7 +342,11 @@ public class Scheduler(
     /// <summary>Bandsintown's two gig-driven rows are booking-triggered/
     /// platform-automatic, not something a human tunes a cadence for -
     /// kept as simple hardcoded generation rather than editable rules,
-    /// same as the old app.</summary>
+    /// same as the old app. Owner is left blank (not hardcoded to a real
+    /// person's name, as this used to be - see Owner = "Bobby" fixed here,
+    /// a real latent bug: every band using Bandsintown got the same
+    /// hardcoded name regardless of their actual roster) - matches every
+    /// other auto-generated item's "unassigned by default" convention.</summary>
     public async Task GenerateBandsintownItemsAsync(Guid bandId, List<Gig> gigs)
     {
         var account = await GetAccountAsync(bandId, "bandsintown");
@@ -341,7 +354,7 @@ public class Scheduler(
 
         foreach (var gig in gigs)
         {
-            var gigRef = SiteContentRef.GigRef(gig);
+            var gigRef = gig.Ref;
 
             const string listingKey = "bandsintown-listing";
             if (!await db.ScheduleItems.AnyAsync(s => s.BandId == bandId && s.TemplateKey == listingKey && s.DueDate == null && s.GigRef == gigRef))
@@ -349,7 +362,7 @@ public class Scheduler(
                 db.ScheduleItems.Add(new ScheduleItem
                 {
                     BandId = bandId, AccountId = account.Id, TemplateKey = listingKey, Platform = "Bandsintown/Songkick",
-                    Owner = "Bobby", ContentType = "Event Listing", Category = "Show Promotion",
+                    Owner = "", ContentType = "Event Listing", Category = "Show Promotion",
                     Example = $"New tour date added w/ venue, ticket link - {gig.Title}",
                     DueDate = null, NoApi = true, AutoHandled = false, GigRef = gigRef
                 });
@@ -361,7 +374,7 @@ public class Scheduler(
                 db.ScheduleItems.Add(new ScheduleItem
                 {
                     BandId = bandId, AccountId = account.Id, TemplateKey = reminderKey, Platform = "Bandsintown/Songkick",
-                    Owner = "Bobby", ContentType = "Reminder Push", Category = "Show Promotion",
+                    Owner = "", ContentType = "Reminder Push", Category = "Show Promotion",
                     Example = $"Automated fan notification reminder - {gig.Title}",
                     DueDate = null, NoApi = false, AutoHandled = true, GigRef = gigRef
                 });
@@ -394,7 +407,7 @@ public class Scheduler(
         }
         if (nextGig is null) return;
 
-        var gigRef = SiteContentRef.GigRef(nextGig);
+        var gigRef = nextGig.Ref;
 
         foreach (var rule in rules)
         {
@@ -458,13 +471,15 @@ public class Scheduler(
         }
     }
 
-    /// <summary>Everything gig/media/gallery-driven for one Band, plus the
-    /// "auto-seed the Instagram flyer artifact from the gig's own flyer"
-    /// step. Ported from the old app's generateGigDrivenItems + the tail
-    /// end of generateAll.</summary>
+    /// <summary>Everything gig-driven for one Band, plus the "auto-seed
+    /// the Instagram flyer artifact from the gig's own flyer" step.
+    /// Ported from the old app's generateGigDrivenItems + the tail end of
+    /// generateAll.</summary>
     public async Task GenerateGigDrivenItemsAsync(Guid bandId, Band band)
     {
-        var gigs = await gigsSource.LoadGigsAsync(band);
+        var gigs = await db.Gigs.Where(g => g.BandId == bandId)
+            .Include(g => g.WithBands).ThenInclude(w => w.WithBand)
+            .ToListAsync();
 
         await GenerateGigCountdownItemsAsync(bandId, band, gigs);
         await GenerateGigEventItemsAsync(bandId, gigs);
@@ -480,7 +495,7 @@ public class Scheduler(
             .Include(s => s.Artifacts)
             .Where(s => s.BandId == bandId && s.ContentType == "Feed Post" && s.GigRef != null)
             .ToListAsync();
-        var gigsByRef = gigs.ToDictionary(SiteContentRef.GigRef);
+        var gigsByRef = gigs.ToDictionary(g => g.Ref);
 
         foreach (var item in flyerCandidates)
         {
@@ -516,10 +531,10 @@ public class Scheduler(
         await GenerateRecurringItemsAsync(bandId);
         await GenerateGigDrivenItemsAsync(bandId, band);
 
-        var mediaList = await mediaSource.LoadMediaItemsAsync(band);
+        var mediaList = await db.MediaItems.Where(m => m.BandId == bandId).ToListAsync();
         await GenerateMediaItemsAsync(bandId, mediaList);
 
-        var galleryList = await gallerySource.LoadGalleryImagesAsync(band);
+        var galleryList = await db.GalleryImages.Where(g => g.BandId == bandId).ToListAsync();
         await GenerateGalleryItemsAsync(bandId, galleryList);
     }
 }

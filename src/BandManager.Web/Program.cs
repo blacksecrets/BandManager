@@ -125,9 +125,6 @@ builder.Services.AddScoped<BandManager.Data.Services.GallerySiteEditor>();
 builder.Services.AddScoped<BandManager.Data.Services.Scheduler>(sp =>
     new BandManager.Data.Services.Scheduler(
         sp.GetRequiredService<ApplicationDbContext>(),
-        sp.GetRequiredService<BandManager.Data.Services.GigsSource>(),
-        sp.GetRequiredService<BandManager.Data.Services.MediaSource>(),
-        sp.GetRequiredService<BandManager.Data.Services.GallerySource>(),
         sp.GetRequiredService<BandManager.Data.Services.FlyerCache>(),
         sp.GetRequiredService<BandManager.Data.Services.CatalogStore>(),
         uploadsRootPath));

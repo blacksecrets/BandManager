@@ -31,8 +31,11 @@ public class BandsController(ApplicationDbContext db, IActiveBandAccessor active
         // than through this switcher-only endpoint.
         if (User.IsSuperAdmin())
         {
+            // IsOnboarded excludes with-band stubs (see Band.IsOnboarded) -
+            // they have no memberships/content of their own, nothing to
+            // switch into.
             var all = await db.Bands.AsNoTracking()
-                .Where(b => !b.IsArchived)
+                .Where(b => !b.IsArchived && b.IsOnboarded)
                 .OrderBy(b => b.Name)
                 .Select(b => new { bandId = b.Id, bandName = b.Name, role = "SuperAdmin" })
                 .ToListAsync();
@@ -56,6 +59,7 @@ public class BandsController(ApplicationDbContext db, IActiveBandAccessor active
 
         var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == request.BandId);
         if (band is null || band.IsArchived) return BadRequest(new { error = "That band is archived and can no longer be selected." });
+        if (!band.IsOnboarded) return BadRequest(new { error = "That's a with-band identity, not a real band - it can't be selected." });
 
         var hasAccess = User.IsSuperAdmin() ||
             await db.BandMemberships.AsNoTracking()

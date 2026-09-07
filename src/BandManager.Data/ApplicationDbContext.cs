@@ -31,6 +31,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<GigSet> GigSets => Set<GigSet>();
     public DbSet<GigSetSong> GigSetSongs => Set<GigSetSong>();
 
+    // --- Site content, now DB-backed (source of truth), site is an
+    // optional best-effort publish target - see Gig.cs's doc comment ---
+    public DbSet<Gig> Gigs => Set<Gig>();
+    public DbSet<GigWithBand> GigWithBands => Set<GigWithBand>();
+    public DbSet<MediaItem> MediaItems => Set<MediaItem>();
+    public DbSet<GalleryImage> GalleryImages => Set<GalleryImage>();
+
     public DbSet<SongEditRequest> SongEditRequests => Set<SongEditRequest>();
     public DbSet<Notification> Notifications => Set<Notification>();
 
@@ -170,6 +177,37 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.GigSet).WithMany(s => s.Songs).HasForeignKey(x => x.GigSetId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- Site content (Gigs/Media/Gallery), DB-backed ---
+
+        builder.Entity<Gig>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.Ref }).IsUnique();
+        });
+
+        builder.Entity<GigWithBand>(b =>
+        {
+            b.HasOne(x => x.Gig).WithMany(g => g.WithBands).HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.Cascade);
+            // Restrict, not Cascade: a with-band (possibly a stub row with
+            // no BandMemberships) may be referenced by many gigs across
+            // many real Bands - deleting it out from under those isn't
+            // something any current feature does, but Restrict makes that
+            // an explicit decision later rather than a silent cascade now.
+            b.HasOne(x => x.WithBand).WithMany().HasForeignKey(x => x.WithBandId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<MediaItem>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.Ref }).IsUnique();
+        });
+
+        builder.Entity<GalleryImage>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.Ref }).IsUnique();
         });
 
         // --- Song review / notifications ---
