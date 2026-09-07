@@ -4,6 +4,7 @@ async function loadMe() {
     const roleNote = me.isSuperAdmin ? ' (SuperAdmin)' : me.activeBandRole === 'BandAdmin' ? ` (Band Admin of ${me.activeBandName || 'this band'})` : '';
     document.getElementById('whoami').textContent = `Logged in as ${me.username}${roleNote}`;
     document.querySelector('#username-form input[name="username"]').value = me.username || '';
+    document.querySelector('#first-name-form input[name="firstName"]').value = me.firstName || '';
 
     // Shows whether the login itself just landed here for that reason
     // (?mustChangePassword=1, from AuthController.Login) or a direct
@@ -28,6 +29,20 @@ document.getElementById('username-form').addEventListener('submit', async (e) =>
     const body = await res.json();
     status.textContent = res.ok ? 'Username saved.' : (body.error || 'Could not save username.');
     if (res.ok) loadMe();
+});
+
+document.getElementById('first-name-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('first-name-status');
+
+    const res = await fetch('/api/profile/first-name', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firstName: form.firstName.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'First name saved.' : (body.error || 'Could not save first name.');
 });
 
 // --- Password change ---

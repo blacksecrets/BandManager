@@ -240,6 +240,30 @@ body {
 .adhoc-form .cancel-btn:hover { background: none; border-color: #999; }
 .adhoc-status { width: 100%; margin: 0; color: #ff9b9b; }
 
+.with-acts-list { display: flex; flex-direction: column; gap: 6px; }
+.with-act-row { display: flex; gap: 6px; align-items: center; }
+.with-act-row input {
+    padding: 7px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    font-size: 0.85rem;
+}
+.with-act-row .with-act-name { flex: 1 1 45%; }
+.with-act-row .with-act-url { flex: 1 1 45%; }
+.with-act-row .remove-with-act-btn {
+    background: none;
+    border: 1px solid #444;
+    color: #ccc;
+    cursor: pointer;
+    padding: 4px 9px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+.with-act-row .remove-with-act-btn:hover { background: #333; }
+.with-act-row .remove-with-act-btn:disabled { opacity: 0.3; cursor: default; }
+
 .platform-setup-btn {
     margin: 0 20px 16px;
     max-width: 240px;
@@ -489,6 +513,19 @@ body {
 .detail-modal h2 { margin: 0 0 4px; font-size: 1.15rem; padding-right: 24px; }
 .detail-modal .detail-meta { color: #999; font-size: 0.85rem; margin: 0 0 14px; }
 .detail-modal .detail-example { color: #ccc; font-size: 0.9rem; margin: 0 0 14px; }
+
+.review-actions { display: flex; gap: 10px; margin-top: 16px; }
+.review-response-form { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.review-response-form textarea {
+    width: 100%;
+    background: #111;
+    border: 1px solid #444;
+    border-radius: 6px;
+    color: #eee;
+    padding: 8px;
+    font-family: inherit;
+    resize: vertical;
+}
 
 .detail-gig-issues {
     background: #3a2f1f;

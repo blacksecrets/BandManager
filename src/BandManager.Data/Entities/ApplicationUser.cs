@@ -18,5 +18,11 @@ public class ApplicationUser : IdentityUser<Guid>
     // cleared the moment ChangePassword succeeds.
     public bool MustChangePassword { get; set; }
 
+    // Self-service only (Profile), never collected at account creation -
+    // shown in the song-edit-review workflow ("who proposed this change").
+    // Null until the user sets it; callers fall back to the email
+    // local-part (UserName.Split('@')[0]) rather than showing blank.
+    public string? FirstName { get; set; }
+
     public ICollection<BandMembership> BandMemberships { get; set; } = new List<BandMembership>();
 }

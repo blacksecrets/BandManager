@@ -118,6 +118,32 @@
             top: 0;
             left: calc(100% + 4px);
         }
+        .notif-bell {
+            position: relative;
+            background: none;
+            border: none;
+            color: #aaa;
+            font-size: 1.1rem;
+            cursor: pointer;
+            padding: 4px 6px;
+            line-height: 1;
+        }
+        .notif-bell:hover { color: #eee; }
+        .notif-badge {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            background: #c0392b;
+            color: #fff;
+            border-radius: 999px;
+            font-size: 0.6rem;
+            font-weight: bold;
+            line-height: 1;
+            padding: 2px 5px;
+            min-width: 14px;
+            text-align: center;
+        }
+        .notif-badge[hidden] { display: none; }
     `;
     document.head.appendChild(style);
 
@@ -135,6 +161,21 @@
             badgeEl.textContent = me.isSuperAdmin ? 'SuperAdmin' : me.activeBandRole === 'BandAdmin' ? 'Band Admin' : '';
             badgeEl.hidden = !badgeEl.textContent;
         }
+
+        // Injected rather than a static per-page placeholder (unlike
+        // #role-badge/#main-nav) - keeps every page's topbar markup
+        // untouched, same reasoning as this script's own injected <style>.
+        const bell = document.createElement('button');
+        bell.type = 'button';
+        bell.className = 'notif-bell';
+        bell.title = 'Notifications';
+        bell.innerHTML = '&#128276;<span class="notif-badge" id="notif-badge" hidden></span>';
+        bell.addEventListener('click', () => { location.href = '/notifications'; });
+        topbar.insertBefore(bell, navEl);
+
+        pollNotifications(me.isSuperAdmin);
+        setInterval(() => pollNotifications(me.isSuperAdmin), 60000);
+        window.addEventListener('notif-changed', () => pollNotifications(me.isSuperAdmin));
 
         const hasActiveBand = !!me.activeBandRole;
         // Compares the full path+hash, not just the path - Profile and
@@ -260,6 +301,25 @@
         document.addEventListener('click', () => {
             for (const menu of navEl.querySelectorAll('.nav-dropdown-menu')) menu.hidden = true;
         });
+    }
+
+    // Personal unread count (everyone) + SuperAdmin's pending-review queue
+    // count (a live query, not a second inbox - see NotificationsController's
+    // doc comment) - summed into one badge. Flat 60s poll, matching
+    // dashboard.js's only existing polling precedent; notif-changed fires
+    // immediately after an approve/reject/read action so the badge doesn't
+    // wait for the next tick.
+    async function pollNotifications(isSuperAdmin) {
+        const badge = document.getElementById('notif-badge');
+        if (!badge) return;
+        const personal = await fetch('/api/notifications/unread-count').then((r) => (r.ok ? r.json() : { count: 0 })).catch(() => ({ count: 0 }));
+        let queue = { count: 0 };
+        if (isSuperAdmin) {
+            queue = await fetch('/api/song-edit-requests/pending-count').then((r) => (r.ok ? r.json() : { count: 0 })).catch(() => ({ count: 0 }));
+        }
+        const total = (personal.count || 0) + (queue.count || 0);
+        badge.textContent = total > 99 ? '99+' : String(total);
+        badge.hidden = total === 0;
     }
 
     if (document.readyState === 'loading') {

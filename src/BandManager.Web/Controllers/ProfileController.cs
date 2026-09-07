@@ -13,6 +13,7 @@ namespace BandManager.Web.Controllers;
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 public record AddBandUserRequest(string Username, string Role);
 public record UpdateUsernameRequest(string Username);
+public record UpdateFirstNameRequest(string? FirstName);
 
 /// <summary>
 /// Self-service profile (any logged-in user) + Band-scoped user
@@ -76,6 +77,7 @@ public class ProfileController(
         {
             username = user.UserName,
             email = user.Email,
+            firstName = user.FirstName,
             isSuperAdmin = user.IsSuperAdmin,
             activeBandRole,
             activeBandName,
@@ -119,6 +121,23 @@ public class ProfileController(
         await signInManager.RefreshSignInAsync(user);
 
         return Ok(new { ok = true, username = user.UserName });
+    }
+
+    // Self-service only - see ApplicationUser.FirstName's doc comment for
+    // why it isn't collected at account creation. Shown to a SuperAdmin
+    // reviewing a song edit request so they know who proposed it.
+    [HttpPut("first-name")]
+    [Authorize]
+    public async Task<IActionResult> UpdateFirstName([FromBody] UpdateFirstNameRequest request)
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        var firstName = request.FirstName?.Trim();
+        user.FirstName = string.IsNullOrEmpty(firstName) ? null : firstName;
+        await userManager.UpdateAsync(user);
+
+        return Ok(new { ok = true, firstName = user.FirstName });
     }
 
     [HttpPost("password")]

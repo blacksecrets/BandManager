@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Notifications</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Notifications</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <section class="platform-card" id="pending-review-section" hidden>
+            <h2>Edit requests awaiting review</h2>
+            <table class="user-table">
+                <thead><tr><th>Song</th><th>Proposed by</th><th>Band</th><th>Submitted</th><th></th></tr></thead>
+                <tbody id="pending-review-body"></tbody>
+            </table>
+        </section>
+
+        <section class="platform-card">
+            <h2>Your notifications</h2>
+            <table class="user-table">
+                <thead><tr><th></th><th>Message</th><th>When</th></tr></thead>
+                <tbody id="notifications-body"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <script src="/assets/notifications.js"></script>
+    <script src="/assets/songReview.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

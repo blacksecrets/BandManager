@@ -32,6 +32,14 @@
                 <p id="username-status" class="save-note"></p>
             </form>
 
+            <form id="first-name-form" class="cred-form">
+                <label>First name <span class="field-hint">(shown to a SuperAdmin reviewing a song edit you proposed)</span>
+                    <input type="text" name="firstName" maxlength="100">
+                </label>
+                <button type="submit">Save first name</button>
+                <p id="first-name-status" class="save-note"></p>
+            </form>
+
             <form id="password-form" class="cred-form">
                 <label>Current password <input type="password" name="currentPassword" required></label>
                 <label>New password <input type="password" name="newPassword" minlength="8" pattern="(?=.*[A-Z])(?=.*[^A-Za-z0-9]).{8,}" title="At least 8 characters, including one uppercase letter and one special character." required></label>

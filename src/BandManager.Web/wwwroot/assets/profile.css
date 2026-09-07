@@ -33,6 +33,9 @@
     font-size: 0.78rem;
     cursor: pointer;
 }
+
+.notification-unread { cursor: pointer; font-weight: bold; }
+.notification-unread td:first-child { color: #c0392b; }
 .user-table .remove-btn:hover { background: #3a1a1a; border-color: #c00; }
 
 .branding-row {

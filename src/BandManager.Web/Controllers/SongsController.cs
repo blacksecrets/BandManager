@@ -1,5 +1,7 @@
 using BandManager.Data;
 using BandManager.Data.Entities;
+using BandManager.Data.Services;
+using BandManager.Web.Auth;
 using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,17 +17,29 @@ public record SetTuningRequest(string Instrument, string Tuning);
 
 /// <summary>
 /// The global song catalog - shared across every Band the same way
-/// Platforms/ContentTypes are (see Song's doc comment). Every action here
-/// is BandAdmin-only: this is purely a support surface for
-/// RepertoireController's "build the repertoire" flow, not something a
-/// regular User browses independently.
+/// Platforms/ContentTypes are (see Song's doc comment). Reading (and, via
+/// ProposeEdit, editing) is open to every Band member: "the entire catalog"
+/// is meant to be browsable/searchable by everyone, not just admins. Create
+/// stays BandAdmin (matches the existing "Add a song" flow); direct Update
+/// is SuperAdmin-only now - a BandAdmin/BandMember's edit instead goes
+/// through ProposeEdit and SongEditRequestsController's review queue, since
+/// this Song row is shared across every Band using it. SetTuning stays
+/// immediate for everyone - see SetTuning's own comment for why.
 /// </summary>
 [ApiController]
 [Route("/api/songs")]
-[Authorize(Policy = "BandAdmin")]
-public class SongsController(ApplicationDbContext db, SongSearchService songSearch) : ControllerBase
+[Authorize(Policy = "BandMember")]
+public class SongsController(ApplicationDbContext db, SongSearchService songSearch, IActiveBandAccessor activeBand) : ControllerBase
 {
-    private static object Serialize(Song s) => new
+    private IActionResult? RequireActiveBand(out Guid bandId)
+    {
+        var id = activeBand.GetActiveBandId();
+        if (id is null) { bandId = default; return BadRequest(new { error = "No active band selected." }); }
+        bandId = id.Value;
+        return null;
+    }
+
+    private static object Serialize(Song s, Guid? pendingEditRequestId = null) => new
     {
         id = s.Id,
         title = s.Title,
@@ -36,8 +50,26 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         youTubeUrl = s.YouTubeUrl,
         spotifyUrl = s.SpotifyUrl,
         songsterrUrl = s.SongsterrUrl,
-        tunings = s.Tunings ?? new Dictionary<string, string>()
+        tunings = s.Tunings ?? new Dictionary<string, string>(),
+        pendingEditRequestId
     };
+
+    // The full catalog, for the Repertoire page's "Full Song Catalog"
+    // panel - everyone can browse it, per the "band members should be able
+    // to call up the entire catalog" request. pendingEditRequestId lets the
+    // grid show an "under review" badge without a second round-trip per row.
+    [HttpGet]
+    public async Task<IActionResult> List()
+    {
+        var songs = await db.Songs.AsNoTracking().OrderBy(s => s.Title).ToListAsync();
+        // Dictionary<Guid, Guid>.GetValueOrDefault would return Guid.Empty
+        // (not null) for a song with nothing pending - TryGetValue avoids
+        // that trap and actually yields null for Serialize's Guid? param.
+        var pending = await db.SongEditRequests.AsNoTracking()
+            .Where(r => r.Status == EditRequestStatus.Pending)
+            .ToDictionaryAsync(r => r.SongId, r => r.Id);
+        return Ok(songs.Select(s => Serialize(s, pending.TryGetValue(s.Id, out var reqId) ? reqId : null)));
+    }
 
     // Search the shared catalog - every Song any Band has ever entered,
     // not just this Band's own repertoire (that's the whole point: find
@@ -56,7 +88,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
             .OrderBy(s => s.Title)
             .Take(25)
             .ToListAsync();
-        return Ok(songs.Select(Serialize));
+        return Ok(songs.Select(s => Serialize(s)));
     }
 
     // Live YouTube + Spotify lookup - Songsterr has no API to call (see
@@ -84,8 +116,13 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     }
 
     // For a song not already in the shared catalog - not found by search,
-    // or an original the Band wrote themselves.
+    // or an original the Band wrote themselves. Stays BandAdmin: unlike
+    // editing an existing shared Song (which needs review, see ProposeEdit),
+    // creating a brand-new catalog entry has nothing yet for a review to
+    // meaningfully diff against, so it's treated like the existing
+    // "Add a song" flow always has been.
     [HttpPost]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create([FromBody] CreateSongRequest request)
     {
         var title = request.Title?.Trim();
@@ -107,10 +144,12 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         return Ok(Serialize(song));
     }
 
-    // Edits the shared entry itself - same "whoever fixes it helps every
-    // Band" reasoning as tuning below, so there's no per-Band override of
-    // title/artist/links, just one shared record everyone keeps current.
+    // Edits the shared entry directly, no review - SuperAdmin-only, since
+    // they're the one who'd otherwise be approving this exact change (see
+    // ProposeEdit for the BandAdmin/BandMember path, which stages the same
+    // fields into a SongEditRequest instead of applying them here).
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "SuperAdmin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] UpdateSongRequest request)
     {
         var title = request.Title?.Trim();
@@ -129,6 +168,49 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         song.SongsterrUrl = request.SongsterrUrl?.Trim();
         await db.SaveChangesAsync();
         return Ok(Serialize(song));
+    }
+
+    // The BandAdmin/BandMember edit path: stages the change as a
+    // SongEditRequest instead of touching the Song, since it's shared
+    // across every Band using it - see SongEditRequestsController for the
+    // SuperAdmin review/approve/reject side. Only fields that actually
+    // changed are stored (an empty diff is rejected outright, and a Song
+    // already under review can't take a second proposal - both mirror
+    // RepertoireController.Add's existing duplicate-check idiom).
+    [HttpPost("{id:guid}/propose-edit")]
+    public async Task<IActionResult> ProposeEdit(Guid id, [FromBody] UpdateSongRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var title = request.Title?.Trim();
+        if (string.IsNullOrEmpty(title)) return BadRequest(new { error = "Title is required." });
+
+        var song = await db.Songs.FindAsync(id);
+        if (song is null) return NotFound(new { error = "Not found" });
+
+        if (await db.SongEditRequests.AnyAsync(r => r.SongId == id && r.Status == EditRequestStatus.Pending))
+            return BadRequest(new { error = "This song already has an edit under review." });
+
+        var changes = SongEditDiff.Build(
+            song.Title, song.OriginalArtist, song.Album, song.Key, song.LengthSeconds, song.YouTubeUrl, song.SpotifyUrl, song.SongsterrUrl,
+            title, request.OriginalArtist?.Trim(), request.Album?.Trim(), request.Key?.Trim(), request.LengthSeconds,
+            request.YouTubeUrl?.Trim(), request.SpotifyUrl?.Trim(), request.SongsterrUrl?.Trim());
+
+        if (changes.Count == 0) return BadRequest(new { error = "No changes to submit." });
+
+        var editRequest = new SongEditRequest
+        {
+            SongId = id,
+            RequestedByUserId = userId.Value,
+            BandId = bandId,
+            Changes = changes
+        };
+        db.SongEditRequests.Add(editRequest);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, id = editRequest.Id });
     }
 
     // Adds/updates one instrument's tuning on the shared Song - keyed by

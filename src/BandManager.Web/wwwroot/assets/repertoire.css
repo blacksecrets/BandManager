@@ -96,7 +96,30 @@
     color: #eee;
     font-size: 0.82rem;
 }
-.repertoire-table .song-links { display: flex; gap: 8px; }
-.repertoire-table .song-links a { color: #8fb4d9; font-size: 0.8rem; text-decoration: none; }
-.repertoire-table .song-links a:hover { text-decoration: underline; }
-.repertoire-table .song-links .link-missing { color: #555; font-size: 0.8rem; }
+.repertoire-table .song-links, .catalog-table .song-links { display: flex; gap: 8px; }
+.repertoire-table .song-links a, .catalog-table .song-links a { color: #8fb4d9; font-size: 0.8rem; text-decoration: none; }
+.repertoire-table .song-links a:hover, .catalog-table .song-links a:hover { text-decoration: underline; }
+.repertoire-table .song-links .link-missing, .catalog-table .song-links .link-missing { color: #555; font-size: 0.8rem; }
+
+.catalog-table { white-space: nowrap; }
+.catalog-table th, .catalog-table td { padding: 8px 10px; }
+.catalog-table .drag-handle { cursor: grab; }
+.catalog-table .drag-handle:active { cursor: grabbing; }
+.catalog-table tr.dragging { opacity: 0.4; }
+.repertoire-table-wrap.drag-over { outline: 2px dashed #4a6fa5; outline-offset: -2px; }
+
+.under-review-badge {
+    display: inline-block;
+    margin-top: 4px;
+    background: none;
+    border: 1px solid #8a5a1a;
+    color: #e0a94a;
+    border-radius: 10px;
+    padding: 2px 8px;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+.under-review-badge:hover { background: rgba(224, 169, 74, 0.1); }
+
+.catalog-edit-row td { background: rgba(255, 255, 255, 0.02); white-space: normal; }
+.catalog-edit-row .cred-form { max-width: 480px; }
