@@ -104,6 +104,49 @@ public static class SiteTextEditing
         return pattern.Replace(blockText, $"$1\"{EscapeForQuotes(value)}\"", 1);
     }
 
+    /// <summary>Finds the [start,end) bounds of a field's array-literal
+    /// VALUE (e.g. `with: [ {...}, {...} ]`) within a block's text - same
+    /// bracket/quote-depth scanning as FindArrayBounds, but anchored on
+    /// `field: [` instead of a top-level `const name = `. Returns null if
+    /// the field isn't present, or its current value isn't an array
+    /// literal (e.g. still the old scalar string form) - SetArrayField
+    /// below falls back to AppendField in that case, same "never guess at
+    /// structure that isn't there" rule as SetField.</summary>
+    public static (int Start, int End)? FindFieldArrayBounds(string blockText, string field)
+    {
+        var marker = new Regex($@"\b{Regex.Escape(field)}\s*:\s*\[");
+        var m = marker.Match(blockText);
+        if (!m.Success) return null;
+
+        var i = m.Index + m.Length - 1; // position of the '['
+        var arrayStart = i;
+        var depth = 0;
+        char? quote = null;
+        for (; i < blockText.Length; i++)
+        {
+            var ch = blockText[i];
+            var prev = i > 0 ? blockText[i - 1] : '\0';
+            if (quote is not null) { if (ch == quote && prev != '\\') quote = null; continue; }
+            if (ch is '"' or '\'' or '`') { quote = ch; continue; }
+            if (ch == '[') depth++;
+            if (ch == ']') { depth--; if (depth == 0) return (arrayStart, i + 1); }
+        }
+        return null;
+    }
+
+    /// <summary>Replaces a field's array-literal value in place if it
+    /// already exists as an array (FindFieldArrayBounds succeeds); returns
+    /// the block unchanged otherwise - the caller (GigsSiteEditor) falls
+    /// back to AppendField (shape-agnostic - takes raw JS text) for
+    /// first-time creation, same two-step pattern SetBooleanField already
+    /// uses for scalars.</summary>
+    public static string SetArrayField(string blockText, string field, string rawArrayLiteral)
+    {
+        var bounds = FindFieldArrayBounds(blockText, field);
+        if (bounds is null) return blockText;
+        return blockText[..bounds.Value.Start] + rawArrayLiteral + blockText[bounds.Value.End..];
+    }
+
     public static bool HasField(string blockText, string field) =>
         Regex.IsMatch(blockText, $@"\b{Regex.Escape(field)}\s*:");
 

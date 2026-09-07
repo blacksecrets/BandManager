@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BandManager.Data;
 using BandManager.Data.Entities;
 using BandManager.Data.Services;
@@ -34,6 +35,13 @@ public class GigsController(
     Scheduler scheduler) : ControllerBase
 {
     private const long MaxFlyerBytes = 20 * 1024 * 1024;
+    // The "with" field arrives as a JSON string embedded in a form/body
+    // field (lowercase keys, matching every other JSON payload in this
+    // app) - case-insensitive matching is required or Name/Url silently
+    // deserialize as null (WithAct's properties are nullable, so this
+    // fails silently rather than throwing - caught live during this
+    // session's own verification testing).
+    private static readonly JsonSerializerOptions WithActJsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     private async Task<(Band Band, IActionResult? Error)> RequireActiveBandAsync()
     {
@@ -65,7 +73,7 @@ public class GigsController(
             if (body.TryGetValue(key, out var v) && !string.IsNullOrWhiteSpace(v))
                 fields[key] = v.Trim()[..Math.Min(v.Trim().Length, 500)];
         }
-        foreach (var key in new[] { "venue", "date", "ticketsUrl", "customTicketsText", "venueUrl", "time", "withArtists", "withArtistsUrl" })
+        foreach (var key in new[] { "venue", "date", "ticketsUrl", "customTicketsText", "venueUrl", "time", "withArtists", "withArtistsUrl", "doorsTime", "openerTime", "headlinerTime" })
         {
             if (body.TryGetValue(key, out var v))
                 fields[key] = v.Trim()[..Math.Min(v.Trim().Length, 500)];
@@ -73,17 +81,66 @@ public class GigsController(
         if (body.TryGetValue("ticketMode", out var mode) && mode is "url" or "free" or "custom")
             fields["ticketMode"] = mode;
 
-        if (fields.Count == 0) return BadRequest(new { error = "Nothing to update" });
+        // Reserved key, carries a JSON-serialized List<WithAct> rather than
+        // a flat scalar - can't go through ApplyField's quoted-string-only
+        // contract, so it's routed to UpdateGigWithAsync separately below
+        // instead of being added to `fields`.
+        List<WithAct>? withActs = null;
+        if (body.TryGetValue("with", out var withJson))
+        {
+            try { withActs = JsonSerializer.Deserialize<List<WithAct>>(withJson, WithActJsonOptions); }
+            catch (JsonException) { return BadRequest(new { error = "Invalid with-acts payload." }); }
+        }
+
+        if (fields.Count == 0 && withActs is null) return BadRequest(new { error = "Nothing to update" });
 
         try
         {
-            await gigsSiteEditor.UpdateGigFieldsAsync(band, gig, fields);
+            if (fields.Count > 0) await gigsSiteEditor.UpdateGigFieldsAsync(band, gig, fields);
+            if (withActs is not null) await gigsSiteEditor.UpdateGigWithAsync(band, gig, withActs);
             return Ok(new { ok = true });
         }
         catch (InvalidOperationException ex)
         {
             return StatusCode(502, new { error = ex.Message });
         }
+    }
+
+    private static object SerializeGig(Gig gig) => new
+    {
+        id = gig.Id,
+        title = gig.Title,
+        venue = gig.Venue,
+        venueUrl = gig.VenueUrl,
+        date = gig.Date,
+        time = gig.Time,
+        doorsTime = gig.DoorsTime,
+        openerTime = gig.OpenerTime,
+        headlinerTime = gig.HeadlinerTime,
+        address = gig.Address,
+        withArtists = gig.WithArtists,
+        withArtistsUrl = gig.WithArtistsUrl,
+        with = gig.EffectiveWith(),
+        ticketsUrl = gig.TicketsUrl,
+        flyerMain = gig.FlyerMain,
+        freeAdmission = gig.FreeAdmission,
+        customTicketsText = gig.CustomTicketsText,
+        ticketMode = gig.TicketMode
+    };
+
+    // Read access is broader than the class-level BandAdmin policy - the
+    // Flyer Editor (any BandMember, per the Flyer feature plan) needs the
+    // full gig record to prepopulate fields, not just the thin summary
+    // GigSetsController.ListGigs already returns.
+    [HttpGet("{gigRef}")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> Get(string gigRef)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var gig = await gigsSource.FindGigByRefAsync(band, gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+        return Ok(SerializeGig(gig));
     }
 
     // A title, venue, address, and date are required - a show only comes
@@ -133,6 +190,13 @@ public class GigsController(
                 return BadRequest(new { error = "Unsupported image type - use PNG, JPEG, WebP, or GIF" });
         }
 
+        List<WithAct>? withActs = null;
+        if (F("with") is { Length: > 0 } withJson)
+        {
+            try { withActs = JsonSerializer.Deserialize<List<WithAct>>(withJson, WithActJsonOptions); }
+            catch (JsonException) { return BadRequest(new { error = "Invalid with-acts payload." }); }
+        }
+
         var fields = new GigsSiteEditor.NewGigFields(
             title, venue, address, date, dateRaw,
             F("venueUrl") is { Length: > 0 } vu ? vu : null,
@@ -141,7 +205,11 @@ public class GigsController(
             F("withArtistsUrl") is { Length: > 0 } wau ? wau : null,
             F("ticketMode") is "url" or "free" or "custom" ? F("ticketMode") : null,
             F("ticketsUrl") is { Length: > 0 } tu ? tu : null,
-            F("customTicketsText") is { Length: > 0 } ctt ? ctt : null);
+            F("customTicketsText") is { Length: > 0 } ctt ? ctt : null,
+            With: withActs,
+            DoorsTime: F("doorsTime") is { Length: > 0 } dt ? dt : null,
+            OpenerTime: F("openerTime") is { Length: > 0 } ot ? ot : null,
+            HeadlinerTime: F("headlinerTime") is { Length: > 0 } ht ? ht : null);
 
         try
         {

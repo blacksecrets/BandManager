@@ -159,6 +159,10 @@ public class Scheduler(
                     var message = eventUrl is not null
                         ? template.Replace("{event_url}", eventUrl)
                         : System.Text.RegularExpressions.Regex.Replace(template, @"\{event_url\}\s*", "");
+                    var withNames = string.Join(", ", gig.EffectiveWith().Select(w => w.Name).Where(n => !string.IsNullOrEmpty(n)));
+                    message = withNames.Length > 0
+                        ? message.Replace("{with}", withNames)
+                        : System.Text.RegularExpressions.Regex.Replace(message, @"\{with\}\s*", "");
 
                     var templateKey = $"cadence-{rule.Id}-{gigRef}-w{weeksOut}";
                     var dueDateOnly = DateOnly.FromDateTime(dueDate);

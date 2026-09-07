@@ -208,6 +208,38 @@ function escapeHtml(str) {
     return String(str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// Shared by the "Add Calendar Listing" and "Edit calendar listing" forms -
+// a repeatable list of {name, url} With-act rows (name + url inputs, a
+// remove button, an "add another" button owned by the caller), following
+// the same add/remove-row convention as repertoire.js's instrument chips.
+// Always shows at least one (possibly empty) row so a gig with no With-acts
+// yet doesn't need a special "add the first one" affordance.
+function buildWithActsControl(container, initial) {
+    let rows = initial.length > 0 ? initial.map((r) => ({ name: r.name || '', url: r.url || '' })) : [{ name: '', url: '' }];
+    function render() {
+        container.innerHTML = '';
+        rows.forEach((row, i) => {
+            const rowEl = document.createElement('div');
+            rowEl.className = 'with-act-row';
+            rowEl.innerHTML = `
+                <input type="text" class="with-act-name" placeholder="e.g. Attica - A Nirvana Tribute" maxlength="200" value="${escapeHtml(row.name)}">
+                <input type="text" class="with-act-url" placeholder="https:// (optional)" maxlength="500" value="${escapeHtml(row.url)}">
+                <button type="button" class="remove-with-act-btn" ${rows.length === 1 ? 'disabled' : ''}>&times;</button>
+            `;
+            rowEl.querySelector('.with-act-name').addEventListener('input', (e) => { rows[i].name = e.target.value; });
+            rowEl.querySelector('.with-act-url').addEventListener('input', (e) => { rows[i].url = e.target.value; });
+            rowEl.querySelector('.remove-with-act-btn').addEventListener('click', () => { rows.splice(i, 1); render(); });
+            container.appendChild(rowEl);
+        });
+    }
+    render();
+    return {
+        getValues: () => rows.filter((r) => r.name.trim() || r.url.trim()).map((r) => ({ name: r.name.trim(), url: r.url.trim() })),
+        addRow: () => { rows.push({ name: '', url: '' }); render(); },
+        reset: () => { rows = [{ name: '', url: '' }]; render(); }
+    };
+}
+
 // item.artifacts comes back newest-first (see api.js's getArtifacts). The
 // backend now replaces rather than accumulates on re-upload, so there's
 // normally at most one row per type - but this stays defensive against
@@ -631,8 +663,12 @@ function renderAddCalendarForm(open) {
         <label>Address <input type="text" name="address" placeholder="e.g. 119 North Loudoun Street, Winchester, VA" maxlength="300" required></label>
         <label>Date <input type="date" name="date" required></label>
         <label>Time (optional) <input type="text" name="time" placeholder="e.g. Doors: 7PM - Show: 8PM" maxlength="100"></label>
-        <label>With (optional) <input type="text" name="withArtists" placeholder="e.g. Attica - A Nirvana Tribute" maxlength="200"></label>
-        <label>With link (optional) <input type="text" name="withArtistsUrl" placeholder="https://" maxlength="500"></label>
+        <label>Doors time (optional) <input type="text" name="doorsTime" placeholder="e.g. 7:00 PM" maxlength="60"></label>
+        <label>Opener start time (optional) <input type="text" name="openerTime" placeholder="e.g. 8:00 PM" maxlength="60"></label>
+        <label>Headliner start time (optional) <input type="text" name="headlinerTime" placeholder="e.g. 9:00 PM" maxlength="60"></label>
+        <label>With (optional - supporting acts)</label>
+        <div class="with-acts-list" data-with-list></div>
+        <button type="button" class="add-with-btn">+ Add another "With"</button>
         <fieldset class="ticket-mode-fieldset">
             <legend>Ticket info (optional - can be added later)</legend>
             <label class="radio-label"><input type="radio" name="ticketMode" value="url" checked> Tickets URL</label>
@@ -650,6 +686,8 @@ function renderAddCalendarForm(open) {
         <p class="save-note add-calendar-status"></p>
     `;
     form.querySelector('[data-media-field="flyer"]').appendChild(buildMediaFieldControl({ fieldName: 'flyer', accept: 'image/*' }));
+    const withCtl = buildWithActsControl(form.querySelector('[data-with-list]'), []);
+    form.querySelector('.add-with-btn').addEventListener('click', () => withCtl.addRow());
 
     function updateTicketModeUI() {
         const mode = form.ticketMode.value;
@@ -670,7 +708,9 @@ function renderAddCalendarForm(open) {
         const statusEl = form.querySelector('.add-calendar-status');
         statusEl.textContent = 'Adding...';
 
-        const res = await fetch('/api/gigs', { method: 'POST', body: new FormData(form) });
+        const formData = new FormData(form);
+        formData.set('with', JSON.stringify(withCtl.getValues()));
+        const res = await fetch('/api/gigs', { method: 'POST', body: formData });
         const result = await res.json();
         if (!res.ok) {
             statusEl.textContent = result.error || 'Could not add the gig.';
@@ -679,6 +719,7 @@ function renderAddCalendarForm(open) {
 
         form.reset();
         updateTicketModeUI();
+        withCtl.reset();
         expandedAddCalendar.delete('Website');
         expandedPlatforms.add('Website'); // so the new item is visible right away
         loadItems();
@@ -1139,12 +1180,24 @@ function renderGigReference(gig) {
     const ticketsValue = ticketMode === 'free' ? 'Free Admission' : ticketMode === 'custom' ? gig.customTicketsText : gig.ticketsUrl;
     const ticketsIsLink = ticketMode === 'url' && !!gig.ticketsUrl;
 
+    // gig.with is the normalized list (server-side EffectiveWith()) - a
+    // single act with a URL still renders as a link, same as the old
+    // single-pair display; two or more just lists the names, since a
+    // compact summary row has no good way to attach separate links to
+    // separate names.
+    const withActs = (gig.with || []).filter((w) => w.name);
+    const withLabel = withActs.length === 1 ? withActs[0].name : withActs.map((w) => w.name).join(', ');
+    const withLinkUrl = withActs.length === 1 ? withActs[0].url : null;
+
     const fields = [
         ['Venue', gig.venue, gig.venueUrl],
         ['Address', gig.address],
         ['Date', gig.date],
         ['Time', gig.time],
-        ['With', gig.withArtists, gig.withArtistsUrl],
+        ['Doors', gig.doorsTime],
+        ['Opener start', gig.openerTime],
+        ['Headliner start', gig.headlinerTime],
+        ['With', withLabel, withLinkUrl],
         ['Tickets', ticketsValue, ticketsIsLink ? ticketsValue : null]
     ];
     for (const [label, value, linkUrl] of fields) {
@@ -1347,8 +1400,12 @@ function openWebsiteEditForm(item) {
         <label>Address <input type="text" name="address" value="${escapeHtml(gig.address || '')}" maxlength="300" placeholder="e.g. 119 North Loudoun Street, Winchester, VA" required></label>
         <label>Date <input type="text" name="date" value="${escapeHtml(gig.date || '')}" maxlength="100" placeholder="e.g. Friday, October 3, 2026"></label>
         <label>Time (optional) <input type="text" name="time" value="${escapeHtml(gig.time || '')}" maxlength="100" placeholder="e.g. Doors: 7PM - Show: 8PM"></label>
-        <label>With (optional) <input type="text" name="withArtists" value="${escapeHtml(gig.withArtists || '')}" maxlength="200" placeholder="e.g. Attica - A Nirvana Tribute"></label>
-        <label>With link (optional) <input type="text" name="withArtistsUrl" value="${escapeHtml(gig.withArtistsUrl || '')}" maxlength="500" placeholder="https://"></label>
+        <label>Doors time (optional) <input type="text" name="doorsTime" value="${escapeHtml(gig.doorsTime || '')}" maxlength="60" placeholder="e.g. 7:00 PM"></label>
+        <label>Opener start time (optional) <input type="text" name="openerTime" value="${escapeHtml(gig.openerTime || '')}" maxlength="60" placeholder="e.g. 8:00 PM"></label>
+        <label>Headliner start time (optional) <input type="text" name="headlinerTime" value="${escapeHtml(gig.headlinerTime || '')}" maxlength="60" placeholder="e.g. 9:00 PM"></label>
+        <label>With (optional - supporting acts)</label>
+        <div class="with-acts-list" data-with-list></div>
+        <button type="button" class="add-with-btn">+ Add another "With"</button>
         <fieldset class="ticket-mode-fieldset">
             <legend>Ticket info</legend>
             <label class="radio-label"><input type="radio" name="ticketMode" value="url" ${ticketMode === 'url' ? 'checked' : ''}> Tickets URL</label>
@@ -1365,6 +1422,10 @@ function openWebsiteEditForm(item) {
     `;
     body.appendChild(form);
     form.querySelector('[data-media-field="flyer"]').appendChild(buildMediaFieldControl({ fieldName: 'flyer', accept: 'image/*' }));
+    const withCtl = buildWithActsControl(
+        form.querySelector('[data-with-list]'),
+        gig.with && gig.with.length ? gig.with.map((w) => ({ name: w.name, url: w.url })) : (gig.withArtists || gig.withArtistsUrl ? [{ name: gig.withArtists, url: gig.withArtistsUrl }] : []));
+    form.querySelector('.add-with-btn').addEventListener('click', () => withCtl.addRow());
 
     function updateTicketModeUI() {
         const mode = form.ticketMode.value;
@@ -1406,7 +1467,7 @@ function openWebsiteEditForm(item) {
         statusEl.textContent = 'Saving...';
 
         const fields = {};
-        for (const key of ['title', 'venue', 'venueUrl', 'date', 'time', 'address', 'withArtists', 'withArtistsUrl']) {
+        for (const key of ['title', 'venue', 'venueUrl', 'date', 'time', 'address', 'doorsTime', 'openerTime', 'headlinerTime']) {
             const value = form[key].value.trim();
             const original = gig[key] || '';
             if (key === 'title' || key === 'address') {
@@ -1438,6 +1499,13 @@ function openWebsiteEditForm(item) {
 
         const customText = form.customTicketsText.value.trim();
         if (customText !== (gig.customTicketsText || '')) fields.customTicketsText = customText;
+
+        // Always sent, not diffed against the original like the scalar
+        // fields above - comparing two With-act lists for "did anything
+        // really change" isn't worth the complexity, and re-sending an
+        // unchanged array is a cheap no-op server-side (UpdateGigWithAsync
+        // just rewrites the same array literal it already had).
+        fields.with = JSON.stringify(withCtl.getValues());
 
         const messages = [];
         let hadError = false;
