@@ -16,13 +16,16 @@
             // bandScoped here disables the whole group (button won't even
             // open) rather than just greying it - every item under it needs
             // an active Band, so there's nothing useful to show without one.
-            // Cadence isn't here - it's reachable from the Band Admin page
-            // instead, alongside Configure Web Presence.
+            // Repertoire is deliberately listed here AND under Band Admin
+            // below - every Band member browses/edits the shared catalog
+            // (see SongsController), not just admins, so it needs a plain
+            // one-click nav entry too; Band Admin's copy is for admins who
+            // think of it alongside Cadence/Configure Web Presence. Catalog
+            // is NOT here - it moved entirely under Band Admin below.
             type: 'dropdown', label: 'Band Flow', bandScoped: true, items: [
                 { href: '/dashboard', label: 'Web Presence', disabledIfNoBand: true },
-                { href: '/catalog', label: 'Catalog', disabledIfNoBand: true },
                 { href: '/repertoire', label: 'Repertoire', disabledIfNoBand: true },
-                { href: '/gig-sets', label: 'Gig Sets', disabledIfNoBand: true },
+                { href: '/gig-sets', label: 'Gig Management', disabledIfNoBand: true },
             ]
         },
         {
@@ -35,6 +38,9 @@
                     href: '/band-admin', label: 'Band Admin', adminOnly: true, disabledIfNoBand: true, children: [
                         { href: '/settings', label: 'Configure Web Presence' },
                         { href: '/cadence', label: 'Cadence' },
+                        { href: '/repertoire', label: 'Repertoire' },
+                        { href: '/catalog', label: 'Catalog' },
+                        { href: '/catalog#flyers', label: 'Flyers' },
                     ]
                 },
                 { href: '/superadmin', label: 'SuperAdmin', superAdminOnly: true },
@@ -115,8 +121,13 @@
         }
         .nav-subitem-toggle:hover { background: #2c2c2c; color: #eee; }
         .nav-submenu {
+            /* Opens to the LEFT of its parent item, not the right - Band
+               Admin (this flyout's only current user) sits near the right
+               edge of the topbar already, so a rightward flyout renders
+               past the window edge and is never actually visible. */
             top: 0;
-            left: calc(100% + 4px);
+            left: auto;
+            right: calc(100% + 4px);
         }
         .notif-bell {
             position: relative;
