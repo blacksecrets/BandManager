@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/BandManager.Data/BandManager.Data.csproj" />
+    <Project Path="src/BandManager.Data.Tests/BandManager.Data.Tests.csproj" />
     <Project Path="src/BandManager.Migrate/BandManager.Migrate.csproj" />
     <Project Path="src/BandManager.Web/BandManager.Web.csproj" />
   </Folder>
