@@ -36,6 +36,7 @@ public class ProfileController(
     IActiveBandAccessor activeBand,
     BandMembershipService membershipService,
     UserProvisioningService userProvisioning,
+    IEmailSender emailSender,
     IWebHostEnvironment env) : ControllerBase
 {
     private static readonly string[] BrandTypes = ["logo", "background", "favicon"];
@@ -93,10 +94,15 @@ public class ProfileController(
     // creation/change point - see EmailValidation) - there's no separate
     // "set your email" step anymore, which used to leave Profile showing a
     // confusingly blank email even though the username itself already
-    // looked like one. A self-service change marks it unverified (matches
-    // normal email-change practice: re-confirm before it's trusted again) -
-    // see VerifyEmail below for the manual override while there's no real
-    // email delivery to click a confirmation link with yet.
+    // looked like one. Doesn't apply immediately: generates Identity's
+    // built-in change-email token (the same mechanism as ForgotPassword's
+    // reset token in AuthController) and emails a confirm link to the NEW
+    // address - proving the requester actually controls it, not just typed
+    // it. AuthController.ConfirmEmailChange (anonymous, like ResetPassword)
+    // is what actually applies the change once that link is clicked. See
+    // VerifyEmail below for a still-useful admin override, since real email
+    // delivery is deferred (LoggingEmailSender) and an admin can't rely on
+    // the user actually receiving this.
     [HttpPut("username")]
     [Authorize]
     public async Task<IActionResult> UpdateUsername([FromBody] UpdateUsernameRequest request)
@@ -108,19 +114,22 @@ public class ProfileController(
         var user = await userManager.GetUserAsync(User);
         if (user is null) return Unauthorized();
 
-        if (!string.Equals(user.UserName, username, StringComparison.OrdinalIgnoreCase))
-        {
-            var existing = await userManager.FindByNameAsync(username);
-            if (existing is not null) return BadRequest(new { error = "That username is already taken." });
-        }
+        if (string.Equals(user.UserName, username, StringComparison.OrdinalIgnoreCase))
+            return Ok(new { ok = true, pending = false, username = user.UserName });
 
-        await userManager.SetUserNameAsync(user, username);
-        await userManager.SetEmailAsync(user, username);
-        user.EmailConfirmed = false;
-        await userManager.UpdateAsync(user);
-        await signInManager.RefreshSignInAsync(user);
+        var existing = await userManager.FindByNameAsync(username);
+        if (existing is not null) return BadRequest(new { error = "That username is already taken." });
 
-        return Ok(new { ok = true, username = user.UserName });
+        var token = await userManager.GenerateChangeEmailTokenAsync(user, username);
+        var link = $"{Request.Scheme}://{Request.Host}/confirm-email-change.html?userId={user.Id}&newEmail={Uri.EscapeDataString(username)}&token={Uri.EscapeDataString(token)}";
+        await emailSender.SendAsync(username, "Confirm your new BandManager email",
+            $"""
+            <p>You (or someone signed in as "{user.UserName}") asked to change this BandManager account's email/username to this address.</p>
+            <p><a href="{link}" style="display:inline-block;padding:10px 20px;background:#c0392b;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Confirm New Email</a></p>
+            <p>This link expires in 24 hours. If you didn't request this, you can safely ignore this email - your account isn't affected until this link is clicked.</p>
+            """);
+
+        return Ok(new { ok = true, pending = true, pendingEmail = username });
     }
 
     // Self-service only - see ApplicationUser.FirstName's doc comment for

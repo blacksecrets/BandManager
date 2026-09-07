@@ -41,7 +41,8 @@ public class UserProvisioningService(UserManager<ApplicationUser> userManager, I
             $"""
             <p>An account was created for you on BandManager{(isSuperAdmin ? " with SuperAdmin access" : "")}.</p>
             <p>Temporary password: <strong>{password}</strong></p>
-            <p><a href="{loginUrl}">Log in</a> - you'll be asked to choose your own password right away.</p>
+            <p><a href="{loginUrl}" style="display:inline-block;padding:10px 20px;background:#c0392b;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">Log in to BandManager</a></p>
+            <p>You'll be asked to choose your own password right away.</p>
             """);
         return (true, null);
     }

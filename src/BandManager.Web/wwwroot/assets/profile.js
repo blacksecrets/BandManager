@@ -27,8 +27,18 @@ document.getElementById('username-form').addEventListener('submit', async (e) =>
         body: JSON.stringify({ username: form.username.value.trim() })
     });
     const body = await res.json();
-    status.textContent = res.ok ? 'Username saved.' : (body.error || 'Could not save username.');
-    if (res.ok) loadMe();
+    if (!res.ok) {
+        status.textContent = body.error || 'Could not save username.';
+        return;
+    }
+    // Doesn't apply immediately - a confirm link went to the new address
+    // (see ProfileController.UpdateUsername); reset the field back to the
+    // still-current username rather than showing the requested one as if
+    // it already took effect.
+    status.textContent = body.pending
+        ? `Check ${body.pendingEmail} for a confirmation link - this account keeps its current username/email until you click it.`
+        : 'That\'s already this account\'s username.';
+    loadMe();
 });
 
 document.getElementById('first-name-form').addEventListener('submit', async (e) => {

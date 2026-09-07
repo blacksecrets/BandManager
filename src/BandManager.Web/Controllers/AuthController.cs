@@ -17,6 +17,7 @@ public class LoginFormModel
 
 public record ForgotPasswordRequest(string Username);
 public record ResetPasswordRequest(string UserId, string Token, string NewPassword);
+public record ConfirmEmailChangeRequest(string UserId, string NewEmail, string Token);
 
 /// <summary>
 /// Classic form-post routes (/login, /logout) at the root, matching the
@@ -116,6 +117,48 @@ public class AuthController(
                     : string.Join(" ", result.Errors.Select(e => e.Description))
             });
         }
+        return Ok(new { ok = true });
+    }
+
+    // Anonymous, like ResetPassword above - the confirm link is clicked
+    // from an email, quite possibly on a device/browser with no active
+    // BandManager session at all, so the token itself (not a login cookie)
+    // is what proves this request is authorized. Raised by
+    // ProfileController.UpdateUsername, which generates the token and
+    // emails this link instead of applying the change immediately.
+    [HttpPost("/api/auth/confirm-email-change")]
+    public async Task<IActionResult> ConfirmEmailChange([FromBody] ConfirmEmailChangeRequest body)
+    {
+        if (!Guid.TryParse(body.UserId, out var userId))
+            return BadRequest(new { error = "This confirmation link is invalid. Request the change again from your Profile page." });
+
+        var user = await userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return BadRequest(new { error = "This confirmation link is invalid. Request the change again from your Profile page." });
+
+        var result = await userManager.ChangeEmailAsync(user, body.NewEmail, body.Token);
+        if (!result.Succeeded)
+        {
+            var badToken = result.Errors.Any(e => e.Code is "InvalidToken");
+            return BadRequest(new
+            {
+                error = badToken
+                    ? "This confirmation link is invalid or has expired. Request the change again from your Profile page."
+                    : string.Join(" ", result.Errors.Select(e => e.Description))
+            });
+        }
+
+        // ChangeEmailAsync only touches Email/EmailConfirmed - this app's
+        // convention is UserName === Email always (see
+        // ProfileController.UpdateUsername's doc comment), and Identity's
+        // own username-uniqueness validator is what actually re-guards
+        // against a race where someone else claimed this address between
+        // the request and this confirmation (RequireUniqueEmail is off;
+        // username uniqueness is the real gate throughout this app).
+        var renameResult = await userManager.SetUserNameAsync(user, body.NewEmail);
+        if (!renameResult.Succeeded)
+            return BadRequest(new { error = string.Join(" ", renameResult.Errors.Select(e => e.Description)) });
+
         return Ok(new { ok = true });
     }
 
