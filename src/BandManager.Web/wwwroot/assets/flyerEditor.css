@@ -1,0 +1,122 @@
+/* Bundled fonts, served from the same /fonts/{key}.ttf files FlyerRenderer
+   uses server-side (SKTypeface.FromFile) - keeps this live preview visually
+   identical to the final composited flyer. See FlyerFonts.cs. */
+@font-face { font-family: 'flyer-oswald-bold'; src: url('/fonts/oswald-bold.ttf') format('truetype'); }
+@font-face { font-family: 'flyer-roboto-regular'; src: url('/fonts/roboto-regular.ttf') format('truetype'); }
+@font-face { font-family: 'flyer-playfair-bold'; src: url('/fonts/playfair-bold.ttf') format('truetype'); }
+@font-face { font-family: 'flyer-bebas-neue'; src: url('/fonts/bebas-neue.ttf') format('truetype'); }
+@font-face { font-family: 'flyer-pacifico'; src: url('/fonts/pacifico.ttf') format('truetype'); }
+@font-face { font-family: 'flyer-anton'; src: url('/fonts/anton.ttf') format('truetype'); }
+@font-face { font-family: 'flyer-merriweather'; src: url('/fonts/merriweather.ttf') format('truetype'); }
+
+:root {
+    --flyer-font-oswald-bold: 'flyer-oswald-bold', sans-serif;
+    --flyer-font-roboto-regular: 'flyer-roboto-regular', sans-serif;
+    --flyer-font-playfair-bold: 'flyer-playfair-bold', serif;
+    --flyer-font-bebas-neue: 'flyer-bebas-neue', sans-serif;
+    --flyer-font-pacifico: 'flyer-pacifico', cursive;
+    --flyer-font-anton: 'flyer-anton', sans-serif;
+    --flyer-font-merriweather: 'flyer-merriweather', serif;
+}
+
+.flyer-editor-modal, .flyer-template-editor-modal {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    border-radius: 10px;
+    padding: 24px;
+    max-width: 1100px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.flyer-editor-layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 14px 0;
+}
+
+.flyer-preview-wrap {
+    position: relative;
+    flex: 1 1 480px;
+    max-width: 640px;
+}
+.flyer-preview-wrap img { display: block; width: 100%; border-radius: 6px; }
+#flyer-preview-fields, #flyer-template-preview-fields {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.flyer-preview-field {
+    position: absolute;
+    white-space: nowrap;
+    cursor: grab;
+    pointer-events: auto;
+    user-select: none;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.flyer-preview-field:active { cursor: grabbing; }
+.flyer-preview-field-image {
+    border: 1px dashed #999;
+    background: rgba(0,0,0,0.3);
+    color: #ccc;
+    font-size: 0.75rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.flyer-field-list {
+    flex: 1 1 320px;
+    max-height: 500px;
+    overflow-y: auto;
+}
+.flyer-field-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+    font-size: 0.85rem;
+}
+.flyer-field-row input[type="text"] {
+    flex: 1 1 140px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #111;
+    color: #eee;
+}
+.flyer-field-row select {
+    padding: 5px 6px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #111;
+    color: #eee;
+    font-size: 0.8rem;
+}
+.flyer-field-row input[type="color"] { width: 32px; height: 28px; padding: 0; border: none; background: none; }
+
+#flyer-add-with-btn, #flyer-template-add-field-btn {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+    margin-right: 10px;
+}
+#flyer-save-btn, #flyer-template-save-btn {
+    background: #2e8b3d;
+    color: white;
+    border: none;
+    padding: 8px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    cursor: pointer;
+}
+#flyer-save-btn:hover, #flyer-template-save-btn:hover { background: #38a84a; }

@@ -9,6 +9,7 @@ namespace BandManager.Web.Controllers;
 public record CatalogFromUrlRequest(string Url);
 public record CatalogDeleteRequest(List<Guid> Ids);
 public record CatalogUpdateLabelRequest(string Label);
+public record CatalogReclassifyRequest(string Category);
 
 /// <summary>
 /// The Media Catalog's own CRUD - ported from the old app's
@@ -51,7 +52,16 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
         source = ToKebabCase(item.Source.ToString()),
         source_url = item.SourceUrl,
         uploaded_by = item.UploadedBy,
-        created_at = item.CreatedAt
+        created_at = item.CreatedAt,
+        category = ToKebabCase(item.Category.ToString())
+    };
+
+    private static CatalogCategory? ParseCategory(string? raw) => raw switch
+    {
+        "general" => CatalogCategory.General,
+        "flyer-template" => CatalogCategory.FlyerTemplate,
+        "flyer" => CatalogCategory.Flyer,
+        _ => null
     };
 
     private static string ToKebabCase(string pascal)
@@ -81,7 +91,7 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
     }
 
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] string? q, [FromQuery] string? mediaType)
+    public async Task<IActionResult> List([FromQuery] string? q, [FromQuery] string? mediaType, [FromQuery] string? category)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
         MediaType? parsedType = mediaType switch
@@ -91,8 +101,20 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
             "audio" => MediaType.Audio,
             _ => null
         };
-        var items = await catalogStore.ListCatalogItemsAsync(bandId, q, parsedType);
+        var items = await catalogStore.ListCatalogItemsAsync(bandId, q, parsedType, ParseCategory(category));
         return Ok(items.Select(Serialize));
+    }
+
+    [HttpPut("{id:guid}/reclassify")]
+    public async Task<IActionResult> Reclassify(Guid id, [FromBody] CatalogReclassifyRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var category = ParseCategory(request.Category);
+        if (category is null) return BadRequest(new { error = "Invalid category." });
+
+        var (item, error) = await catalogStore.ReclassifyItemAsync(bandId, id, category.Value);
+        if (error is not null) return item is null && error == "Not found" ? NotFound(new { error }) : BadRequest(new { error });
+        return Ok(Serialize(item!));
     }
 
     [HttpPost("upload")]

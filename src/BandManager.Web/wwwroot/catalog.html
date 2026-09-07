@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/assets/dashboard.css">
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/catalog.css">
+<link rel="stylesheet" href="/assets/flyerEditor.css">
 </head>
 <body>
     <header class="topbar">
@@ -40,7 +41,26 @@
 
         <div id="catalog-add-panel" class="catalog-add-panel" hidden></div>
 
+        <div class="catalog-category-tabs" id="catalog-category-tabs" hidden>
+            <button type="button" class="catalog-tab active" data-category="general">General</button>
+            <button type="button" class="catalog-tab" data-category="flyers">Flyers</button>
+        </div>
+
         <div id="catalog-grid" class="catalog-grid">Loading...</div>
+
+        <div id="catalog-flyers-section" hidden>
+            <p class="intro">Drag a General image below onto "Flyer Templates" to turn it into one, or upload a new background directly.</p>
+            <label class="upload-btn">Upload a Flyer Template<input type="file" id="catalog-upload-template" accept="image/*" hidden></label>
+
+            <h3>General images (drag one down to make it a template)</h3>
+            <div id="catalog-flyers-general-grid" class="catalog-grid"></div>
+
+            <h3>Flyer Templates</h3>
+            <div id="catalog-flyer-templates-grid" class="catalog-grid"></div>
+
+            <h3>Generated Flyers</h3>
+            <div id="catalog-flyers-grid" class="catalog-grid"></div>
+        </div>
     </main>
 
     <div id="catalog-viewer-backdrop" class="detail-modal-backdrop" hidden>
@@ -50,7 +70,31 @@
         </div>
     </div>
 
+    <div id="gig-picker-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="gig-picker-modal-close">&times;</button>
+            <div id="gig-picker-modal-body"></div>
+        </div>
+    </div>
+
+    <!-- Needed here too, for the Flyer Editor's "choose a logo" step
+         (window.openCatalogPicker, defined below in catalog.js itself). -->
+    <div id="catalog-picker-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="catalog-picker-modal">
+            <button type="button" class="detail-modal-close" id="catalog-picker-close">&times;</button>
+            <div class="catalog-picker-toolbar">
+                <input type="search" id="catalog-picker-search" class="catalog-search" placeholder="Search by label or filename...">
+            </div>
+            <div id="catalog-picker-grid" class="catalog-picker-grid"></div>
+            <div class="catalog-picker-actions">
+                <button type="button" id="catalog-picker-cancel" class="catalog-toolbar-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/catalog.js"></script>
+    <script src="/assets/flyerEditor.js"></script>
+    <script src="/assets/flyerTemplateEditor.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>

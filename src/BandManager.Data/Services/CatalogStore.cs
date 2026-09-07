@@ -55,7 +55,8 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
     /// stays null and the UI falls back to the full file.</summary>
     public async Task<CatalogItem> RegisterCatalogItemAsync(
         Guid bandId, byte[] buffer, string mimeType, string? originalFilename,
-        CatalogSource source, string? sourceUrl, string? uploadedBy, string? label = null)
+        CatalogSource source, string? sourceUrl, string? uploadedBy, string? label = null,
+        CatalogCategory category = CatalogCategory.General)
     {
         var mediaType = MediaTypeForMime(mimeType)
             ?? throw new InvalidOperationException($"Unsupported media type: {mimeType}");
@@ -119,7 +120,8 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
             Height = height,
             Source = source,
             SourceUrl = sourceUrl,
-            UploadedBy = uploadedBy
+            UploadedBy = uploadedBy,
+            Category = category
         };
         db.CatalogItems.Add(item);
         await db.SaveChangesAsync();
@@ -147,10 +149,11 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         return await File.ReadAllBytesAsync(ResolveFullPath(item));
     }
 
-    public async Task<List<CatalogItem>> ListCatalogItemsAsync(Guid bandId, string? q, MediaType? mediaType, int limit = 500, int offset = 0)
+    public async Task<List<CatalogItem>> ListCatalogItemsAsync(Guid bandId, string? q, MediaType? mediaType, CatalogCategory? category = null, int limit = 500, int offset = 0)
     {
         var query = db.CatalogItems.Where(c => c.BandId == bandId);
         if (mediaType is not null) query = query.Where(c => c.MediaType == mediaType);
+        if (category is not null) query = query.Where(c => c.Category == category);
         if (!string.IsNullOrWhiteSpace(q))
         {
             var like = $"%{q}%";
@@ -166,6 +169,27 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         item.Label = label;
         await db.SaveChangesAsync();
         return item;
+    }
+
+    /// <summary>Moves an image between General/FlyerTemplate/Flyer -
+    /// either by direct classification (an admin-driven upload) or by the
+    /// Catalog page's drag gesture. Rejects reclassifying AWAY from
+    /// FlyerTemplate while a FlyerTemplate row still points at this item as
+    /// its background - that FK is Restrict, so letting the DB throw would
+    /// surface as a raw 500 instead of a clear error.</summary>
+    public async Task<(CatalogItem? Item, string? Error)> ReclassifyItemAsync(Guid bandId, Guid id, CatalogCategory category)
+    {
+        var item = await db.CatalogItems.FirstOrDefaultAsync(c => c.Id == id && c.BandId == bandId);
+        if (item is null) return (null, "Not found");
+        if (item.MediaType != MediaType.Image)
+            return (null, "Only images can be categorized as a flyer or flyer template.");
+        if (item.Category == CatalogCategory.FlyerTemplate && category != CatalogCategory.FlyerTemplate
+            && await db.FlyerTemplates.AnyAsync(t => t.BackgroundCatalogItemId == id))
+            return (null, "Delete or reassign the Flyer Template using this image first.");
+
+        item.Category = category;
+        await db.SaveChangesAsync();
+        return (item, null);
     }
 
     public async Task<int> DeleteCatalogItemsAsync(Guid bandId, IEnumerable<Guid> ids)

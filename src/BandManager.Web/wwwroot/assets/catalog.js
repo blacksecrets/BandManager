@@ -20,9 +20,10 @@ function escapeHtmlCatalog(str) {
 // class of bug dashboard.js had - see its 401/403 handling in loadItems
 // for the fuller explanation). Callers must check for null before
 // rendering normally.
-async function fetchCatalogItems(q) {
+async function fetchCatalogItems(q, category) {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
+    if (category) params.set('category', category);
     const res = await fetch(`/api/catalog?${params.toString()}`);
     if (res.status === 401) {
         location.href = '/login.html';
@@ -43,9 +44,12 @@ if (document.getElementById('catalog-grid')) {
     const deleteBtn = document.getElementById('catalog-delete-btn');
 
     let activeMediaType = 'image';
+    let activeImageCategory = 'general';
     let allItems = [];
     let searchQuery = '';
     const selectedIds = new Set();
+    const categoryTabsBox = document.getElementById('catalog-category-tabs');
+    const flyersSection = document.getElementById('catalog-flyers-section');
 
     function updateCounts() {
         const counts = { image: 0, video: 0, audio: 0 };
@@ -109,13 +113,108 @@ if (document.getElementById('catalog-grid')) {
 
     function render() {
         updateCounts();
-        const filtered = allItems.filter((i) => i.media_type === activeMediaType);
+        categoryTabsBox.hidden = activeMediaType !== 'image';
+
+        if (activeMediaType === 'image' && activeImageCategory === 'flyers') {
+            grid.hidden = true;
+            flyersSection.hidden = false;
+            renderFlyersSection();
+            return;
+        }
+        grid.hidden = false;
+        flyersSection.hidden = true;
+
+        const filtered = allItems.filter((i) => i.media_type === activeMediaType && (activeMediaType !== 'image' || i.category === 'general'));
         grid.innerHTML = '';
         if (filtered.length === 0) {
             grid.innerHTML = `<p class="catalog-empty-note">No ${activeMediaType === 'image' ? 'photos' : activeMediaType} yet.</p>`;
             return;
         }
         for (const item of filtered) grid.appendChild(renderTile(item));
+    }
+
+    // --- Flyers sub-tab: General (drag source), Flyer Templates, Generated Flyers ---
+    function renderFlyersSection() {
+        const generalGrid = document.getElementById('catalog-flyers-general-grid');
+        const templatesGrid = document.getElementById('catalog-flyer-templates-grid');
+        const flyersGrid = document.getElementById('catalog-flyers-grid');
+        generalGrid.innerHTML = '';
+        templatesGrid.innerHTML = '';
+        flyersGrid.innerHTML = '';
+
+        const generalImages = allItems.filter((i) => i.media_type === 'image' && i.category === 'general');
+        const templates = allItems.filter((i) => i.media_type === 'image' && i.category === 'flyer-template');
+        const flyers = allItems.filter((i) => i.media_type === 'image' && i.category === 'flyer');
+
+        if (generalImages.length === 0) generalGrid.innerHTML = '<p class="catalog-empty-note">No general images yet.</p>';
+        for (const item of generalImages) generalGrid.appendChild(renderDraggableGeneralTile(item));
+
+        if (templates.length === 0) templatesGrid.innerHTML = '<p class="catalog-empty-note">No Flyer Templates yet - upload one above, or drag a general image here.</p>';
+        for (const item of templates) templatesGrid.appendChild(renderTile(item));
+
+        if (flyers.length === 0) flyersGrid.innerHTML = '<p class="catalog-empty-note">No flyers created yet.</p>';
+        for (const item of flyers) flyersGrid.appendChild(renderTile(item));
+    }
+
+    function renderDraggableGeneralTile(item) {
+        const tile = renderTile(item);
+        const handle = document.createElement('span');
+        handle.className = 'drag-handle catalog-tile-drag-handle';
+        handle.textContent = '⠿';
+        handle.addEventListener('pointerdown', (e) => startCatalogTileDrag(e, tile, item));
+        tile.appendChild(handle);
+        return tile;
+    }
+
+    // Manual pointer-events drag (matches dashboard.js's startSectionDrag
+    // convention - no native HTML5 drag-and-drop) - dragging a General
+    // image tile onto the Flyer Templates grid reclassifies it in place.
+    function startCatalogTileDrag(e, tile, item) {
+        e.preventDefault();
+        tile.classList.add('dragging');
+        const templatesZone = document.getElementById('catalog-flyer-templates-grid');
+        let over = false;
+
+        function onPointerMove(ev) {
+            const el = document.elementFromPoint(ev.clientX, ev.clientY);
+            const hit = !!(el && el.closest('#catalog-flyer-templates-grid'));
+            if (hit !== over) { templatesZone.classList.toggle('drag-over', hit); over = hit; }
+        }
+        function cleanup() {
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            document.removeEventListener('pointercancel', onPointerUp);
+            tile.classList.remove('dragging');
+            templatesZone.classList.remove('drag-over');
+        }
+        async function onPointerUp() {
+            const dropped = over;
+            cleanup();
+            if (!dropped) return;
+            await reclassifyAsTemplate(item);
+        }
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('pointercancel', onPointerUp);
+    }
+
+    async function reclassifyAsTemplate(item) {
+        const reclassifyRes = await fetch(`/api/catalog/${item.id}/reclassify`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ category: 'flyer-template' })
+        });
+        if (!reclassifyRes.ok) {
+            const body = await reclassifyRes.json().catch(() => ({}));
+            alert(body.error || 'Could not reclassify that image.');
+            return;
+        }
+        await fetch('/api/flyer-templates', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ backgroundCatalogItemId: item.id, name: item.label || item.original_filename || 'New Template' })
+        });
+        await reload();
     }
 
     async function reload() {
@@ -134,6 +233,42 @@ if (document.getElementById('catalog-grid')) {
         activeMediaType = btn.dataset.mediaType;
         tabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t === btn));
         render();
+    });
+
+    categoryTabsBox.addEventListener('click', (e) => {
+        const btn = e.target.closest('.catalog-tab');
+        if (!btn) return;
+        activeImageCategory = btn.dataset.category;
+        categoryTabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t === btn));
+        render();
+    });
+
+    // A direct link to /catalog#flyers (the "Flyers" nav entry) lands
+    // straight on the Flyers sub-tab instead of General.
+    if (location.hash === '#flyers') {
+        activeImageCategory = 'flyers';
+        categoryTabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t.dataset.category === 'flyers'));
+    }
+
+    document.getElementById('catalog-upload-template').addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        e.target.value = '';
+        if (!file) return;
+        const form = new FormData();
+        form.append('file', file);
+        const uploadRes = await fetch('/api/catalog/upload', { method: 'POST', body: form });
+        const item = await uploadRes.json();
+        if (!uploadRes.ok) { alert(item.error || 'Could not upload.'); return; }
+        await reclassifyAsTemplate(item);
+        const templates = await fetchCatalogItems('', 'flyer-template');
+        const created = (templates || []).find((t) => t.id === item.id);
+        if (created) {
+            const listRes = await fetch('/api/flyer-templates');
+            const list = listRes.ok ? await listRes.json() : [];
+            const template = list.find((t) => t.backgroundCatalogItemId === item.id);
+            if (template) await window.openFlyerTemplateEditor(template.id);
+        }
+        await reload();
     });
 
     let searchTimer = null;
@@ -229,6 +364,10 @@ if (document.getElementById('catalog-grid')) {
                     <button type="button" id="catalog-viewer-capture">Capture frame</button>
                     <button type="button" id="catalog-viewer-trim-toggle">Trim</button>
                     <button type="button" id="catalog-viewer-split-toggle">Split</button>
+                ` : ''}
+                ${item.category === 'flyer-template' ? `
+                    <button type="button" id="catalog-viewer-edit-template">Edit Template</button>
+                    <button type="button" id="catalog-viewer-create-flyer">Create Flyer from This Template</button>
                 ` : ''}
                 <button type="button" id="catalog-viewer-rename">Rename</button>
                 <button type="button" id="catalog-viewer-delete">Delete</button>
@@ -349,6 +488,25 @@ if (document.getElementById('catalog-grid')) {
             });
         }
 
+        if (item.category === 'flyer-template') {
+            body.querySelector('#catalog-viewer-edit-template').addEventListener('click', async () => {
+                const listRes = await fetch('/api/flyer-templates');
+                const list = listRes.ok ? await listRes.json() : [];
+                const template = list.find((t) => t.backgroundCatalogItemId === item.id);
+                if (!template) { alert('Could not find that template.'); return; }
+                closeCatalogViewer();
+                await window.openFlyerTemplateEditor(template.id);
+                reload();
+            });
+            body.querySelector('#catalog-viewer-create-flyer').addEventListener('click', async () => {
+                const listRes = await fetch('/api/flyer-templates');
+                const list = listRes.ok ? await listRes.json() : [];
+                const template = list.find((t) => t.backgroundCatalogItemId === item.id);
+                if (!template) { alert('Could not find that template.'); return; }
+                openGigPickerForTemplate(template.id);
+            });
+        }
+
         body.querySelector('#catalog-viewer-rename').addEventListener('click', async () => {
             const label = prompt('New label:', item.label || '');
             if (!label || !label.trim()) return;
@@ -378,6 +536,42 @@ if (document.getElementById('catalog-grid')) {
         const backdrop = document.getElementById('catalog-viewer-backdrop');
         backdrop.hidden = true;
         document.getElementById('catalog-viewer-body').innerHTML = '';
+    }
+
+    // --- Gig picker for "Create Flyer from This Template" ---
+    function closeGigPicker() { document.getElementById('gig-picker-modal-backdrop').hidden = true; }
+    document.getElementById('gig-picker-modal-close').addEventListener('click', closeGigPicker);
+    document.getElementById('gig-picker-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'gig-picker-modal-backdrop') closeGigPicker(); });
+
+    async function openGigPickerForTemplate(templateId) {
+        const body = document.getElementById('gig-picker-modal-body');
+        body.innerHTML = '<h2>Choose a Gig</h2><p class="save-note">Loading...</p>';
+        document.getElementById('gig-picker-modal-backdrop').hidden = false;
+
+        const res = await fetch('/api/gig-sets/gigs');
+        if (!res.ok) { body.innerHTML = '<h2>Choose a Gig</h2><p class="save-note">Could not load gigs.</p>'; return; }
+        const allGigs = await res.json();
+        if (allGigs.length === 0) {
+            body.innerHTML = '<h2>Choose a Gig</h2><p class="save-note">No gigs found on this band\'s site.</p>';
+            return;
+        }
+        const upcoming = allGigs.filter((g) => !g.isPast);
+        const past = allGigs.filter((g) => g.isPast);
+        const optionsHtml = (list) => list.map((g) => `<option value="${g.gigRef}">${escapeHtmlCatalog(g.title)} - ${escapeHtmlCatalog(g.date || '')}</option>`).join('');
+        body.innerHTML = `
+            <h2>Choose a Gig</h2>
+            <select id="gig-picker-select">
+                ${upcoming.length ? `<optgroup label="Upcoming">${optionsHtml(upcoming)}</optgroup>` : ''}
+                ${past.length ? `<optgroup label="Past">${optionsHtml(past)}</optgroup>` : ''}
+            </select>
+            <button type="button" id="gig-picker-confirm">Continue</button>
+        `;
+        document.getElementById('gig-picker-confirm').addEventListener('click', async () => {
+            const gigRef = document.getElementById('gig-picker-select').value;
+            closeGigPicker();
+            const result = await window.openFlyerEditor({ templateId, gigRef });
+            if (result) reload();
+        });
     }
 
     document.getElementById('catalog-viewer-close').addEventListener('click', closeCatalogViewer);

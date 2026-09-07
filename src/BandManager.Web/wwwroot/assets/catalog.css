@@ -30,6 +30,36 @@
     font-size: 0.75rem;
 }
 
+.catalog-category-tabs { display: flex; gap: 8px; margin: 4px 0 16px; }
+
+.catalog-tile { position: relative; }
+.catalog-tile-drag-handle {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    background: rgba(0,0,0,0.6);
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: #ccc;
+    cursor: grab;
+    font-size: 0.9rem;
+}
+.catalog-tile-drag-handle:active { cursor: grabbing; }
+.catalog-tile.dragging { opacity: 0.4; }
+#catalog-flyer-templates-grid.drag-over { outline: 2px dashed #4a6fa5; outline-offset: -2px; }
+
+#catalog-flyers-section h3 { margin: 20px 0 8px; font-size: 0.95rem; color: #ccc; }
+
+.gig-picker-modal-body select, #gig-picker-select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #111;
+    color: #eee;
+    margin: 10px 0;
+}
+
 .catalog-search {
     flex: 1;
     min-width: 160px;
