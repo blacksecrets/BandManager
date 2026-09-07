@@ -167,6 +167,19 @@
 .calendar-sync-instructions { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
 .calendar-sync-instructions strong { color: #ccc; font-size: 0.9rem; }
 #calendar-export-btn { margin-top: 6px; }
+.calendar-oauth-connect-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.calendar-oauth-connect-row button {
+    background: #2d6a4f;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 14px;
+    cursor: pointer;
+}
+.calendar-oauth-connect-row button:hover { background: #368a63; }
+.calendar-oauth-connect-row button[id^="calendar-disconnect"] { background: #555; }
+.calendar-oauth-connect-row button[id^="calendar-disconnect"]:hover { background: #666; }
+.calendar-setup-needed-note { color: #d4b100; font-size: 0.8rem; font-style: italic; }
 
 .calendar-avail-available { background: #2d6a4f; color: #fff; }
 .calendar-avail-tentative { background: #7a6a1f; color: #fff; }

@@ -61,6 +61,41 @@ async function initSyncPanel() {
     document.getElementById('calendar-export-btn').addEventListener('click', () => {
         location.href = '/api/calendar/export.ics';
     });
+
+    await initExternalCalendarButtons();
+}
+
+async function initExternalCalendarButtons() {
+    const [providersRes, connectionsRes] = await Promise.all([
+        fetch('/api/external-calendar/providers'),
+        fetch('/api/external-calendar/connections')
+    ]);
+    const providers = providersRes.ok ? await providersRes.json() : { google: false, outlook: false };
+    const connections = connectionsRes.ok ? await connectionsRes.json() : [];
+    const connectedProviders = new Set(connections.map((c) => c.provider.toLowerCase()));
+
+    for (const provider of ['google', 'outlook']) {
+        const connectBtn = document.getElementById(`calendar-connect-${provider}`);
+        const disconnectBtn = document.getElementById(`calendar-disconnect-${provider}`);
+        const setupNote = document.getElementById(`calendar-${provider}-setup-note`);
+        if (!providers[provider]) {
+            connectBtn.hidden = true;
+            disconnectBtn.hidden = true;
+            setupNote.hidden = false;
+            continue;
+        }
+        setupNote.hidden = true;
+
+        const isConnected = connectedProviders.has(provider);
+        connectBtn.hidden = isConnected;
+        disconnectBtn.hidden = !isConnected;
+
+        connectBtn.onclick = () => { location.href = `/api/external-calendar/${provider}/connect`; };
+        disconnectBtn.onclick = async () => {
+            await fetch(`/api/external-calendar/${provider}`, { method: 'DELETE' });
+            await initExternalCalendarButtons();
+        };
+    }
 }
 
 // A little padding on each side so the grid's leading/trailing days from

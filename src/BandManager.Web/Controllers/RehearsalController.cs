@@ -1,6 +1,7 @@
 using BandManager.Data;
 using BandManager.Data.Entities;
 using BandManager.Web.Auth;
+using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,7 +18,12 @@ public record SaveRehearsalRequest(string? Title, string? Location, DateTime Sta
 [ApiController]
 [Route("/api/rehearsals")]
 [Authorize(Policy = "BandMember")]
-public class RehearsalController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
+public class RehearsalController(
+    ApplicationDbContext db,
+    IActiveBandAccessor activeBand,
+    GoogleCalendarPushService googleCalendarPush,
+    OutlookCalendarPushService outlookCalendarPush,
+    ILogger<RehearsalController> logger) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
     {
@@ -25,6 +31,25 @@ public class RehearsalController(ApplicationDbContext db, IActiveBandAccessor ac
         if (id is null) { bandId = default; return BadRequest(new { error = "No active band selected." }); }
         bandId = id.Value;
         return null;
+    }
+
+    // Same best-effort, never-block-the-write shape as
+    // GigsController.PushGigToExternalCalendarsAsync - see its doc
+    // comment for why this is safe to call unconditionally right now.
+    private async Task PushRehearsalToExternalCalendarsAsync(Rehearsal rehearsal)
+    {
+        try { await googleCalendarPush.PushRehearsalAsync(rehearsal); }
+        catch (Exception ex) { logger.LogWarning(ex, "Google Calendar push failed for rehearsal {RehearsalId}", rehearsal.Id); }
+        try { await outlookCalendarPush.PushRehearsalAsync(rehearsal); }
+        catch (Exception ex) { logger.LogWarning(ex, "Outlook Calendar push failed for rehearsal {RehearsalId}", rehearsal.Id); }
+    }
+
+    private async Task DeleteRehearsalFromExternalCalendarsAsync(Guid bandId, Guid rehearsalId)
+    {
+        try { await googleCalendarPush.DeleteRehearsalAsync(bandId, rehearsalId); }
+        catch (Exception ex) { logger.LogWarning(ex, "Google Calendar delete failed for rehearsal {RehearsalId}", rehearsalId); }
+        try { await outlookCalendarPush.DeleteRehearsalAsync(bandId, rehearsalId); }
+        catch (Exception ex) { logger.LogWarning(ex, "Outlook Calendar delete failed for rehearsal {RehearsalId}", rehearsalId); }
     }
 
     private static object Serialize(Rehearsal r) => new
@@ -73,6 +98,7 @@ public class RehearsalController(ApplicationDbContext db, IActiveBandAccessor ac
         };
         db.Rehearsals.Add(rehearsal);
         await db.SaveChangesAsync();
+        await PushRehearsalToExternalCalendarsAsync(rehearsal);
         return Ok(Serialize(rehearsal));
     }
 
@@ -92,6 +118,7 @@ public class RehearsalController(ApplicationDbContext db, IActiveBandAccessor ac
         rehearsal.StartsAt = DateTime.SpecifyKind(request.StartsAt, DateTimeKind.Utc);
         rehearsal.EndsAt = DateTime.SpecifyKind(request.EndsAt, DateTimeKind.Utc);
         await db.SaveChangesAsync();
+        await PushRehearsalToExternalCalendarsAsync(rehearsal);
         return Ok(Serialize(rehearsal));
     }
 
@@ -105,6 +132,7 @@ public class RehearsalController(ApplicationDbContext db, IActiveBandAccessor ac
 
         db.Rehearsals.Remove(rehearsal);
         await db.SaveChangesAsync();
+        await DeleteRehearsalFromExternalCalendarsAsync(bandId, id);
         return Ok(new { ok = true });
     }
 }

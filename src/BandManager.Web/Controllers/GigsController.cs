@@ -46,9 +46,35 @@ public class GigsController(
     CatalogStore catalogStore,
     CredentialStore credentialStore,
     FlyerCache flyerCache,
-    Scheduler scheduler) : ControllerBase
+    Scheduler scheduler,
+    GoogleCalendarPushService googleCalendarPush,
+    OutlookCalendarPushService outlookCalendarPush,
+    ILogger<GigsController> logger) : ControllerBase
 {
     private const long MaxFlyerBytes = 20 * 1024 * 1024;
+
+    // Best-effort, same spirit as the site push above (TryPublishAsync) -
+    // but never surfaced as a 502, since a Google/Outlook push only ever
+    // affects members who've individually connected their own calendar
+    // (see UserExternalCalendarConnection), not the shared site every
+    // visitor sees. Every call already no-ops instantly for a band with
+    // zero connected members, which is every band until Phase 8's OAuth
+    // apps are configured - see ExternalCalendarController's doc comment.
+    private async Task PushGigToExternalCalendarsAsync(Gig gig)
+    {
+        try { await googleCalendarPush.PushGigAsync(gig); }
+        catch (Exception ex) { logger.LogWarning(ex, "Google Calendar push failed for gig {GigId}", gig.Id); }
+        try { await outlookCalendarPush.PushGigAsync(gig); }
+        catch (Exception ex) { logger.LogWarning(ex, "Outlook Calendar push failed for gig {GigId}", gig.Id); }
+    }
+
+    private async Task DeleteGigFromExternalCalendarsAsync(Guid bandId, Guid gigId)
+    {
+        try { await googleCalendarPush.DeleteGigAsync(bandId, gigId); }
+        catch (Exception ex) { logger.LogWarning(ex, "Google Calendar delete failed for gig {GigId}", gigId); }
+        try { await outlookCalendarPush.DeleteGigAsync(bandId, gigId); }
+        catch (Exception ex) { logger.LogWarning(ex, "Outlook Calendar delete failed for gig {GigId}", gigId); }
+    }
 
     private async Task<(Band Band, IActionResult? Error)> RequireActiveBandAsync()
     {
@@ -205,6 +231,7 @@ public class GigsController(
 
         gig.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        await PushGigToExternalCalendarsAsync(gig);
 
         var pushError = await TryPublishAsync(band, gig);
         if (pushError is not null) return StatusCode(502, new { error = $"Saved, but could not push to the site: {pushError}" });
@@ -311,6 +338,7 @@ public class GigsController(
         // show up until then. A failure here doesn't undo the successful
         // gig creation, so it's swallowed.
         try { await scheduler.GenerateAllAsync(band.Id, band); } catch { /* logged nowhere yet - acceptable, matches old app's console-only handling */ }
+        await PushGigToExternalCalendarsAsync(gig);
 
         if (pushError is not null) return StatusCode(502, new { error = $"Gig created, but could not push to the site: {pushError}", id = gig.Ref });
         return Ok(new { ok = true, id = gig.Ref });
@@ -393,9 +421,11 @@ public class GigsController(
             catch (InvalidOperationException ex) { pushError = ex.Message; }
         }
 
+        var gigId = gig.Id;
         db.Gigs.Remove(gig); // cascades GigWithBands
         await db.ScheduleItems.Where(s => s.BandId == band.Id && s.GigRef == gigRef).ExecuteDeleteAsync();
         await db.SaveChangesAsync();
+        await DeleteGigFromExternalCalendarsAsync(band.Id, gigId);
 
         if (pushError is not null) return StatusCode(502, new { error = $"Gig deleted, but could not remove it from the site: {pushError}" });
         return Ok(new { ok = true });

@@ -10,6 +10,7 @@ async function loadSuperAdminPage() {
     document.getElementById('superadmin-users-section').hidden = false;
     document.getElementById('song-search-section').hidden = false;
     document.getElementById('song-import-section').hidden = false;
+    document.getElementById('calendar-oauth-section').hidden = false;
     document.getElementById('admin-branding-section').hidden = false;
 
     loadAllUsersPicker();
@@ -18,6 +19,7 @@ async function loadSuperAdminPage() {
     await loadSuperAdminBands();
     loadAllUsers();
     loadSongSearchCredentials();
+    loadCalendarOAuthCredentials();
     loadBranding();
     renderSongImportBandCheckboxes();
 }
@@ -150,6 +152,87 @@ document.getElementById('spotify-disconnect-btn').addEventListener('click', asyn
     await fetch('/api/superadmin/song-search-credentials/spotify', { method: 'DELETE' });
     document.getElementById('spotify-cred-form').reset();
     loadSongSearchCredentials();
+});
+
+// --- External calendar sync OAuth apps (Google Calendar + Outlook) ---
+async function loadCalendarOAuthCredentials() {
+    const redirectBase = `${location.origin}/api/external-calendar`;
+    document.getElementById('google-calendar-redirect-uri').textContent = `${redirectBase}/google/callback`;
+    document.getElementById('outlook-redirect-uri').textContent = `${redirectBase}/outlook/callback`;
+
+    const res = await fetch('/api/superadmin/calendar-oauth-credentials');
+    if (!res.ok) return;
+    const { google, outlook } = await res.json();
+
+    const googleBadge = document.getElementById('google-calendar-status-badge');
+    const googleForm = document.getElementById('google-calendar-cred-form');
+    if (google) {
+        googleBadge.textContent = 'Configured';
+        googleBadge.classList.add('configured');
+        googleForm.clientId.value = google.clientId || '';
+        googleForm.clientSecret.value = google.clientSecret || '';
+        document.getElementById('google-calendar-disconnect-tool').hidden = false;
+    } else {
+        googleBadge.textContent = 'Not configured';
+        googleBadge.classList.remove('configured');
+        document.getElementById('google-calendar-disconnect-tool').hidden = true;
+    }
+
+    const outlookBadge = document.getElementById('outlook-status-badge');
+    const outlookForm = document.getElementById('outlook-cred-form');
+    if (outlook) {
+        outlookBadge.textContent = 'Configured';
+        outlookBadge.classList.add('configured');
+        outlookForm.clientId.value = outlook.clientId || '';
+        outlookForm.clientSecret.value = outlook.clientSecret || '';
+        document.getElementById('outlook-disconnect-tool').hidden = false;
+    } else {
+        outlookBadge.textContent = 'Not configured';
+        outlookBadge.classList.remove('configured');
+        document.getElementById('outlook-disconnect-tool').hidden = true;
+    }
+}
+
+document.getElementById('google-calendar-cred-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('google-calendar-cred-status');
+    const res = await fetch('/api/superadmin/calendar-oauth-credentials/google', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: form.clientId.value.trim(), clientSecret: form.clientSecret.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save.');
+    if (res.ok) loadCalendarOAuthCredentials();
+});
+
+document.getElementById('google-calendar-disconnect-btn').addEventListener('click', async () => {
+    if (!confirm('Remove the Google Calendar OAuth credentials? Members will no longer be able to connect (or reconnect) their Google Calendar.')) return;
+    await fetch('/api/superadmin/calendar-oauth-credentials/google', { method: 'DELETE' });
+    document.getElementById('google-calendar-cred-form').reset();
+    loadCalendarOAuthCredentials();
+});
+
+document.getElementById('outlook-cred-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('outlook-cred-status');
+    const res = await fetch('/api/superadmin/calendar-oauth-credentials/outlook', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: form.clientId.value.trim(), clientSecret: form.clientSecret.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save.');
+    if (res.ok) loadCalendarOAuthCredentials();
+});
+
+document.getElementById('outlook-disconnect-btn').addEventListener('click', async () => {
+    if (!confirm('Remove the Outlook OAuth credentials? Members will no longer be able to connect (or reconnect) their Outlook calendar.')) return;
+    await fetch('/api/superadmin/calendar-oauth-credentials/outlook', { method: 'DELETE' });
+    document.getElementById('outlook-cred-form').reset();
+    loadCalendarOAuthCredentials();
 });
 
 for (const btn of document.querySelectorAll('.instructions-toggle')) {

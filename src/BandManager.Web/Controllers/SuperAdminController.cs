@@ -19,6 +19,7 @@ public record SetBandRoleRequest(string Role);
 public record AddBandMembershipRequest(Guid BandId, string Role);
 public record SetYouTubeCredentialsRequest(string ApiKey);
 public record SetSpotifyCredentialsRequest(string ClientId, string ClientSecret);
+public record SetCalendarOAuthCredentialsRequest(string ClientId, string ClientSecret);
 
 /// <summary>
 /// The SuperAdmin config screen's backend - band onboarding/archiving, and
@@ -90,6 +91,62 @@ public class SuperAdminController(
     public async Task<IActionResult> ClearSpotifyCredentials()
     {
         await SongSearchService.ClearCredentialAsync(db, SpotifyCredentialsKey);
+        return Ok(new { ok = true });
+    }
+
+    // --- External calendar sync OAuth apps (Google Calendar / Outlook) ---
+    // One registered OAuth app per provider for this whole BandManager
+    // instance (the redirect URI is fixed to this instance's own domain),
+    // not per-Band - same "global, SuperAdmin-managed, PlatformSettings-
+    // backed" shape as the song-search credentials above. Each band
+    // member then connects their own calendar under this app via
+    // ExternalCalendarController - see UserExternalCalendarConnection.
+    private const string GoogleCalendarOAuthKey = "google_calendar_oauth_credentials";
+    private const string OutlookOAuthKey = "outlook_oauth_credentials";
+
+    [HttpGet("calendar-oauth-credentials")]
+    public async Task<IActionResult> GetCalendarOAuthCredentials()
+    {
+        var google = await SongSearchService.GetCredentialAsync(db, cipher, GoogleCalendarOAuthKey);
+        var outlook = await SongSearchService.GetCredentialAsync(db, cipher, OutlookOAuthKey);
+        return Ok(new { google, outlook });
+    }
+
+    [HttpPut("calendar-oauth-credentials/google")]
+    public async Task<IActionResult> SetGoogleCalendarOAuthCredentials([FromBody] SetCalendarOAuthCredentialsRequest request)
+    {
+        var clientId = request.ClientId?.Trim();
+        var clientSecret = request.ClientSecret?.Trim();
+        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+            return BadRequest(new { error = "Client ID and Client Secret are both required." });
+        await SongSearchService.SetCredentialAsync(db, cipher, GoogleCalendarOAuthKey,
+            new() { ["clientId"] = clientId, ["clientSecret"] = clientSecret });
+        return Ok(new { ok = true });
+    }
+
+    [HttpDelete("calendar-oauth-credentials/google")]
+    public async Task<IActionResult> ClearGoogleCalendarOAuthCredentials()
+    {
+        await SongSearchService.ClearCredentialAsync(db, GoogleCalendarOAuthKey);
+        return Ok(new { ok = true });
+    }
+
+    [HttpPut("calendar-oauth-credentials/outlook")]
+    public async Task<IActionResult> SetOutlookOAuthCredentials([FromBody] SetCalendarOAuthCredentialsRequest request)
+    {
+        var clientId = request.ClientId?.Trim();
+        var clientSecret = request.ClientSecret?.Trim();
+        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+            return BadRequest(new { error = "Client ID and Client Secret are both required." });
+        await SongSearchService.SetCredentialAsync(db, cipher, OutlookOAuthKey,
+            new() { ["clientId"] = clientId, ["clientSecret"] = clientSecret });
+        return Ok(new { ok = true });
+    }
+
+    [HttpDelete("calendar-oauth-credentials/outlook")]
+    public async Task<IActionResult> ClearOutlookOAuthCredentials()
+    {
+        await SongSearchService.ClearCredentialAsync(db, OutlookOAuthKey);
         return Ok(new { ok = true });
     }
 

@@ -112,6 +112,55 @@
             </div>
         </section>
 
+        <section class="platform-card" id="calendar-oauth-section" hidden>
+            <h2>External calendar sync (Google Calendar &amp; Outlook)</h2>
+            <p>One registered app per provider for this whole BandManager instance - band members then connect their own personal calendar from the Calendar page once this is set up. Requires this instance to be reachable at a real public URL matching the redirect URI registered below (not just localhost).</p>
+
+            <form id="google-calendar-cred-form" class="cred-form">
+                <h3>Google Calendar API <span class="status-badge" id="google-calendar-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>In <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>, create (or pick) a project and enable the <strong>Google Calendar API</strong>.</li>
+                            <li>Under <strong>APIs &amp; Services &gt; Credentials</strong>, create an <strong>OAuth client ID</strong> of type <strong>Web application</strong>.</li>
+                            <li>Add this exact Authorized redirect URI: <code id="google-calendar-redirect-uri"></code></li>
+                            <li>Copy the Client ID and Client Secret and paste them below.</li>
+                        </ol>
+                    </div>
+                </div>
+                <label>Client ID <input type="text" name="clientId" autocomplete="off"></label>
+                <label>Client Secret <input type="password" name="clientSecret" autocomplete="new-password"></label>
+                <button type="submit">Save Google Calendar credentials</button>
+                <p id="google-calendar-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="google-calendar-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="google-calendar-disconnect-btn">Remove Google Calendar credentials</button>
+            </div>
+
+            <form id="outlook-cred-form" class="cred-form">
+                <h3>Outlook / Microsoft Graph <span class="status-badge" id="outlook-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>In the <a href="https://portal.azure.com/" target="_blank">Azure Portal</a>, go to <strong>Microsoft Entra ID &gt; App registrations &gt; New registration</strong>.</li>
+                            <li>Add this exact Redirect URI (platform: Web): <code id="outlook-redirect-uri"></code></li>
+                            <li>Under <strong>API permissions</strong>, add Microsoft Graph delegated permission <strong>Calendars.ReadWrite</strong>.</li>
+                            <li>Under <strong>Certificates &amp; secrets</strong>, create a new client secret. Copy the Application (client) ID and the secret's value and paste them below.</li>
+                        </ol>
+                    </div>
+                </div>
+                <label>Client ID <input type="text" name="clientId" autocomplete="off"></label>
+                <label>Client Secret <input type="password" name="clientSecret" autocomplete="new-password"></label>
+                <button type="submit">Save Outlook credentials</button>
+                <p id="outlook-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="outlook-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="outlook-disconnect-btn">Remove Outlook credentials</button>
+            </div>
+        </section>
+
         <section class="platform-card" id="song-import-section" hidden>
             <h2>Bulk-import songs</h2>
             <p>Add songs to the shared catalog from a CSV file - <a href="/api/superadmin/songs/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Every row is validated before anything is imported; if any row fails, nothing is imported and every problem is listed below.</p>

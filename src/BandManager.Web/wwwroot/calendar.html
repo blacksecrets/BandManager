@@ -59,6 +59,16 @@
                 </div>
 
                 <button type="button" id="calendar-export-btn">Export to file (.ics)</button>
+
+                <div class="calendar-oauth-connect-row">
+                    <button type="button" id="calendar-connect-google" hidden>Connect Google Calendar</button>
+                    <button type="button" id="calendar-disconnect-google" hidden>Disconnect Google Calendar</button>
+                    <span class="calendar-setup-needed-note" id="calendar-google-setup-note" hidden>Google Calendar sync: not set up yet (a SuperAdmin can enable this in Setup)</span>
+
+                    <button type="button" id="calendar-connect-outlook" hidden>Connect Outlook</button>
+                    <button type="button" id="calendar-disconnect-outlook" hidden>Disconnect Outlook</button>
+                    <span class="calendar-setup-needed-note" id="calendar-outlook-setup-note" hidden>Outlook sync: not set up yet (a SuperAdmin can enable this in Setup)</span>
+                </div>
             </details>
         </div>
     </main>
