@@ -41,17 +41,52 @@ public static class FlyerRenderer
                 continue;
             }
 
-            var fontSizePx = (float)((field.FontSize ?? 0.04) * background.Height);
-            var typeface = FlyerFonts.LoadTypeface(fontsRootPath, field.FontFamily);
-            using var font = new SKFont(typeface, fontSizePx);
-            using var paint = new SKPaint { Color = ParseColor(field.Color), IsAntialias = true };
-            canvas.DrawText(field.Value, (float)(field.X * background.Width), (float)(field.Y * background.Height), SKTextAlign.Left, font, paint);
+            DrawTextField(canvas, background, field, fontsRootPath);
         }
 
         canvas.Flush();
         using var image = surface.Snapshot();
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
         return data.ToArray();
+    }
+
+    // Bold/Italic/Underline are synthetic (Embolden, a canvas skew, and a
+    // manually-drawn line) rather than switching to a different font file -
+    // most of the 7 bundled fonts are single-weight display faces with no
+    // separate bold/italic variant bundled to switch to.
+    private static void DrawTextField(SKCanvas canvas, SKBitmap background, FlyerFieldDef field, string fontsRootPath)
+    {
+        var fontSizePx = (float)((field.FontSize ?? 0.04) * background.Height);
+        var typeface = FlyerFonts.LoadTypeface(fontsRootPath, field.FontFamily);
+        using var font = new SKFont(typeface, fontSizePx) { Embolden = field.Bold };
+        using var paint = new SKPaint { Color = ParseColor(field.Color), IsAntialias = true };
+
+        var x = (float)(field.X * background.Width);
+        var y = (float)(field.Y * background.Height);
+
+        canvas.Save();
+        if (field.Italic)
+        {
+            // Classic fake-italic: shear the canvas around the text's own
+            // origin so the skew doesn't also shift its position.
+            canvas.Translate(x, y);
+            canvas.Skew(-0.25f, 0);
+            canvas.Translate(-x, -y);
+        }
+
+        canvas.DrawText(field.Value, x, y, SKTextAlign.Left, font, paint);
+
+        if (field.Underline)
+        {
+            var width = font.MeasureText(field.Value);
+            font.GetFontMetrics(out var metrics);
+            var underlineY = y + (metrics.UnderlinePosition ?? fontSizePx * 0.1f);
+            var thickness = metrics.UnderlineThickness ?? Math.Max(1f, fontSizePx * 0.05f);
+            using var linePaint = new SKPaint { Color = ParseColor(field.Color), IsAntialias = true, StrokeWidth = thickness };
+            canvas.DrawLine(x, underlineY, x + width, underlineY, linePaint);
+        }
+
+        canvas.Restore();
     }
 
     private static void DrawLogoField(SKCanvas canvas, SKBitmap background, FlyerFieldDef field, Func<string, byte[]?>? logoResolver)

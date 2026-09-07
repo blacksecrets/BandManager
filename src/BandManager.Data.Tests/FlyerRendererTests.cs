@@ -120,6 +120,47 @@ public class FlyerRendererTests
         Assert.NotEqual(baseline, result);
     }
 
+    [Theory]
+    [InlineData(true, false, false)] // Bold
+    [InlineData(false, true, false)] // Italic
+    [InlineData(false, false, true)] // Underline
+    public void RenderFlyer_EachStyleToggle_ChangesPixelsComparedToPlainText(bool bold, bool italic, bool underline)
+    {
+        var background = MakeSolidBackground(400, 200, SKColors.Black);
+        var plainFields = new List<FlyerFieldDef>
+        {
+            new("title", "Title", FlyerFieldType.Text, 0.05, 0.4, 0.3, "anton", "#ffffff", true, "TEST")
+        };
+        var styledFields = new List<FlyerFieldDef>
+        {
+            new("title", "Title", FlyerFieldType.Text, 0.05, 0.4, 0.3, "anton", "#ffffff", true, "TEST", bold, italic, underline)
+        };
+
+        var plain = FlyerRenderer.RenderFlyer(background, plainFields, FontsRootPath, logoResolver: null);
+        var styled = FlyerRenderer.RenderFlyer(background, styledFields, FontsRootPath, logoResolver: null);
+
+        Assert.NotEqual(plain, styled);
+    }
+
+    [Fact]
+    public void RenderFlyer_StyleFlags_DefaultToFalse_RenderingIdenticallyToExplicitFalse()
+    {
+        var background = MakeSolidBackground(300, 150, SKColors.Black);
+        var implicitFields = new List<FlyerFieldDef>
+        {
+            new("title", "Title", FlyerFieldType.Text, 0.05, 0.4, 0.3, "anton", "#ffffff", true, "TEST")
+        };
+        var explicitFields = new List<FlyerFieldDef>
+        {
+            new("title", "Title", FlyerFieldType.Text, 0.05, 0.4, 0.3, "anton", "#ffffff", true, "TEST", Bold: false, Italic: false, Underline: false)
+        };
+
+        var a = FlyerRenderer.RenderFlyer(background, implicitFields, FontsRootPath, logoResolver: null);
+        var b = FlyerRenderer.RenderFlyer(background, explicitFields, FontsRootPath, logoResolver: null);
+
+        Assert.Equal(a, b);
+    }
+
     [Fact]
     public void RenderFlyer_ImageField_CompositesTheResolvedLogoBytes()
     {

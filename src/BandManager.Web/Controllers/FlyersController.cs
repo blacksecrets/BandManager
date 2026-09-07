@@ -8,7 +8,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web.Controllers;
 
-public record SaveFlyerFieldDto(string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool Included, string? Value);
+public record SaveFlyerFieldDto(
+    string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool Included, string? Value,
+    bool Bold = false, bool Italic = false, bool Underline = false);
 public record SaveFlyerRequest(Guid TemplateId, string GigRef, List<SaveFlyerFieldDto> Fields);
 
 /// <summary>
@@ -67,7 +69,8 @@ public class FlyersController(
 
         var fields = request.Fields.Select(f => new FlyerFieldDef(
             f.Key, f.Label, Enum.Parse<FlyerFieldType>(f.Type, ignoreCase: true),
-            f.X, f.Y, f.FontSize, f.FontFamily, f.Color, f.Included, f.Value)).ToList();
+            f.X, f.Y, f.FontSize, f.FontFamily, f.Color, f.Included, f.Value,
+            f.Bold, f.Italic, f.Underline)).ToList();
 
         byte[]? LogoResolver(string catalogItemIdStr)
         {

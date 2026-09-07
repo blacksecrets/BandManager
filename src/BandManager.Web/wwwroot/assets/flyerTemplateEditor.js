@@ -49,9 +49,15 @@
             const fonts = fontsRes.ok ? await fontsRes.json() : [];
             const fields = template.fields.map((f) => ({ ...f }));
 
+            const fontOptionsHtml = (selected) => fonts.map((f) => `<option value="${f.key}" ${selected === f.key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('');
+
             body.innerHTML = `
                 <h2>Edit Template</h2>
                 <label>Template name <input type="text" id="flyer-template-name" value="${escapeHtml(template.name)}"></label>
+                <label>Default font <span class="field-hint">(what a new field starts with - see "Apply to all fields" below to push it onto every field at once)</span>
+                    <select id="flyer-template-default-font">${fontOptionsHtml(template.defaultFontFamily)}</select>
+                </label>
+                <button type="button" id="flyer-template-apply-default-font-btn">Apply to all fields</button>
                 <div class="flyer-editor-layout">
                     <div class="flyer-preview-wrap">
                         <img id="flyer-template-preview-bg" src="${catalogFileUrl(template.backgroundFilePath)}" alt="Flyer background">
@@ -72,16 +78,27 @@
                 fields.forEach((field) => {
                     const row = document.createElement('div');
                     row.className = 'flyer-field-row';
-                    const fontOptions = fonts.map((f) => `<option value="${f.key}" ${field.fontFamily === f.key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('');
                     row.innerHTML = `
                         <label class="checkbox-label"><input type="checkbox" data-visible ${field.defaultVisible ? 'checked' : ''}> ${escapeHtml(field.label)}</label>
-                        ${field.type === 'Text' ? `<select data-font>${fontOptions}</select><input type="color" data-color value="${field.color || '#ffffff'}">` : '<span class="save-note">(image)</span>'}
+                        ${field.type === 'Text' ? `<select data-font>${fontOptionsHtml(field.fontFamily)}</select><input type="color" data-color value="${field.color || '#ffffff'}">` : '<span class="save-note">(image)</span>'}
+                        ${field.type === 'Text' ? `
+                            <span class="flyer-style-toggles">
+                                <label class="checkbox-label" title="Bold"><input type="checkbox" data-bold ${field.bold ? 'checked' : ''}> B</label>
+                                <label class="checkbox-label" title="Italic"><input type="checkbox" data-italic ${field.italic ? 'checked' : ''}> I</label>
+                                <label class="checkbox-label" title="Underline"><input type="checkbox" data-underline ${field.underline ? 'checked' : ''}> U</label>
+                            </span>` : ''}
                     `;
                     row.querySelector('[data-visible]').addEventListener('change', (e) => { field.defaultVisible = e.target.checked; renderPreview(); });
                     const fontSelect = row.querySelector('[data-font]');
                     if (fontSelect) fontSelect.addEventListener('change', (e) => { field.fontFamily = e.target.value; renderPreview(); });
                     const colorInput = row.querySelector('[data-color]');
                     if (colorInput) colorInput.addEventListener('input', (e) => { field.color = e.target.value; renderPreview(); });
+                    const boldInput = row.querySelector('[data-bold]');
+                    if (boldInput) boldInput.addEventListener('change', (e) => { field.bold = e.target.checked; renderPreview(); });
+                    const italicInput = row.querySelector('[data-italic]');
+                    if (italicInput) italicInput.addEventListener('change', (e) => { field.italic = e.target.checked; renderPreview(); });
+                    const underlineInput = row.querySelector('[data-underline]');
+                    if (underlineInput) underlineInput.addEventListener('change', (e) => { field.underline = e.target.checked; renderPreview(); });
                     fieldList.appendChild(row);
                 });
             }
@@ -99,6 +116,9 @@
                         el.style.color = field.color || '#ffffff';
                         el.style.fontSize = `${(field.fontSize || 0.04) * bgImg.clientHeight}px`;
                         el.style.fontFamily = `var(--flyer-font-${field.fontFamily || 'oswald-bold'})`;
+                        el.style.fontWeight = field.bold ? 'bold' : 'normal';
+                        el.style.fontStyle = field.italic ? 'italic' : 'normal';
+                        el.style.textDecoration = field.underline ? 'underline' : 'none';
                     } else {
                         el.textContent = field.label;
                         el.style.width = `${(field.fontSize || 0.1) * bgImg.clientHeight * 2}px`;
@@ -133,6 +153,15 @@
             renderFieldList();
             renderPreview();
 
+            document.getElementById('flyer-template-apply-default-font-btn').addEventListener('click', () => {
+                const defaultFont = document.getElementById('flyer-template-default-font').value;
+                for (const field of fields) {
+                    if (field.type === 'Text') field.fontFamily = defaultFont;
+                }
+                renderFieldList();
+                renderPreview();
+            });
+
             document.getElementById('flyer-template-save-btn').addEventListener('click', async () => {
                 const status = document.getElementById('flyer-template-editor-status');
                 status.textContent = 'Saving...';
@@ -141,10 +170,12 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         name: document.getElementById('flyer-template-name').value.trim(),
+                        defaultFontFamily: document.getElementById('flyer-template-default-font').value,
                         fields: fields.map((f) => ({
                             key: f.key, label: f.label, type: f.type, x: f.x, y: f.y,
                             fontSize: f.fontSize, fontFamily: f.fontFamily, color: f.color,
-                            defaultVisible: f.defaultVisible
+                            defaultVisible: f.defaultVisible,
+                            bold: !!f.bold, italic: !!f.italic, underline: !!f.underline
                         }))
                     })
                 });

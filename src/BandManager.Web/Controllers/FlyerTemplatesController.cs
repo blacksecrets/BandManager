@@ -8,9 +8,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web.Controllers;
 
-public record CreateFlyerTemplateRequest(Guid BackgroundCatalogItemId, string Name);
-public record FlyerFieldDefDto(string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool DefaultVisible);
-public record UpdateFlyerTemplateRequest(string? Name, List<FlyerFieldDefDto> Fields);
+public record CreateFlyerTemplateRequest(Guid BackgroundCatalogItemId, string Name, string? DefaultFontFamily = null);
+public record FlyerFieldDefDto(
+    string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool DefaultVisible,
+    bool Bold = false, bool Italic = false, bool Underline = false);
+public record UpdateFlyerTemplateRequest(string? Name, string? DefaultFontFamily, List<FlyerFieldDefDto> Fields);
 
 /// <summary>
 /// Flyer Templates - a reusable background image (a Catalog item,
@@ -58,6 +60,7 @@ public class FlyerTemplatesController(ApplicationDbContext db, IActiveBandAccess
     {
         id = t.Id,
         name = t.Name,
+        defaultFontFamily = t.DefaultFontFamily,
         backgroundCatalogItemId = t.BackgroundCatalogItemId,
         backgroundFilePath = t.BackgroundCatalogItem?.FilePath,
         fields = t.Fields,
@@ -102,15 +105,17 @@ public class FlyerTemplatesController(ApplicationDbContext db, IActiveBandAccess
         var name = request.Name?.Trim();
         if (string.IsNullOrEmpty(name)) return BadRequest(new { error = "Name is required." });
 
+        var defaultFont = string.IsNullOrWhiteSpace(request.DefaultFontFamily) ? FlyerFonts.Available[0].Key : request.DefaultFontFamily;
+
         var fields = new List<FlyerFieldDef>();
         var y = 0.08;
         foreach (var (key, label, type) in KnownFields)
         {
-            fields.Add(new FlyerFieldDef(key, label, type, 0.06, y, type == FlyerFieldType.Image ? 0.12 : 0.05, "oswald-bold", "#ffffff", true));
+            fields.Add(new FlyerFieldDef(key, label, type, 0.06, y, type == FlyerFieldType.Image ? 0.12 : 0.05, defaultFont, "#ffffff", true));
             y += type == FlyerFieldType.Image ? 0.14 : 0.07;
         }
 
-        var template = new FlyerTemplate { BandId = bandId, BackgroundCatalogItemId = background.Id, Name = name, Fields = fields };
+        var template = new FlyerTemplate { BandId = bandId, BackgroundCatalogItemId = background.Id, Name = name, DefaultFontFamily = defaultFont, Fields = fields };
         db.FlyerTemplates.Add(template);
         await db.SaveChangesAsync();
         return Ok(Serialize(template));
@@ -124,9 +129,11 @@ public class FlyerTemplatesController(ApplicationDbContext db, IActiveBandAccess
         if (template is null) return NotFound(new { error = "Not found" });
 
         if (!string.IsNullOrWhiteSpace(request.Name)) template.Name = request.Name.Trim();
+        template.DefaultFontFamily = string.IsNullOrWhiteSpace(request.DefaultFontFamily) ? null : request.DefaultFontFamily;
         template.Fields = request.Fields.Select(f => new FlyerFieldDef(
             f.Key, f.Label, Enum.Parse<FlyerFieldType>(f.Type, ignoreCase: true),
-            f.X, f.Y, f.FontSize, f.FontFamily, f.Color, f.DefaultVisible)).ToList();
+            f.X, f.Y, f.FontSize, f.FontFamily, f.Color, f.DefaultVisible,
+            Bold: f.Bold, Italic: f.Italic, Underline: f.Underline)).ToList();
 
         await db.SaveChangesAsync();
         return Ok(Serialize(template));

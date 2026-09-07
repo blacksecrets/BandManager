@@ -100,6 +100,33 @@
 }
 .flyer-field-row input[type="color"] { width: 32px; height: 28px; padding: 0; border: none; background: none; }
 
+.flyer-style-toggles { display: flex; gap: 6px; }
+.flyer-style-toggles .checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.flyer-style-toggles .checkbox-label:nth-child(1) { font-weight: bold; }
+.flyer-style-toggles .checkbox-label:nth-child(2) { font-style: italic; }
+.flyer-style-toggles .checkbox-label:nth-child(3) { text-decoration: underline; }
+
+#flyer-template-apply-default-font-btn {
+    background: none;
+    border: 1px solid #444;
+    color: #ccc;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin: 4px 0 12px;
+}
+#flyer-template-apply-default-font-btn:hover { background: #333; }
+
 #flyer-add-with-btn, #flyer-template-add-field-btn {
     background: #444;
     color: #eee;
