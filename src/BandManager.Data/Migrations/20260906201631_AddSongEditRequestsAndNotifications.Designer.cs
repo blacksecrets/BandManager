@@ -3,6 +3,7 @@ using System;
 using BandManager.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BandManager.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260906201631_AddSongEditRequestsAndNotifications")]
+    partial class AddSongEditRequestsAndNotifications
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -371,9 +374,6 @@ namespace BandManager.Data.Migrations
                     b.Property<Guid>("BandId")
                         .HasColumnType("uuid");
 
-                    b.Property<int>("Category")
-                        .HasColumnType("integer");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -437,75 +437,6 @@ namespace BandManager.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("ContentTypes");
-                });
-
-            modelBuilder.Entity("BandManager.Data.Entities.Flyer", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BandId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Fields")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<Guid?>("FlyerTemplateId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("GeneratedCatalogItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("GigRef")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("FlyerTemplateId");
-
-                    b.HasIndex("GeneratedCatalogItemId");
-
-                    b.HasIndex("BandId", "GigRef");
-
-                    b.ToTable("Flyers");
-                });
-
-            modelBuilder.Entity("BandManager.Data.Entities.FlyerTemplate", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BackgroundCatalogItemId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("BandId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Fields")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BackgroundCatalogItemId");
-
-                    b.HasIndex("BandId");
-
-                    b.ToTable("FlyerTemplates");
                 });
 
             modelBuilder.Entity("BandManager.Data.Entities.GigSet", b =>
@@ -1087,51 +1018,6 @@ namespace BandManager.Data.Migrations
                         .HasForeignKey("BandId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Band");
-                });
-
-            modelBuilder.Entity("BandManager.Data.Entities.Flyer", b =>
-                {
-                    b.HasOne("BandManager.Data.Entities.Band", "Band")
-                        .WithMany()
-                        .HasForeignKey("BandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("BandManager.Data.Entities.FlyerTemplate", "FlyerTemplate")
-                        .WithMany()
-                        .HasForeignKey("FlyerTemplateId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("BandManager.Data.Entities.CatalogItem", "GeneratedCatalogItem")
-                        .WithMany()
-                        .HasForeignKey("GeneratedCatalogItemId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Band");
-
-                    b.Navigation("FlyerTemplate");
-
-                    b.Navigation("GeneratedCatalogItem");
-                });
-
-            modelBuilder.Entity("BandManager.Data.Entities.FlyerTemplate", b =>
-                {
-                    b.HasOne("BandManager.Data.Entities.CatalogItem", "BackgroundCatalogItem")
-                        .WithMany()
-                        .HasForeignKey("BackgroundCatalogItemId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("BandManager.Data.Entities.Band", "Band")
-                        .WithMany()
-                        .HasForeignKey("BandId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("BackgroundCatalogItem");
 
                     b.Navigation("Band");
                 });

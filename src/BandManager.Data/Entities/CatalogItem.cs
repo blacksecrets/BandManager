@@ -4,6 +4,12 @@ public enum MediaType { Image, Video, Audio }
 
 public enum CatalogSource { Upload, Url, FrameCapture, Trim, Split, CoverPhoto }
 
+/// <summary>Only ever meaningful for MediaType.Image - video/audio items
+/// stay General. FlyerTemplate is a background image a FlyerTemplate row
+/// references; Flyer is a rendered output image a Flyer row references -
+/// see those entities.</summary>
+public enum CatalogCategory { General, FlyerTemplate, Flyer }
+
 /// <summary>
 /// A persistent, browsable, per-Band library of every image/video/audio
 /// file this Band's users have touched - fed automatically by every
@@ -31,6 +37,7 @@ public class CatalogItem
     public CatalogSource Source { get; set; }
     public string? SourceUrl { get; set; } // set when Source == Url
     public string? UploadedBy { get; set; }
+    public CatalogCategory Category { get; set; } = CatalogCategory.General;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

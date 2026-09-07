@@ -31,6 +31,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<GigSet> GigSets => Set<GigSet>();
     public DbSet<GigSetSong> GigSetSongs => Set<GigSetSong>();
 
+    public DbSet<SongEditRequest> SongEditRequests => Set<SongEditRequest>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+
+    public DbSet<FlyerTemplate> FlyerTemplates => Set<FlyerTemplate>();
+    public DbSet<Flyer> Flyers => Set<Flyer>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -164,6 +170,52 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.GigSet).WithMany(s => s.Songs).HasForeignKey(x => x.GigSetId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // --- Song review / notifications ---
+
+        builder.Entity<SongEditRequest>(b =>
+        {
+            b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.RequestedByUser).WithMany().HasForeignKey(x => x.RequestedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.ResolvedByUser).WithMany().HasForeignKey(x => x.ResolvedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.Property(x => x.Changes)
+                .HasConversion(JsonValueConverter.ForRequired<Dictionary<string, SongFieldChange>>(), JsonValueConverter.ComparerRequired<Dictionary<string, SongFieldChange>>())
+                .IsRequired();
+            // App-level check (SongsController.ProposeEdit) is the primary
+            // guard against a second concurrent proposal for the same Song;
+            // this is the race-condition backstop.
+            b.HasIndex(x => x.SongId).HasFilter("\"Status\" = 0").IsUnique();
+        });
+
+        builder.Entity<Notification>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.SongEditRequest).WithMany().HasForeignKey(x => x.SongEditRequestId).OnDelete(DeleteBehavior.SetNull);
+            b.HasIndex(x => new { x.UserId, x.IsRead });
+        });
+
+        // --- Flyer management ---
+
+        builder.Entity<FlyerTemplate>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.BackgroundCatalogItem).WithMany().HasForeignKey(x => x.BackgroundCatalogItemId).OnDelete(DeleteBehavior.Restrict);
+            b.Property(x => x.Fields)
+                .HasConversion(JsonValueConverter.ForRequired<List<FlyerFieldDef>>(), JsonValueConverter.ComparerRequired<List<FlyerFieldDef>>())
+                .IsRequired();
+        });
+
+        builder.Entity<Flyer>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.GeneratedCatalogItem).WithMany().HasForeignKey(x => x.GeneratedCatalogItemId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.FlyerTemplate).WithMany().HasForeignKey(x => x.FlyerTemplateId).OnDelete(DeleteBehavior.SetNull);
+            b.Property(x => x.Fields)
+                .HasConversion(JsonValueConverter.ForRequired<List<FlyerFieldDef>>(), JsonValueConverter.ComparerRequired<List<FlyerFieldDef>>())
+                .IsRequired();
+            b.HasIndex(x => new { x.BandId, x.GigRef });
         });
     }
 }
