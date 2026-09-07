@@ -59,8 +59,10 @@ public class CalendarController(ApplicationDbContext db, IActiveBandAccessor act
             }));
         }
 
+        var fromUtc = DateTime.SpecifyKind(from.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
+        var toUtc = DateTime.SpecifyKind(to.ToDateTime(TimeOnly.MinValue), DateTimeKind.Utc);
         var rehearsals = await db.Rehearsals.AsNoTracking()
-            .Where(r => r.BandId == bandId && r.StartsAt.Date >= from.ToDateTime(TimeOnly.MinValue) && r.StartsAt.Date <= to.ToDateTime(TimeOnly.MinValue))
+            .Where(r => r.BandId == bandId && r.StartsAt.Date >= fromUtc && r.StartsAt.Date <= toUtc)
             .ToListAsync();
         foreach (var r in rehearsals)
         {

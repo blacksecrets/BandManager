@@ -522,6 +522,48 @@ public class Scheduler(
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Materializes Rehearsal rows from each active
+    /// RecurringRehearsalRule for the same rolling 3-week window
+    /// WeekdayDueDates already uses for recurring Cadence items - idempotent
+    /// via an existence check on (RuleId, StartsAt), so re-running (e.g. the
+    /// 30-minute background loop, or right after a rule is edited) never
+    /// duplicates an occurrence. A rule going inactive simply stops
+    /// producing new ones; existing Rehearsal rows already generated are
+    /// left alone (they're independently editable/deletable by any member,
+    /// same as a manually-created rehearsal).</summary>
+    public async Task GenerateRehearsalsFromRulesAsync(Guid bandId)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var rules = await db.RecurringRehearsalRules
+            .Where(r => r.BandId == bandId && r.Active)
+            .ToListAsync();
+
+        foreach (var rule in rules)
+        {
+            foreach (var date in WeekdayDueDates(rule.DayOfWeek, today))
+            {
+                var startsAt = DateTime.SpecifyKind(date.ToDateTime(rule.StartTime), DateTimeKind.Utc);
+                var endsAt = startsAt.AddMinutes(rule.DurationMinutes);
+
+                var exists = await db.Rehearsals.AnyAsync(r =>
+                    r.RecurringRehearsalRuleId == rule.Id && r.StartsAt == startsAt);
+                if (exists) continue;
+
+                db.Rehearsals.Add(new Rehearsal
+                {
+                    BandId = bandId,
+                    Title = "Rehearsal",
+                    Location = rule.Location,
+                    StartsAt = startsAt,
+                    EndsAt = endsAt,
+                    RecurringRehearsalRuleId = rule.Id,
+                    CreatedByUserId = rule.CreatedByUserId
+                });
+            }
+        }
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>Everything for one Band - recurring cadence, gig-driven
     /// items, and the media/gallery tiles. Ported from the old app's
     /// generateAll(), now looped per-Band by the background service
@@ -536,5 +578,7 @@ public class Scheduler(
 
         var galleryList = await db.GalleryImages.Where(g => g.BandId == bandId).ToListAsync();
         await GenerateGalleryItemsAsync(bandId, galleryList);
+
+        await GenerateRehearsalsFromRulesAsync(bandId);
     }
 }

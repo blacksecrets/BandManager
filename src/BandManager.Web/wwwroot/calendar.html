@@ -26,6 +26,7 @@
                 <h2 id="calendar-month-label"></h2>
                 <button type="button" id="calendar-next-month">&rarr;</button>
                 <button type="button" id="calendar-today-btn">Today</button>
+                <button type="button" id="calendar-recurring-btn" hidden>Recurring Schedule</button>
             </div>
 
             <div class="calendar-grid" id="calendar-grid"></div>
@@ -36,6 +37,46 @@
         <div class="detail-modal">
             <button type="button" class="detail-modal-close" id="calendar-day-modal-close">&times;</button>
             <div id="calendar-day-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="calendar-rehearsal-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="calendar-rehearsal-modal-close">&times;</button>
+            <h2 id="calendar-rehearsal-modal-title">Rehearsal</h2>
+            <form id="calendar-rehearsal-form">
+                <label>Title <input type="text" id="calendar-rehearsal-title" placeholder="Rehearsal"></label>
+                <label>Location <input type="text" id="calendar-rehearsal-location"></label>
+                <label>Start time <input type="time" id="calendar-rehearsal-start" required></label>
+                <label>End time <input type="time" id="calendar-rehearsal-end" required></label>
+                <div class="calendar-modal-actions">
+                    <button type="submit">Save</button>
+                    <button type="button" id="calendar-rehearsal-delete" hidden>Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="calendar-recurring-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="calendar-recurring-modal-close">&times;</button>
+            <h2>Recurring Rehearsal Schedule</h2>
+            <div id="calendar-recurring-list" class="calendar-roster-list"></div>
+            <h3>Add a schedule</h3>
+            <form id="calendar-recurring-form">
+                <label>Day
+                    <select id="calendar-recurring-day">
+                        <option>Sunday</option><option>Monday</option><option>Tuesday</option>
+                        <option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option>
+                    </select>
+                </label>
+                <label>Start time <input type="time" id="calendar-recurring-start" required></label>
+                <label>Duration (minutes) <input type="number" id="calendar-recurring-duration" value="120" min="15" max="720"></label>
+                <label>Location <input type="text" id="calendar-recurring-location"></label>
+                <div class="calendar-modal-actions">
+                    <button type="submit">Add</button>
+                </div>
+            </form>
         </div>
     </div>
 

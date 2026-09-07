@@ -36,7 +36,7 @@ public class CadenceGenerationBackgroundService(IServiceScopeFactory scopeFactor
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var scheduler = scope.ServiceProvider.GetRequiredService<Scheduler>();
 
-        var bands = await db.Bands.ToListAsync(ct);
+        var bands = await db.Bands.Where(b => b.IsOnboarded).ToListAsync(ct);
         foreach (var band in bands)
         {
             try

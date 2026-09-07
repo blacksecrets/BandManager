@@ -76,6 +76,7 @@ public class ProfileController(
 
         return Ok(new
         {
+            id = user.Id,
             username = user.UserName,
             email = user.Email,
             firstName = user.FirstName,
@@ -188,6 +189,24 @@ public class ProfileController(
         if (id is null) { bandId = default; return BadRequest(new { error = "No active band selected." }); }
         bandId = id.Value;
         return null;
+    }
+
+    // Lightweight roster for the active band - any member, not just
+    // BandAdmin (unlike ListUsers below, which carries admin-only fields
+    // like email-confirmed status). Used by the Calendar's availability
+    // roster and the assignee picker.
+    [HttpGet("band-members")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> ListBandMembers()
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var members = await db.BandMemberships.Include(m => m.User)
+            .Where(m => m.BandId == bandId)
+            .OrderBy(m => m.User.FirstName ?? m.User.UserName)
+            .Select(m => new { id = m.UserId, firstName = m.User.FirstName ?? m.User.UserName!.Split('@')[0] })
+            .ToListAsync();
+        return Ok(members);
     }
 
     [HttpGet("users")]
