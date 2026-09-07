@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendar</title>
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/calendar.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Calendar</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <p id="calendar-no-band" class="save-note" hidden>Select a band from the switcher above to see its calendar.</p>
+
+        <div id="calendar-content" hidden>
+            <div class="calendar-nav-row">
+                <button type="button" id="calendar-prev-month">&larr;</button>
+                <h2 id="calendar-month-label"></h2>
+                <button type="button" id="calendar-next-month">&rarr;</button>
+                <button type="button" id="calendar-today-btn">Today</button>
+            </div>
+
+            <div class="calendar-grid" id="calendar-grid"></div>
+        </div>
+    </main>
+
+    <div id="calendar-day-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="calendar-day-modal-close">&times;</button>
+            <div id="calendar-day-modal-body"></div>
+        </div>
+    </div>
+
+    <script src="/assets/calendar.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/bandSwitcher.js"></script>
+</body>
+</html>

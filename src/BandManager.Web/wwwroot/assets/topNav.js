@@ -26,6 +26,7 @@
                 { href: '/dashboard', label: 'Web Presence', disabledIfNoBand: true },
                 { href: '/repertoire', label: 'Repertoire', disabledIfNoBand: true },
                 { href: '/gig-sets', label: 'Gig Management', disabledIfNoBand: true },
+                { href: '/calendar', label: 'Calendar', disabledIfNoBand: true },
             ]
         },
         {

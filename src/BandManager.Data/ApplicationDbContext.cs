@@ -40,6 +40,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<SongEditRequest> SongEditRequests => Set<SongEditRequest>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
+
+    // --- Calendar: rehearsals + availability ---
+    public DbSet<Rehearsal> Rehearsals => Set<Rehearsal>();
+    public DbSet<RecurringRehearsalRule> RecurringRehearsalRules => Set<RecurringRehearsalRule>();
+    public DbSet<Availability> Availabilities => Set<Availability>();
 
     public DbSet<FlyerTemplate> FlyerTemplates => Set<FlyerTemplate>();
     public DbSet<Flyer> Flyers => Set<Flyer>();
@@ -231,7 +237,37 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.SongEditRequest).WithMany().HasForeignKey(x => x.SongEditRequestId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(x => x.Gig).WithMany().HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(x => x.Rehearsal).WithMany().HasForeignKey(x => x.RehearsalId).OnDelete(DeleteBehavior.SetNull);
             b.HasIndex(x => new { x.UserId, x.IsRead });
+        });
+
+        builder.Entity<NotificationPreference>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.UserId, x.Kind }).IsUnique();
+        });
+
+        // --- Calendar: rehearsals + availability ---
+
+        builder.Entity<RecurringRehearsalRule>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<Rehearsal>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.RecurringRehearsalRule).WithMany().HasForeignKey(x => x.RecurringRehearsalRuleId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<Availability>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.UserId, x.Date }).IsUnique();
         });
 
         // --- Flyer management ---

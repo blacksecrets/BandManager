@@ -21,14 +21,12 @@ public record ResolveSongEditRequestRequest(string Message);
 [Authorize(Policy = "BandMember")]
 public class SongEditRequestsController(ApplicationDbContext db, UserManager<ApplicationUser> userManager) : ControllerBase
 {
-    private static string FirstNameOrFallback(ApplicationUser u) => u.FirstName ?? u.UserName!.Split('@')[0];
-
     private static object SerializeDetail(SongEditRequest r) => new
     {
         id = r.Id,
         songId = r.SongId,
         songTitle = r.Song.Title,
-        requestedByFirstName = FirstNameOrFallback(r.RequestedByUser),
+        requestedByFirstName = r.RequestedByUser.DisplayName,
         bandName = r.Band.Name,
         changedFields = r.Changes.Select(kv => new { field = kv.Key, oldValue = kv.Value.OldValue, newValue = kv.Value.NewValue }),
         createdAt = r.CreatedAt
@@ -49,7 +47,7 @@ public class SongEditRequestsController(ApplicationDbContext db, UserManager<App
         return Ok(new
         {
             id = request.Id,
-            requestedByFirstName = FirstNameOrFallback(request.RequestedByUser),
+            requestedByFirstName = request.RequestedByUser.DisplayName,
             bandName = request.Band.Name,
             changedFields = request.Changes.Keys,
             createdAt = request.CreatedAt
@@ -132,6 +130,7 @@ public class SongEditRequestsController(ApplicationDbContext db, UserManager<App
         {
             UserId = editRequest.RequestedByUserId,
             Message = message,
+            Kind = NotificationKind.SongEditReviewed,
             SongEditRequestId = editRequest.Id
         });
 
@@ -165,6 +164,7 @@ public class SongEditRequestsController(ApplicationDbContext db, UserManager<App
         {
             UserId = editRequest.RequestedByUserId,
             Message = message,
+            Kind = NotificationKind.SongEditReviewed,
             SongEditRequestId = editRequest.Id
         });
 
