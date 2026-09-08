@@ -20,15 +20,6 @@
     <main class="settings-main">
         <p id="band-admin-no-band" class="save-note" hidden>Select a band from the switcher above to manage it.</p>
 
-        <section class="platform-card" id="band-web-presence-section" hidden>
-            <h2>Configure Web Presence</h2>
-            <p>Connect the platforms this band posts to (Facebook, Instagram, Website, and the rest), and manage its cadence - the recurring/gig-triggered rules that generate what shows up on the board.</p>
-            <div class="branding-row">
-                <a href="/settings" class="upload-btn">Open Configure Web Presence &rarr;</a>
-                <a href="/cadence" class="upload-btn">Open Cadence &rarr;</a>
-            </div>
-        </section>
-
         <section class="platform-card" id="band-repertoire-import-section" hidden>
             <h2>Bulk-import songs to this band's repertoire</h2>
             <p>Add songs to this band's repertoire from a CSV file - <a href="/api/repertoire/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Rows are merged against the shared catalog: an exact match is just added here; a new song, or one with different details than the catalog already has, is added right away but flagged for SuperAdmin review - it stays visible and stays in this band's repertoire either way.</p>
@@ -106,5 +97,6 @@
     <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>
     <script src="/assets/testModeBanner.js"></script>
+    <script src="/assets/collapsibleSections.js"></script>
 </body>
 </html>

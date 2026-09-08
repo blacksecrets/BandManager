@@ -12,7 +12,6 @@ async function loadBandAdmin() {
     const hasBand = !!me.activeBandRole;
     noBandEl.textContent = 'Select a band from the switcher above to manage it.';
     noBandEl.hidden = hasBand;
-    document.getElementById('band-web-presence-section').hidden = !hasBand;
     document.getElementById('band-repertoire-import-section').hidden = !hasBand;
     document.getElementById('band-branding-section').hidden = !hasBand;
     document.getElementById('band-users-section').hidden = !hasBand;

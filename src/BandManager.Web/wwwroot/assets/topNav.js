@@ -37,12 +37,16 @@
             type: 'dropdown', label: 'Settings', items: [
                 { href: '/profile', label: 'Profile' },
                 {
-                    href: '/band-admin', label: 'Band Admin', adminOnly: true, disabledIfNoBand: true, children: [
+                    // No href of its own - Band Admin is a pure category
+                    // now, clicking the label just opens the submenu (same
+                    // as the chevron) rather than navigating anywhere.
+                    // "General" is what /band-admin itself used to mean.
+                    label: 'Band Admin', adminOnly: true, disabledIfNoBand: true, children: [
+                        { href: '/band-admin', label: 'General' },
                         { href: '/settings', label: 'Configure Web Presence' },
                         { href: '/cadence', label: 'Cadence' },
                         { href: '/repertoire', label: 'Repertoire' },
-                        { href: '/catalog', label: 'Catalog' },
-                        { href: '/catalog#flyers', label: 'Flyers' },
+                        { href: '/catalog', label: 'Images and Flyers' },
                     ]
                 },
                 { href: '/superadmin', label: 'SuperAdmin', superAdminOnly: true },
@@ -109,6 +113,11 @@
             color: #ddd;
             text-decoration: none;
             font-size: 0.85rem;
+            background: none;
+            border: none;
+            font-family: inherit;
+            text-align: left;
+            cursor: pointer;
         }
         .nav-subitem-link:hover, .nav-subitem-wrap:hover .nav-subitem-link { background: #2c2c2c; }
         .nav-subitem-link.active { color: #fff; font-weight: bold; }
@@ -131,6 +140,10 @@
             left: auto;
             right: calc(100% + 4px);
         }
+        .breadcrumb-parent { color: #999; text-decoration: none; }
+        .breadcrumb-parent:hover { color: #eee; text-decoration: underline; }
+        .breadcrumb-sep { color: #666; }
+        .breadcrumb-current { color: inherit; }
         .notif-bell {
             position: relative;
             background: none;
@@ -243,23 +256,26 @@
                 const itemDisabled = groupDisabled || (item.disabledIfNoBand && !hasActiveBand);
 
                 if (item.children && !itemDisabled) {
-                    // A submenu (e.g. Band Admin > Configure Web Presence/
-                    // Cadence) - the label itself still navigates straight
-                    // to the parent page; the chevron opens a flyout with
-                    // the children, closed by the same outside-click and
-                    // sibling-menu-close handling as every other dropdown.
+                    // A submenu (e.g. Band Admin > General/Configure Web
+                    // Presence/Cadence). If the item has its own href, the
+                    // label navigates there and the chevron opens a flyout
+                    // with the children. If it doesn't (a pure category,
+                    // like Band Admin), the label behaves exactly like the
+                    // chevron - opens the flyout instead of navigating -
+                    // since there's no page of its own to go to.
                     const wrap = document.createElement('div');
                     wrap.className = 'nav-dropdown-item nav-subitem-wrap';
 
-                    const link = document.createElement('a');
-                    link.href = item.href;
+                    const link = document.createElement(item.href ? 'a' : 'button');
+                    if (item.href) link.href = item.href;
+                    else link.type = 'button';
                     link.textContent = item.label;
                     link.className = 'nav-subitem-link';
-                    if (item.href === currentLocation) link.classList.add('active');
+                    if (item.href && item.href === currentLocation) link.classList.add('active');
                     wrap.appendChild(link);
 
                     const childIsCurrent = item.children.some((c) => c.href === currentLocation);
-                    if (childIsCurrent || item.href === currentLocation) wrap.classList.add('active');
+                    if (childIsCurrent || (item.href && item.href === currentLocation)) wrap.classList.add('active');
 
                     const subBtn = document.createElement('button');
                     subBtn.type = 'button';
@@ -280,12 +296,14 @@
                     }
                     wrap.appendChild(subMenu);
 
-                    subBtn.addEventListener('click', (e) => {
+                    const toggleSubMenu = (e) => {
                         e.stopPropagation();
                         const opening = subMenu.hidden;
                         for (const otherSub of menu.querySelectorAll('.nav-submenu')) otherSub.hidden = true;
                         subMenu.hidden = !opening;
-                    });
+                    };
+                    subBtn.addEventListener('click', toggleSubMenu);
+                    if (!item.href) link.addEventListener('click', toggleSubMenu);
 
                     menu.appendChild(wrap);
                     continue;
@@ -309,6 +327,41 @@
             });
 
             navEl.appendChild(wrap);
+        }
+
+        // Breadcrumb the topbar's page-name heading, only for a page
+        // reached through a submenu (e.g. Band Admin > General) - a page
+        // linked directly from a dropdown (Profile, Repertoire, ...) keeps
+        // its plain static heading, nothing to breadcrumb. The parent
+        // segment (Band Admin, itself not a real page) links to its first
+        // child instead - the closest thing it has to a "page of its own".
+        breadcrumbSearch:
+        for (const entry of NAV) {
+            if (entry.type !== 'dropdown') continue;
+            for (const item of entry.items) {
+                if (!item.children) continue;
+                const child = item.children.find((c) => c.href === currentLocation);
+                if (!child) continue;
+
+                const h1 = topbar.querySelector('h1');
+                if (!h1) break breadcrumbSearch;
+                const parentHref = item.href || item.children[0].href;
+                h1.innerHTML = '';
+                const parentLink = document.createElement('a');
+                parentLink.href = parentHref;
+                parentLink.className = 'breadcrumb-parent';
+                parentLink.textContent = item.label;
+                h1.appendChild(parentLink);
+                const sep = document.createElement('span');
+                sep.className = 'breadcrumb-sep';
+                sep.textContent = ' › ';
+                h1.appendChild(sep);
+                const current = document.createElement('span');
+                current.className = 'breadcrumb-current';
+                current.textContent = child.label;
+                h1.appendChild(current);
+                break breadcrumbSearch;
+            }
         }
 
         document.addEventListener('click', () => {
