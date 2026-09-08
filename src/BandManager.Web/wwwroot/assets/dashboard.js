@@ -1387,11 +1387,77 @@ function openDetailModal(item) {
     const presentByType = latestArtifactsByType(item.artifacts);
     const allTypes = new Set([...item.required_artifacts, ...Object.keys(presentByType)]);
     for (const type of allTypes) {
-        artifactList.appendChild(renderDetailArtifactRow(item, type, presentByType[type]));
+        // Photo Album is the one content type where "photo" means several,
+        // not one-replaces-the-other (see ScheduleItemsController.Upload's
+        // isAlbumPhoto handling) - its own row shows every photo, not just
+        // the latest.
+        if (item.content_type === 'Photo Album' && type === 'photo') {
+            artifactList.appendChild(renderPhotoAlbumRow(item));
+        } else {
+            artifactList.appendChild(renderDetailArtifactRow(item, type, presentByType[type]));
+        }
     }
     body.appendChild(artifactList);
 
     backdrop.hidden = false;
+}
+
+function renderPhotoAlbumRow(item) {
+    const row = document.createElement('div');
+    row.className = 'detail-artifact-row filled photo-album-row';
+
+    const info = document.createElement('div');
+    info.className = 'detail-artifact-info';
+    info.textContent = 'Photos (up to 10)';
+    row.appendChild(info);
+
+    const photos = item.artifacts.filter((a) => a.artifact_type === 'photo').sort((a, b) => new Date(a.uploaded_at) - new Date(b.uploaded_at));
+    const thumbs = document.createElement('div');
+    thumbs.className = 'photo-album-thumbs';
+    for (const photo of photos) {
+        const url = artifactUrl(photo.file_path);
+        const thumb = document.createElement('div');
+        thumb.className = 'photo-album-thumb';
+        thumb.innerHTML = `<img src="${url}" alt="">`;
+        thumb.querySelector('img').addEventListener('click', (e) => { e.stopPropagation(); openImagePopup(url, photo.file_path.split(/[\\/]/).pop()); });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'photo-album-thumb-remove';
+        removeBtn.textContent = '×';
+        removeBtn.title = 'Remove this photo';
+        removeBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await fetch(`/api/items/${item.id}/artifacts/${photo.id}`, { method: 'DELETE' });
+            closeDetailModal();
+            loadItems();
+        });
+        thumb.appendChild(removeBtn);
+        thumbs.appendChild(thumb);
+    }
+    row.appendChild(thumbs);
+
+    if (photos.length < 10) {
+        const control = buildMediaSlotControl({
+            accept: ARTIFACT_ACCEPT.photo,
+            label: 'Add a photo',
+            onResolved: async (resolved) => {
+                const form = new FormData();
+                form.append('artifactType', 'photo');
+                if (resolved.mode === 'file') form.append('file', resolved.file);
+                else if (resolved.mode === 'catalogItemId') form.append('catalogItemId', resolved.id);
+                else if (resolved.mode === 'url') form.append('url', resolved.url);
+                const res = await fetch(`/api/items/${item.id}/upload`, { method: 'POST', body: form });
+                const body = await res.json().catch(() => ({}));
+                if (!res.ok) { alert(body.error || 'Could not add this photo.'); return; }
+                closeDetailModal();
+                loadItems();
+            }
+        });
+        row.appendChild(control);
+    }
+
+    return row;
 }
 
 function openWebsiteEditForm(item) {

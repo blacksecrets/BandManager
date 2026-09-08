@@ -60,7 +60,7 @@ public static class ContentTypeSeedData
         // Cadence editor's Content Type dropdown actually offers it - same
         // "listed here, but blocked from ad-hoc creation" shape as Event Post.
         ["facebook"] = ["Text + Photo", "Video Clip", "Photo Album", "Event Post", "Facebook Cover Photo"],
-        ["instagram"] = ["Reel", "Story", "Feed Post"],
+        ["instagram"] = ["Reel", "Story", "Feed Post", "Photo Album"],
         ["tiktok"] = ["Short Video"],
         ["youtube"] = ["Full Video", "Short/Reel", "Vlog/BTS"],
         ["googleBusiness"] = ["Post Update", "Photo Upload"],

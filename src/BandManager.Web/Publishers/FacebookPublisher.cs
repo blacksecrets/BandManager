@@ -116,6 +116,55 @@ public class FacebookPublisher(HttpClient http, CredentialStore credentialStore,
         }
     }
 
+    /// <summary>A real multi-photo Facebook post - not just the first
+    /// photo (the single-artifact PublishAsync path above never looked
+    /// past the first "photo"/"flyer" artifact, so "Photo Album" as a
+    /// content type existed without ever actually posting more than one
+    /// image). Two-step Graph API dance: upload each photo *unpublished*
+    /// (published=false, so it doesn't create its own separate post),
+    /// then one /feed post referencing all of them via attached_media -
+    /// that's what makes Facebook render them together as one album/
+    /// carousel post instead of several separate photo posts.</summary>
+    public async Task<PublishResult> PublishPhotoAlbumAsync(Guid bandId, string? caption, List<byte[]> photos)
+    {
+        if (photos.Count == 0) throw new InvalidOperationException("No photos to post.");
+        var creds = await RequireCredsAsync(bandId);
+        var pageId = creds["pageId"];
+        var token = creds["pageAccessToken"];
+
+        var message = caption ?? "";
+
+        var photoIds = new List<string>();
+        foreach (var bytes in photos)
+        {
+            using var uploadForm = new MultipartFormDataContent
+            {
+                { new StringContent("false"), "published" },
+                { new StringContent(token), "access_token" }
+            };
+            var fileContent = new ByteArrayContent(bytes);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+            uploadForm.Add(fileContent, "source", "photo.jpg");
+
+            using var uploadRes = await http.PostAsync($"{GraphApi}/{pageId}/photos", uploadForm);
+            if (!uploadRes.IsSuccessStatusCode)
+                throw new InvalidOperationException($"Facebook photo album upload failed on photo {photoIds.Count + 1} of {photos.Count}: {await ExtractErrorAsync(uploadRes)}");
+            var uploadBody = await uploadRes.Content.ReadFromJsonAsync<JsonElement>();
+            photoIds.Add(uploadBody.GetProperty("id").GetString()!);
+        }
+
+        var feedForm = new Dictionary<string, string> { ["message"] = message, ["access_token"] = token };
+        for (var i = 0; i < photoIds.Count; i++)
+            feedForm[$"attached_media[{i}]"] = JsonSerializer.Serialize(new { media_fbid = photoIds[i] });
+
+        using var feedRes = await http.PostAsync($"{GraphApi}/{pageId}/feed", new FormUrlEncodedContent(feedForm));
+        if (!feedRes.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Facebook photo album post failed: {await ExtractErrorAsync(feedRes)}");
+        var feedBody = await feedRes.Content.ReadFromJsonAsync<JsonElement>();
+        var postId = feedBody.GetProperty("id").GetString();
+        return new PublishResult(true, postId, $"https://www.facebook.com/{postId}");
+    }
+
     /// <summary>Uploads an already-formatted (820x312) cover image and
     /// sets it as the Page's cover photo. Two Graph API calls: upload the
     /// photo unpublished, then point the Page's `cover` at that photo's

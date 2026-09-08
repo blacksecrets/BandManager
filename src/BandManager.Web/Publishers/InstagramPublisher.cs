@@ -103,4 +103,64 @@ public class InstagramPublisher(HttpClient http, CredentialStore credentialStore
 
         return new PublishResult(true, postId, null);
     }
+
+    /// <summary>A real multi-photo Instagram post (a "Carousel", Instagram's
+    /// own term for what the Cadence board calls "Photo Album" for
+    /// naming consistency with Facebook's equivalent) - up to 10 images.
+    /// Same three-step Graph API shape as a single post, just with an
+    /// extra layer: each image first becomes its own unpublished
+    /// "carousel item" container, then those get bundled into one
+    /// CAROUSEL container, which is what actually gets published. Same
+    /// publicly-reachable-URL requirement as PublishAsync above -
+    /// Instagram's API only ever fetches images by URL, it doesn't accept
+    /// a raw upload (see this class's doc comment for what that requires
+    /// of this app's own hosting).</summary>
+    public async Task<PublishResult> PublishCarouselAsync(Guid bandId, string? caption, List<string> imageUrls)
+    {
+        if (imageUrls.Count == 0) throw new InvalidOperationException("No photos to post.");
+        if (imageUrls.Count > 10) throw new InvalidOperationException("Instagram carousels can only have up to 10 photos.");
+        var (igUserId, token, apiBase) = await RequireCredsAsync(bandId);
+
+        var childIds = new List<string>();
+        foreach (var imageUrl in imageUrls)
+        {
+            using var childForm = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["image_url"] = imageUrl,
+                ["is_carousel_item"] = "true",
+                ["access_token"] = token
+            });
+            using var childRes = await http.PostAsync($"{apiBase}/{igUserId}/media", childForm);
+            if (!childRes.IsSuccessStatusCode)
+                throw new InvalidOperationException($"Instagram carousel item {childIds.Count + 1} of {imageUrls.Count} failed: {await ExtractErrorAsync(childRes)}");
+            var childBody = await childRes.Content.ReadFromJsonAsync<JsonElement>();
+            childIds.Add(childBody.GetProperty("id").GetString()!);
+        }
+
+        using var carouselForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["media_type"] = "CAROUSEL",
+            ["children"] = string.Join(",", childIds),
+            ["caption"] = caption ?? "",
+            ["access_token"] = token
+        });
+        using var carouselRes = await http.PostAsync($"{apiBase}/{igUserId}/media", carouselForm);
+        if (!carouselRes.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Instagram carousel create failed: {await ExtractErrorAsync(carouselRes)}");
+        var carouselBody = await carouselRes.Content.ReadFromJsonAsync<JsonElement>();
+        var creationId = carouselBody.GetProperty("id").GetString();
+
+        using var publishForm = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["creation_id"] = creationId!,
+            ["access_token"] = token
+        });
+        using var publishRes = await http.PostAsync($"{apiBase}/{igUserId}/media_publish", publishForm);
+        if (!publishRes.IsSuccessStatusCode)
+            throw new InvalidOperationException($"Instagram carousel publish failed: {await ExtractErrorAsync(publishRes)}");
+        var publishBody = await publishRes.Content.ReadFromJsonAsync<JsonElement>();
+        var postId = publishBody.GetProperty("id").GetString();
+
+        return new PublishResult(true, postId, null);
+    }
 }

@@ -219,6 +219,17 @@ public partial class ScheduleItemsController(
 
         var username = User.Identity?.Name ?? "unknown";
 
+        // Every other content type treats a re-upload as "replace" (one
+        // photo, swap it out) - Photo Album is the one deliberate
+        // exception, where uploading another "photo" artifact means
+        // "add another photo to the album," capped at 10 to match both
+        // Facebook's and Instagram's own album/carousel limits. Photo
+        // Album's caption still replaces normally - only its photos
+        // accumulate.
+        var isAlbumPhoto = artifactType == "photo" && item.ContentType == "Photo Album";
+        if (isAlbumPhoto && item.Artifacts.Count(a => a.ArtifactType == "photo") >= 10)
+            return BadRequest(new { error = "A Photo Album can only have up to 10 photos." });
+
         if (MimePrefixForType.TryGetValue(artifactType, out var mimePrefix))
         {
             if (file is null) return BadRequest(new { error = "Provide a file" });
@@ -237,7 +248,7 @@ public partial class ScheduleItemsController(
                 await file.CopyToAsync(stream);
             }
 
-            await ClearExistingArtifactAsync(item.Id, artifactType);
+            if (!isAlbumPhoto) await ClearExistingArtifactAsync(item.Id, artifactType);
             db.Artifacts.Add(new Artifact
             {
                 ScheduleItemId = item.Id,
@@ -352,6 +363,27 @@ public partial class ScheduleItemsController(
             else if (item.NoApi)
             {
                 result = new { ok = true, note = "No API for this platform - marked posted manually." };
+            }
+            else if (item.ContentType == "Photo Album" && item.Platform == "Facebook")
+            {
+                var photoBytes = new List<byte[]>();
+                foreach (var p in item.Artifacts.Where(a => a.ArtifactType == "photo" && a.FilePath is not null))
+                    photoBytes.Add(await System.IO.File.ReadAllBytesAsync(Path.Combine(env.ContentRootPath, p.FilePath!)));
+                result = await facebookPublisher.PublishPhotoAlbumAsync(bandId, caption, photoBytes);
+            }
+            else if (item.ContentType == "Photo Album" && item.Platform == "Instagram")
+            {
+                // Instagram's API only ever fetches images by URL, never a
+                // raw upload (see InstagramPublisher's doc comment) - this
+                // app needs to be reachable at a real public domain for
+                // that URL to actually resolve for Instagram's own
+                // servers, same pre-existing gap the single-image
+                // Instagram path has always had.
+                var imageUrls = item.Artifacts
+                    .Where(a => a.ArtifactType == "photo" && a.FilePath is not null)
+                    .Select(a => $"{Request.Scheme}://{Request.Host}/{a.FilePath!.Replace('\\', '/').Replace("data/", "")}")
+                    .ToList();
+                result = await instagramPublisher.PublishCarouselAsync(bandId, caption, imageUrls);
             }
             else if (item.Platform == "Facebook")
             {
