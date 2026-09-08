@@ -40,6 +40,14 @@ async function init() {
     bandMembers = membersRes.ok ? await membersRes.json() : [];
 }
 
+document.getElementById('add-gig-btn').addEventListener('click', async () => {
+    const created = await window.openAddGigModal();
+    if (!created) return;
+    await loadGigs();
+    const gig = gigs.find((g) => g.gigRef === created.gigRef);
+    if (gig) await selectGig(gig);
+});
+
 async function loadGigs() {
     const upcomingBox = document.getElementById('gig-list-upcoming');
     const pastBox = document.getElementById('gig-list-past');

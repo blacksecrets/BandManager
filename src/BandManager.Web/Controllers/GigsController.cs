@@ -348,8 +348,8 @@ public class GigsController(
         try { await scheduler.GenerateAllAsync(band.Id, band); } catch { /* logged nowhere yet - acceptable, matches old app's console-only handling */ }
         await PushGigToExternalCalendarsAsync(gig);
 
-        if (pushError is not null) return StatusCode(502, new { error = $"Gig created, but could not push to the site: {pushError}", id = gig.Ref });
-        return Ok(new { ok = true, id = gig.Ref });
+        if (pushError is not null) return StatusCode(502, new { error = $"Gig created, but could not push to the site: {pushError}", id = gig.Ref, gigId = gig.Id });
+        return Ok(new { ok = true, id = gig.Ref, gigId = gig.Id });
     }
 
     // Replaces a gig's flyer image - still requires a site, see class doc

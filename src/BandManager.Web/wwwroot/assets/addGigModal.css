@@ -1,0 +1,89 @@
+.add-gig-top-btn {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.88rem;
+    margin-bottom: 16px;
+}
+.add-gig-top-btn:hover { background: #555; }
+
+.add-gig-modal { max-width: 560px; max-height: 88vh; overflow-y: auto; }
+.add-gig-modal h2 { margin: 0 0 12px; }
+
+.add-gig-venue-section { display: flex; flex-direction: column; gap: 6px; margin: 4px 0; }
+.add-gig-venue-label { font-size: 0.8rem; color: #ccc; }
+.add-gig-venue-label .required-star { color: #e2645a; }
+
+.add-gig-venue-list { display: flex; flex-direction: column; gap: 4px; max-height: 200px; overflow-y: auto; margin-bottom: 6px; }
+.add-gig-venue-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: pointer;
+    color: #ddd;
+}
+.add-gig-venue-row:hover { background: rgba(255, 255, 255, 0.08); border-color: #666; }
+.add-gig-venue-row .add-gig-venue-name { font-weight: bold; color: #eee; font-size: 0.86rem; }
+.add-gig-venue-row .add-gig-venue-address { color: #999; font-size: 0.78rem; }
+
+#add-gig-venue-manual-toggle {
+    align-self: flex-start;
+    background: none;
+    border: 1px dashed #555;
+    color: #ccc;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+#add-gig-venue-manual-toggle:hover { background: rgba(255, 255, 255, 0.05); }
+
+.add-gig-venue-manual {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px;
+    margin-top: 4px;
+}
+.add-gig-venue-manual[hidden] { display: none; }
+.add-gig-venue-manual label { display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: #ccc; }
+.add-gig-venue-manual input { background: #1c1c1c; border: 1px solid #444; color: #eee; border-radius: 4px; padding: 6px 8px; font-size: 0.85rem; }
+
+.add-gig-venue-selected {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: rgba(74, 111, 165, 0.12);
+    border: 1px solid #4a6fa5;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+.add-gig-venue-selected[hidden] { display: none; }
+.add-gig-venue-selected-name { font-weight: bold; color: #eee; font-size: 0.86rem; }
+.add-gig-venue-selected-address { color: #aac1de; font-size: 0.78rem; flex: 1; }
+.add-gig-venue-selected button {
+    background: none;
+    border: 1px solid #4a6fa5;
+    color: #aac1de;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.78rem;
+}
+.add-gig-venue-selected button:hover { background: rgba(74, 111, 165, 0.2); }
+
+.add-gig-modal .radio-label,
+.add-gig-venue-detail-backdrop .radio-label { flex-direction: row !important; align-items: center; gap: 8px !important; }
