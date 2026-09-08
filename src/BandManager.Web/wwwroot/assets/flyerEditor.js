@@ -294,7 +294,7 @@
 
             document.getElementById('flyer-save-btn').addEventListener('click', async () => {
                 const status = document.getElementById('flyer-editor-status');
-                status.textContent = 'Saving...';
+                status.textContent = 'Saving... this can take several seconds while it publishes to the site.';
                 const payload = {
                     sourceCatalogItemId: catalogItemId,
                     gigRef,
