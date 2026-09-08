@@ -97,6 +97,15 @@ public class CredentialStore(ApplicationDbContext db, ICredentialCipher cipher)
         await db.SaveChangesAsync();
     }
 
+    public async Task SetVerificationResultAsync(Guid bandId, string platformId, bool ok, string? error)
+    {
+        var account = await GetOrCreateAccountAsync(bandId, platformId);
+        account.LastVerifiedOk = ok;
+        account.LastVerificationError = ok ? null : error;
+        account.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     public async Task<List<Account>> ListConfiguredAsync(Guid bandId) =>
         await db.Accounts.Where(a => a.BandId == bandId && a.EncryptedCredentials != null).ToListAsync();
 }
