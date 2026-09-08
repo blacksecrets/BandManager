@@ -516,7 +516,6 @@ document.getElementById('print-setlist-go-btn').addEventListener('click', () => 
 
 // --- Gig Prep (per-user, per-gig checklist) ---
 let gigPrepItems = [];
-let gigPrepGear = [];
 let gigPrepActiveType = 0;
 
 function closeGigPrepModal() { document.getElementById('gig-prep-modal-backdrop').hidden = true; }
@@ -529,14 +528,13 @@ document.getElementById('gig-set-prep-btn').addEventListener('click', async () =
     gigPrepActiveType = 0;
     const res = await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}`);
     gigPrepItems = res.ok ? await res.json() : [];
-    if (gigPrepGear.length === 0) {
-        const gearRes = await fetch('/api/gear');
-        gigPrepGear = gearRes.ok ? await gearRes.json() : [];
-    }
-    renderGigPrepTabsAndList();
+    await renderGigPrepTabsAndList();
 });
 
-function renderGigPrepTabsAndList() {
+// Async, and always re-fetches /api/gear when the Packing tab is showing -
+// no cached gear list, so a gear item added/edited on the Profile page in
+// another tab (or removed here) shows up correctly without a reload.
+async function renderGigPrepTabsAndList() {
     renderGigPrepTabs(document.getElementById('gig-prep-tabs'), gigPrepActiveType, (type) => {
         gigPrepActiveType = type;
         renderGigPrepTabsAndList();
@@ -546,9 +544,13 @@ function renderGigPrepTabsAndList() {
     const gearPanel = document.getElementById('gig-prep-gear-panel');
     gearPanel.hidden = gigPrepActiveType !== 1; // Packing
     if (!gearPanel.hidden) {
+        const gearRes = await fetch('/api/gear');
+        const gear = gearRes.ok ? await gearRes.json() : [];
+        const existingTexts = new Set(gigPrepItems.filter((i) => i.listType === 1).map((i) => i.text));
         renderGigPrepGearPanel(
             document.getElementById('gig-prep-gear-list'),
-            gigPrepGear,
+            gear,
+            existingTexts,
             document.getElementById('gig-prep-list'),
             addGigPrepItemFromGear
         );
@@ -571,7 +573,7 @@ function renderGigPrepListPanel() {
         onRemove: async (id) => {
             await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/items/${id}`, { method: 'DELETE' });
             gigPrepItems = gigPrepItems.filter((i) => i.id !== id);
-            renderGigPrepListPanel();
+            await renderGigPrepTabsAndList();
         },
         onReorder: async (ids) => {
             const byId = new Map(gigPrepItems.filter((i) => i.listType === gigPrepActiveType).map((i) => [i.id, i]));
@@ -595,7 +597,7 @@ async function addGigPrepItem(text) {
     });
     if (res.ok) {
         gigPrepItems.push(await res.json());
-        renderGigPrepListPanel();
+        await renderGigPrepTabsAndList();
     }
 }
 

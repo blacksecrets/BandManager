@@ -153,8 +153,23 @@
     padding: 12px 16px;
     margin-bottom: 12px;
 }
-.gear-item-header { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
-.gear-item-header input { flex: 1; min-width: 100px; }
+.gear-item-header { display: flex; gap: 10px; align-items: center; }
+.gear-collapse-toggle {
+    background: none;
+    border: 1px solid #444;
+    color: #ccc;
+    border-radius: 4px;
+    width: 26px;
+    height: 26px;
+    line-height: 1;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.gear-collapse-toggle:hover { background: #333; }
+.gear-item-summary { flex: 1; color: #eee; font-weight: bold; }
+.gear-item-body { margin-top: 10px; }
+.gear-item-fields { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.gear-item-fields input { flex: 1; min-width: 100px; }
 .gear-item-specs { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .gear-item-specs label { display: flex; flex-direction: column; gap: 3px; font-size: 0.78rem; color: #999; }
 .gear-item-specs input { width: 80px; }
@@ -197,6 +212,18 @@
     font-size: 0.8rem;
     cursor: pointer;
 }
+.gear-item-save-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+.gear-save-btn {
+    background: #2e8b3d;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 16px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.gear-save-btn:hover { background: #35a047; }
+.gear-save-status { margin: 0; }
 .remove-btn {
     background: none;
     border: 1px solid #555;
@@ -245,6 +272,9 @@
 
 .gig-prep-gear-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 14px; }
 .gig-prep-gear-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid #333;
     border-radius: 6px;
@@ -255,3 +285,5 @@
 }
 .gig-prep-gear-item:hover { border-color: #2e8b3d; }
 .gig-prep-gear-item.dragging { opacity: 0.4; }
+.gig-prep-gear-item .drag-handle { cursor: grab; color: #777; flex-shrink: 0; }
+.gig-prep-gear-item .drag-handle:active { cursor: grabbing; }

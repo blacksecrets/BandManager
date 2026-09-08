@@ -153,6 +153,11 @@ async function loadGearTypes() {
     select.innerHTML = types.map((t) => `<option value="${escapeHtmlProfile(t)}">${escapeHtmlProfile(t)}</option>`).join('');
 }
 
+function gearSummaryLabel(type, make, model) {
+    const parts = [make, model].filter(Boolean).join(' ');
+    return parts ? `${type}: ${parts}` : type;
+}
+
 async function loadGear() {
     const res = await fetch('/api/gear');
     const gear = res.ok ? await res.json() : [];
@@ -165,19 +170,39 @@ async function loadGear() {
     for (const item of gear) box.appendChild(renderGearItem(item));
 }
 
-function renderGearItem(item) {
+function renderGearItem(item, { expanded = false } = {}) {
     const card = document.createElement('div');
     card.className = 'gear-item-card';
 
     const header = document.createElement('div');
     header.className = 'gear-item-header';
     header.innerHTML = `
-        <input type="text" class="gear-field" data-field="type" value="${escapeHtmlProfile(item.type)}" placeholder="Type">
-        <input type="text" class="gear-field" data-field="make" value="${escapeHtmlProfile(item.make || '')}" placeholder="Make">
-        <input type="text" class="gear-field" data-field="model" value="${escapeHtmlProfile(item.model || '')}" placeholder="Model">
+        <button type="button" class="gear-collapse-toggle">${expanded ? '▾' : '▸'}</button>
+        <span class="gear-item-summary">${escapeHtmlProfile(gearSummaryLabel(item.type, item.make, item.model))}</span>
         <button type="button" class="remove-btn gear-remove-btn">Remove</button>
     `;
     card.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'gear-item-body';
+    body.hidden = !expanded;
+    card.appendChild(body);
+
+    const summaryEl = header.querySelector('.gear-item-summary');
+    const toggleBtn = header.querySelector('.gear-collapse-toggle');
+    toggleBtn.addEventListener('click', () => {
+        body.hidden = !body.hidden;
+        toggleBtn.textContent = body.hidden ? '▸' : '▾';
+    });
+
+    const fields = document.createElement('div');
+    fields.className = 'gear-item-fields';
+    fields.innerHTML = `
+        <input type="text" class="gear-field" data-field="type" value="${escapeHtmlProfile(item.type)}" placeholder="Type">
+        <input type="text" class="gear-field" data-field="make" value="${escapeHtmlProfile(item.make || '')}" placeholder="Make">
+        <input type="text" class="gear-field" data-field="model" value="${escapeHtmlProfile(item.model || '')}" placeholder="Model">
+    `;
+    body.appendChild(fields);
 
     const specs = document.createElement('div');
     specs.className = 'gear-item-specs';
@@ -187,38 +212,19 @@ function renderGearItem(item) {
         <label>D (in) <input type="number" step="0.01" class="gear-field" data-field="depthInches" value="${item.depthInches ?? ''}"></label>
         <label>Weight (lb) <input type="number" step="0.01" class="gear-field" data-field="weightPounds" value="${item.weightPounds ?? ''}"></label>
     `;
-    card.appendChild(specs);
-
-    async function saveGearFields() {
-        const fields = {};
-        for (const input of card.querySelectorAll('.gear-field')) {
-            const f = input.dataset.field;
-            if (['lengthInches', 'widthInches', 'depthInches', 'weightPounds'].includes(f)) {
-                fields[f] = input.value.trim() === '' ? null : parseFloat(input.value);
-            } else {
-                fields[f] = input.value.trim();
-            }
-        }
-        await fetch(`/api/gear/${item.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(fields)
-        });
-    }
-    for (const input of card.querySelectorAll('.gear-field')) {
-        input.addEventListener('change', saveGearFields);
-    }
+    body.appendChild(specs);
 
     card.querySelector('.gear-remove-btn').addEventListener('click', async () => {
         if (!confirm(`Remove this ${item.type}${item.make ? ' (' + item.make + (item.model ? ' ' + item.model : '') + ')' : ''}?`)) return;
         await fetch(`/api/gear/${item.id}`, { method: 'DELETE' });
-        loadGear();
+        await loadGear();
+        await renderGigPrepDefaultTabs();
     });
 
     const settingsBox = document.createElement('div');
     settingsBox.className = 'gear-settings-list';
     for (const s of item.settings) settingsBox.appendChild(renderGearSetting(item.id, s));
-    card.appendChild(settingsBox);
+    body.appendChild(settingsBox);
 
     const addSettingForm = document.createElement('form');
     addSettingForm.className = 'gear-add-setting-form';
@@ -242,7 +248,46 @@ function renderGearItem(item) {
             addSettingForm.reset();
         }
     });
-    card.appendChild(addSettingForm);
+    body.appendChild(addSettingForm);
+
+    const saveRow = document.createElement('div');
+    saveRow.className = 'gear-item-save-row';
+    saveRow.innerHTML = `<button type="button" class="gear-save-btn">Save</button><span class="gear-save-status save-note"></span>`;
+    const saveStatus = saveRow.querySelector('.gear-save-status');
+    saveRow.querySelector('.gear-save-btn').addEventListener('click', async () => {
+        saveStatus.textContent = 'Saving...';
+        const fieldValues = {};
+        for (const input of fields.querySelectorAll('.gear-field')) fieldValues[input.dataset.field] = input.value.trim();
+        for (const input of specs.querySelectorAll('.gear-field')) {
+            fieldValues[input.dataset.field] = input.value.trim() === '' ? null : parseFloat(input.value);
+        }
+        const fieldsRes = await fetch(`/api/gear/${item.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fieldValues)
+        });
+
+        const settingResults = await Promise.all([...settingsBox.querySelectorAll('.gear-setting-row')].map((row) => fetch(
+            `/api/gear/${item.id}/settings/${row.dataset.settingId}`,
+            {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: row.querySelector('.gear-setting-name').value.trim(),
+                    value: row.querySelector('.gear-setting-value').value.trim() || null
+                })
+            }
+        )));
+
+        if (fieldsRes.ok && settingResults.every((r) => r.ok)) {
+            summaryEl.textContent = gearSummaryLabel(fieldValues.type, fieldValues.make, fieldValues.model);
+            saveStatus.textContent = 'Saved ✓';
+            await renderGigPrepDefaultTabs();
+        } else {
+            saveStatus.textContent = 'Could not save - try again.';
+        }
+    });
+    body.appendChild(saveRow);
 
     return card;
 }
@@ -250,23 +295,12 @@ function renderGearItem(item) {
 function renderGearSetting(gearId, setting) {
     const row = document.createElement('div');
     row.className = 'gear-setting-row';
+    row.dataset.settingId = setting.id;
     row.innerHTML = `
         <input type="text" class="gear-setting-name" value="${escapeHtmlProfile(setting.name)}">
         <input type="text" class="gear-setting-value" value="${escapeHtmlProfile(setting.value || '')}" placeholder="Value">
         <button type="button" class="remove-btn">Remove</button>
     `;
-    const nameInput = row.querySelector('.gear-setting-name');
-    const valueInput = row.querySelector('.gear-setting-value');
-
-    async function save() {
-        await fetch(`/api/gear/${gearId}/settings/${setting.id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: nameInput.value.trim(), value: valueInput.value.trim() || null })
-        });
-    }
-    nameInput.addEventListener('change', save);
-    valueInput.addEventListener('change', save);
 
     row.querySelector('.remove-btn').addEventListener('click', async () => {
         await fetch(`/api/gear/${gearId}/settings/${setting.id}`, { method: 'DELETE' });
@@ -299,7 +333,9 @@ document.getElementById('gear-add-form').addEventListener('submit', async (e) =>
     if (res.ok) {
         status.textContent = '';
         form.reset();
-        await loadGear();
+        document.getElementById('gear-list').querySelector('.save-note')?.remove();
+        document.getElementById('gear-list').appendChild(renderGearItem(body, { expanded: true }));
+        await renderGigPrepDefaultTabs();
     } else {
         status.textContent = body.error || 'Could not add gear.';
     }
@@ -311,18 +347,18 @@ loadUspsConfigured();
 
 // --- Gig Prep Defaults ---
 let gigPrepDefaults = [];
-let gigPrepDefaultGear = [];
 let gigPrepDefaultActiveType = 0;
 
 async function loadGigPrepDefaults() {
     const res = await fetch('/api/gig-prep/defaults');
     gigPrepDefaults = res.ok ? await res.json() : [];
-    const gearRes = await fetch('/api/gear');
-    gigPrepDefaultGear = gearRes.ok ? await gearRes.json() : [];
-    renderGigPrepDefaultTabs();
+    await renderGigPrepDefaultTabs();
 }
 
-function renderGigPrepDefaultTabs() {
+// Async, and always re-fetches /api/gear when the Packing tab is showing -
+// no cached gear list, so a gear item just added/edited/removed on this
+// same page shows up (or drops out) immediately, not only after a reload.
+async function renderGigPrepDefaultTabs() {
     renderGigPrepTabs(document.getElementById('gig-prep-default-tabs'), gigPrepDefaultActiveType, (type) => {
         gigPrepDefaultActiveType = type;
         renderGigPrepDefaultTabs();
@@ -332,9 +368,13 @@ function renderGigPrepDefaultTabs() {
     const gearPanel = document.getElementById('gig-prep-default-gear-panel');
     gearPanel.hidden = gigPrepDefaultActiveType !== 1; // Packing
     if (!gearPanel.hidden) {
+        const gearRes = await fetch('/api/gear');
+        const gear = gearRes.ok ? await gearRes.json() : [];
+        const existingTexts = new Set(gigPrepDefaults.filter((i) => i.listType === 1).map((i) => i.text));
         renderGigPrepGearPanel(
             document.getElementById('gig-prep-default-gear-list'),
-            gigPrepDefaultGear,
+            gear,
+            existingTexts,
             document.getElementById('gig-prep-default-list'),
             addGigPrepDefaultFromGear
         );
@@ -348,7 +388,7 @@ function renderGigPrepDefaultList() {
         onRemove: async (id) => {
             await fetch(`/api/gig-prep/defaults/${id}`, { method: 'DELETE' });
             gigPrepDefaults = gigPrepDefaults.filter((i) => i.id !== id);
-            renderGigPrepDefaultList();
+            await renderGigPrepDefaultTabs();
         },
         onReorder: async (ids) => {
             const byId = new Map(gigPrepDefaults.filter((i) => i.listType === gigPrepDefaultActiveType).map((i) => [i.id, i]));
@@ -372,7 +412,7 @@ async function addGigPrepDefaultItem(text) {
     });
     if (res.ok) {
         gigPrepDefaults.push(await res.json());
-        renderGigPrepDefaultList();
+        await renderGigPrepDefaultTabs();
     }
 }
 

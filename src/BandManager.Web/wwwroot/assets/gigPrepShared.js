@@ -128,22 +128,43 @@ function gigPrepGearLabel(g) {
 }
 
 // Renders a draggable-into-the-list panel of the user's gear, for the
-// Packing tab. dropZoneEl is the <ol> the item should land in when
-// dropped; onAdd(gear) is called both on drop and on a plain click (drag
-// isn't discoverable on touch, so click is the fallback that always works).
-function renderGigPrepGearPanel(panelEl, gear, dropZoneEl, onAdd) {
+// Packing tab. existingTexts is a Set of this list's current item texts -
+// gear already on the list is left out entirely (matches gig-sets.js's
+// own repertoire-drag panel, which likewise excludes songs already in
+// the set) so there's no way to add the same gear twice from here.
+// dropZoneEl is the <ol> the item should land in when dropped; onAdd(gear)
+// is called both on drop and on a plain click of the row (drag isn't
+// discoverable on touch, so click is the fallback that always works). The
+// drag itself is scoped to a dedicated handle, not the whole row - same
+// pattern as every other proven-working drag in this app (gig-set-song-
+// row, gig-set-repertoire-item) - a whole-row pointerdown fought with the
+// row's own click handler and never reliably registered a drop.
+function renderGigPrepGearPanel(panelEl, gear, existingTexts, dropZoneEl, onAdd) {
     panelEl.innerHTML = '';
-    if (gear.length === 0) {
-        panelEl.innerHTML = '<p class="save-note">No gear in your profile yet.</p>';
+    const available = gear.filter((g) => !existingTexts.has(gigPrepGearLabel(g)));
+    if (available.length === 0) {
+        panelEl.innerHTML = gear.length === 0
+            ? '<p class="save-note">No gear in your profile yet.</p>'
+            : '<p class="save-note">Everything in your gear list is already on this checklist.</p>';
         return;
     }
-    for (const g of gear) {
+    for (const g of available) {
         const row = document.createElement('div');
         row.className = 'gig-prep-gear-item';
-        row.textContent = gigPrepGearLabel(g);
+
+        const handle = document.createElement('span');
+        handle.className = 'drag-handle';
+        handle.textContent = '⠿';
+        row.appendChild(handle);
+
+        const label = document.createElement('span');
+        label.textContent = gigPrepGearLabel(g);
+        row.appendChild(label);
+
         row.addEventListener('click', () => onAdd(g));
-        row.addEventListener('pointerdown', (e) => {
+        handle.addEventListener('pointerdown', (e) => {
             e.preventDefault();
+            e.stopPropagation();
             row.classList.add('dragging');
             let over = false;
 
