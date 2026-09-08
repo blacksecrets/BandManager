@@ -12,14 +12,132 @@ async function loadBandAdmin() {
     const hasBand = !!me.activeBandRole;
     noBandEl.textContent = 'Select a band from the switcher above to manage it.';
     noBandEl.hidden = hasBand;
+    document.getElementById('band-info-section').hidden = !hasBand;
     document.getElementById('band-repertoire-import-section').hidden = !hasBand;
     document.getElementById('band-branding-section').hidden = !hasBand;
     document.getElementById('band-users-section').hidden = !hasBand;
     if (!hasBand) return;
 
+    loadBandInfo();
     loadBandBranding();
     loadBandRoleOptions().then(loadUsers);
 }
+
+// --- Band Information (name/phone/mailing address) ---
+
+// Same US-phone formatting as profile.js's contact form - XXX-YYY-ZZZZ,
+// flagged inline rather than silently accepted or silently reformatted
+// wrong.
+function formatBandPhone(raw) {
+    let digits = raw.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);
+    if (digits.length !== 10) return null;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+async function loadBandInfo() {
+    const res = await fetch('/api/band-admin/info');
+    if (!res.ok) return;
+    const info = await res.json();
+    const form = document.getElementById('band-info-form');
+    form.name.value = info.name || '';
+    form.phone.value = info.phone || '';
+    form.addressLine1.value = info.addressLine1 || '';
+    form.addressLine2.value = info.addressLine2 || '';
+    form.city.value = info.city || '';
+    form.state.value = info.state || '';
+    form.postalCode.value = info.postalCode || '';
+
+    const uspsRes = await fetch('/api/address-lookup/configured');
+    const { configured } = uspsRes.ok ? await uspsRes.json() : { configured: false };
+    document.getElementById('band-usps-setup-note').hidden = !!configured;
+    document.getElementById('band-address-validate-btn').disabled = !configured;
+}
+
+document.querySelector('#band-info-form input[name="phone"]').addEventListener('blur', (e) => {
+    const errorEl = document.getElementById('band-phone-error');
+    const raw = e.target.value.trim();
+    if (!raw) { errorEl.hidden = true; return; }
+
+    const formatted = formatBandPhone(raw);
+    if (formatted) {
+        e.target.value = formatted;
+        errorEl.hidden = true;
+    } else {
+        errorEl.textContent = "That doesn't look like a valid 10-digit phone number.";
+        errorEl.hidden = false;
+    }
+});
+
+document.getElementById('band-info-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('band-info-status');
+
+    if (!document.getElementById('band-phone-error').hidden) {
+        status.textContent = 'Fix the phone number before saving.';
+        return;
+    }
+
+    const res = await fetch('/api/band-admin/info', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: form.name.value.trim(),
+            phone: form.phone.value.trim(),
+            addressLine1: form.addressLine1.value.trim(),
+            addressLine2: form.addressLine2.value.trim(),
+            city: form.city.value.trim(),
+            state: form.state.value.trim(),
+            postalCode: form.postalCode.value.trim()
+        })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Band information saved.' : (body.error || 'Could not save band information.');
+});
+
+document.getElementById('band-address-validate-btn').addEventListener('click', async () => {
+    const form = document.getElementById('band-info-form');
+    const suggestionBox = document.getElementById('band-address-suggestion');
+    const status = document.getElementById('band-info-status');
+
+    if (!form.addressLine1.value.trim()) { status.textContent = 'Enter a street address first.'; return; }
+
+    status.textContent = 'Checking...';
+    const params = new URLSearchParams({
+        streetAddress: form.addressLine1.value.trim(),
+        secondaryAddress: form.addressLine2.value.trim(),
+        city: form.city.value.trim(),
+        state: form.state.value.trim(),
+        zipCode: form.postalCode.value.trim()
+    });
+    const res = await fetch(`/api/address-lookup?${params.toString()}`);
+    const body = res.ok ? await res.json() : { match: null };
+    status.textContent = '';
+
+    if (!body.match) {
+        suggestionBox.hidden = true;
+        status.textContent = 'No standardized match found - the address will be saved exactly as typed.';
+        return;
+    }
+
+    const m = body.match;
+    suggestionBox.innerHTML = `
+        <p class="save-note">USPS suggests:</p>
+        <p>${escapeHtml(m.streetAddress)}${m.secondaryAddress ? ' ' + escapeHtml(m.secondaryAddress) : ''}<br>
+        ${escapeHtml(m.city)}, ${escapeHtml(m.state)} ${escapeHtml(m.zipCode)}${m.zipPlus4 ? '-' + escapeHtml(m.zipPlus4) : ''}</p>
+        <button type="button" id="band-address-use-suggestion-btn">Use this address</button>
+    `;
+    suggestionBox.hidden = false;
+    document.getElementById('band-address-use-suggestion-btn').addEventListener('click', () => {
+        form.addressLine1.value = m.streetAddress;
+        form.addressLine2.value = m.secondaryAddress || '';
+        form.city.value = m.city;
+        form.state.value = m.state;
+        form.postalCode.value = m.zipPlus4 ? `${m.zipCode}-${m.zipPlus4}` : m.zipCode;
+        suggestionBox.hidden = true;
+    });
+});
 
 // --- Branding (this band's own logo/background/favicon/accent color) ---
 async function loadBandBranding() {

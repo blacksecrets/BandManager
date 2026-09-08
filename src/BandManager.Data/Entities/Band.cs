@@ -18,6 +18,18 @@ public class Band
     public string? GitHubOwner { get; set; }
     public string? GitHubRepo { get; set; }
 
+    // This band's own contact info, editable from Band Admin > General.
+    // Same field shape as ApplicationUser's/Venue's - a US-shaped,
+    // nullable, XXX-YYY-ZZZZ-formatted phone number and USPS-validatable
+    // address, distinct from any Venue's address (a Venue is where the
+    // band plays, this is the band's own mailing address).
+    public string? Phone { get; set; }
+    public string? AddressLine1 { get; set; }
+    public string? AddressLine2 { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? PostalCode { get; set; }
+
     // This Band's own branding (distinct from the platform-level
     // BandManager shell branding in PlatformSettings, which only applies
     // when no Band is selected). Applied everywhere once a Band is active -

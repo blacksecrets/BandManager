@@ -20,6 +20,34 @@
     <main class="settings-main">
         <p id="band-admin-no-band" class="save-note" hidden>Select a band from the switcher above to manage it.</p>
 
+        <section class="platform-card" id="band-info-section" hidden>
+            <h2>Band Information</h2>
+
+            <form id="band-info-form" class="cred-form">
+                <label>Band name <input type="text" name="name" maxlength="200" required></label>
+
+                <label>Phone <input type="tel" name="phone" maxlength="30">
+                    <span id="band-phone-error" class="field-error" hidden></span>
+                </label>
+
+                <label>Address line 1 <input type="text" name="addressLine1" maxlength="200"></label>
+                <label>Address line 2 <span class="field-hint">(suite, unit)</span>
+                    <input type="text" name="addressLine2" maxlength="200">
+                </label>
+                <label>City <input type="text" name="city" maxlength="100"></label>
+                <label>State <input type="text" name="state" maxlength="2" placeholder="e.g. VA"></label>
+                <label>ZIP code <input type="text" name="postalCode" maxlength="10"></label>
+
+                <div class="cred-form-buttons">
+                    <button type="button" id="band-address-validate-btn">Validate address</button>
+                    <button type="submit">Save band information</button>
+                </div>
+                <p id="band-usps-setup-note" class="verify-error-banner" hidden>Address validation isn't set up yet - a SuperAdmin can enable it in Setup. You can still save the address as typed.</p>
+                <div id="band-address-suggestion" hidden></div>
+                <p id="band-info-status" class="save-note"></p>
+            </form>
+        </section>
+
         <section class="platform-card" id="band-repertoire-import-section" hidden>
             <h2>Bulk-import songs to this band's repertoire</h2>
             <p>Add songs to this band's repertoire from a CSV file - <a href="/api/repertoire/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Rows are merged against the shared catalog: an exact match is just added here; a new song, or one with different details than the catalog already has, is added right away but flagged for SuperAdmin review - it stays visible and stays in this band's repertoire either way.</p>

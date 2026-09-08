@@ -7,13 +7,15 @@ using Microsoft.AspNetCore.Mvc;
 namespace BandManager.Web.Controllers;
 
 public record UpdateAccentColorRequest(string Color);
+public record UpdateBandInfoRequest(string Name, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode);
 
 /// <summary>
 /// The active Band's own branding (logo/background/favicon/accent color) -
 /// distinct from ProfileController's platform-wide branding, which only
-/// applies when no Band is selected (see branding.js). BandAdmin of the
-/// active Band, or SuperAdmin regardless - same as every other
-/// BandAdmin-policy route.
+/// applies when no Band is selected (see branding.js) - plus the band's
+/// own name/mailing address/phone (GetInfo/UpdateInfo), previously
+/// editable nowhere. BandAdmin of the active Band, or SuperAdmin
+/// regardless - same as every other BandAdmin-policy route.
 /// </summary>
 [ApiController]
 [Route("/api/band-admin")]
@@ -129,6 +131,51 @@ public class BandAdminController(
             await db.SaveChangesAsync();
         }
         return Ok(new { ok = true });
+    }
+
+    // The band's own name/mailing address/phone - previously editable
+    // nowhere in the app once a band was created (SuperAdminController's
+    // CreateBand only ever sets Name once, at creation). Name stays
+    // required (mirrors Band.Name's own non-null contract); contact
+    // fields are all optional, same as ApplicationUser's/Venue's.
+    [HttpGet("info")]
+    public async Task<IActionResult> GetInfo()
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var band = await db.Bands.FindAsync(bandId);
+        if (band is null) return NotFound();
+        return Ok(new
+        {
+            name = band.Name,
+            phone = band.Phone,
+            addressLine1 = band.AddressLine1,
+            addressLine2 = band.AddressLine2,
+            city = band.City,
+            state = band.State,
+            postalCode = band.PostalCode
+        });
+    }
+
+    [HttpPut("info")]
+    public async Task<IActionResult> UpdateInfo([FromBody] UpdateBandInfoRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name)) return BadRequest(new { error = "Band name is required." });
+
+        var band = await db.Bands.FindAsync(bandId);
+        if (band is null) return NotFound();
+
+        string? Clean(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+        band.Name = name;
+        band.Phone = Clean(request.Phone);
+        band.AddressLine1 = Clean(request.AddressLine1);
+        band.AddressLine2 = Clean(request.AddressLine2);
+        band.City = Clean(request.City);
+        band.State = Clean(request.State);
+        band.PostalCode = Clean(request.PostalCode);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, name = band.Name });
     }
 
     [HttpPut("branding/accent-color")]
