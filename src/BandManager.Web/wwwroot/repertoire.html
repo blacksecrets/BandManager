@@ -30,12 +30,13 @@
 
             <section class="platform-card" id="repertoire-instruments-section">
                 <details class="manual-fallback">
-                    <summary>Instruments tracked for this band (<span id="instrument-count">0</span>)</summary>
+                    <summary>Instrument Tunings (<span id="instrument-count">0</span>)</summary>
+                    <p class="field-hint">Instruments this band tracks tuning notes for, per song - not who plays them (see Band Roles under Band Admin &gt; General for that).</p>
                     <div id="instrument-list" class="instrument-chip-list"></div>
                     <form id="add-instrument-form" class="cred-form">
-                        <label>Band Role
+                        <label>Instrument
                             <select id="add-instrument-role-select" name="roleSelect" required>
-                                <option value="" disabled selected>Select a role...</option>
+                                <option value="" disabled selected>Select an instrument...</option>
                                 <option value="Lead Guitar">Lead Guitar</option>
                                 <option value="Rhythm Guitar">Rhythm Guitar</option>
                                 <option value="Bass">Bass</option>
@@ -46,11 +47,19 @@
                                 <option value="__other__">Other (type your own)...</option>
                             </select>
                         </label>
-                        <input type="text" name="name" id="add-instrument-custom-name" placeholder="Enter new role name" autocomplete="off" hidden>
-                        <button type="submit">Add role</button>
+                        <input type="text" name="name" id="add-instrument-custom-name" placeholder="Enter new instrument name" autocomplete="off" hidden>
+                        <button type="submit">Add instrument</button>
                         <p id="add-instrument-status" class="save-note"></p>
                     </form>
                 </details>
+            </section>
+
+            <section class="platform-card" id="repertoire-import-section">
+                <h2>Bulk-import songs to this band's repertoire</h2>
+                <p>Add songs to this band's repertoire from a CSV file - <a href="/api/repertoire/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Rows are merged against the shared catalog: an exact match is just added here; a new song, or one with different details than the catalog already has, is added right away but flagged for SuperAdmin review - it stays visible and stays in this band's repertoire either way.</p>
+                <label class="upload-btn">Choose CSV file<input type="file" id="repertoire-csv-upload" accept=".csv,text/csv" hidden></label>
+                <p id="repertoire-import-status" class="save-note"></p>
+                <div id="repertoire-import-errors"></div>
             </section>
 
             <section class="platform-card">
@@ -131,5 +140,6 @@
     <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>
     <script src="/assets/testModeBanner.js"></script>
+    <script src="/assets/collapsibleSections.js"></script>
 </body>
 </html>

@@ -201,7 +201,7 @@ if (addInstrumentForm) {
         const name = addInstrumentRoleSelect.value === '__other__'
             ? addInstrumentCustomName.value.trim()
             : addInstrumentRoleSelect.value;
-        if (!name) { status.textContent = 'Select a role, or choose "Other" and type one in.'; return; }
+        if (!name) { status.textContent = 'Select an instrument, or choose "Other" and type one in.'; return; }
 
         const res = await fetch('/api/repertoire/instruments', {
             method: 'POST',
@@ -217,7 +217,7 @@ if (addInstrumentForm) {
             await loadInstruments();
             renderRepertoireBody();
         } else {
-            status.textContent = body.error || 'Could not add that role.';
+            status.textContent = body.error || 'Could not add that instrument.';
         }
     });
 }
@@ -758,5 +758,45 @@ function startCatalogRowDrag(e, tr, song) {
     document.addEventListener('pointerup', onPointerUp);
     document.addEventListener('pointercancel', onPointerUp);
 }
+
+// --- Bulk-import songs from CSV (moved here from Band Admin - open to
+// any band member, not just Band Admins, same as adding a song by hand) ---
+document.getElementById('repertoire-csv-upload').addEventListener('change', async () => {
+    const input = document.getElementById('repertoire-csv-upload');
+    if (!input.files[0]) return;
+    const status = document.getElementById('repertoire-import-status');
+    const errorsBox = document.getElementById('repertoire-import-errors');
+    errorsBox.innerHTML = '';
+    status.textContent = 'Importing...';
+
+    const form = new FormData();
+    form.append('file', input.files[0]);
+
+    const res = await fetch('/api/repertoire/import', { method: 'POST', body: form });
+    const body = await res.json();
+    input.value = '';
+
+    if (res.ok) {
+        status.textContent = `${body.newSongsAdded} new song(s) added (pending review), ${body.changesSubmittedForReview} change(s) submitted for review, ${body.unchanged} already matched exactly.` +
+            (body.alreadyPendingSkipped ? ` ${body.alreadyPendingSkipped} skipped - already has an edit under review.` : '');
+        await loadRepertoire();
+        return;
+    }
+
+    status.textContent = body.error || 'Import failed.';
+    if (Array.isArray(body.rowErrors) && body.rowErrors.length > 0) {
+        const table = document.createElement('table');
+        table.className = 'user-table';
+        table.innerHTML = '<thead><tr><th>Row</th><th>Column</th><th>Problem</th></tr></thead>';
+        const tbody = document.createElement('tbody');
+        for (const e of body.rowErrors) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${e.row}</td><td>${escapeHtml(e.column)}</td><td>${escapeHtml(e.message)}</td>`;
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        errorsBox.appendChild(table);
+    }
+});
 
 init();

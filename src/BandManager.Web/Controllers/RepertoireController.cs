@@ -129,7 +129,6 @@ public class RepertoireController(ApplicationDbContext db, IActiveBandAccessor a
     // --- CSV bulk import, merged into this Band's repertoire ---
 
     [HttpGet("import/template")]
-    [Authorize(Policy = "BandAdmin")]
     public IActionResult ImportTemplate()
     {
         var bytes = Encoding.UTF8.GetBytes(SongCsvImportService.BuildTemplateCsv());
@@ -148,8 +147,10 @@ public class RepertoireController(ApplicationDbContext db, IActiveBandAccessor a
     // for every field, purely so SuperAdmin can review it - approving or
     // rejecting a brand-new song never touches the Song itself, since there
     // was never an accepted prior value to fall back to.
+    // BandMember-accessible (not BandAdmin-only) - it lives on the
+    // Repertoire page now, open to whoever's already allowed to add
+    // songs there by hand; nothing here is more sensitive than that.
     [HttpPost("import")]
-    [Authorize(Policy = "BandAdmin")]
     [RequestSizeLimit(MaxImportBytes)]
     public async Task<IActionResult> Import()
     {
