@@ -24,24 +24,25 @@
     border: 1px solid #444;
     border-radius: 10px;
     padding: 24px;
-    max-width: 1100px;
+    max-width: 1600px;
     width: 100%;
-    max-height: 90vh;
+    max-height: 92vh;
     overflow-y: auto;
     position: relative;
 }
 
 .flyer-editor-layout {
     display: flex;
+    flex-direction: column;
     gap: 20px;
-    flex-wrap: wrap;
     margin: 14px 0;
 }
 
 .flyer-preview-wrap {
     position: relative;
-    flex: 1 1 480px;
-    max-width: 640px;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
 }
 .flyer-preview-wrap img { display: block; width: 100%; border-radius: 6px; }
 #flyer-preview-fields {
@@ -100,21 +101,45 @@
     margin-top: 2px;
 }
 
-.flyer-field-list {
-    flex: 1 1 320px;
-    max-height: 500px;
-    overflow-y: auto;
+.flyer-field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+    align-items: start;
 }
 .flyer-field-row {
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    background: #151515;
+}
+.flyer-field-row-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.flyer-field-row-toggle {
+    background: none;
+    border: none;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 2px 4px;
+    line-height: 1;
+}
+.flyer-field-row-toggle:hover { color: #fff; }
+.flyer-field-row-body {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 8px;
-    padding: 8px 0;
-    border-bottom: 1px solid #333;
-    font-size: 0.85rem;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #333;
 }
-.flyer-field-row input[type="text"] {
+.flyer-field-row-body[hidden] { display: none; }
+.flyer-field-row-body input[type="text"] {
     flex: 1 1 140px;
     padding: 6px 8px;
     border-radius: 4px;
@@ -122,7 +147,7 @@
     background: #111;
     color: #eee;
 }
-.flyer-field-row select {
+.flyer-field-row-body select {
     padding: 5px 6px;
     border-radius: 4px;
     border: 1px solid #444;
@@ -130,7 +155,7 @@
     color: #eee;
     font-size: 0.8rem;
 }
-.flyer-field-row input[type="color"] { width: 32px; height: 28px; padding: 0; border: none; background: none; }
+.flyer-field-row-body input[type="color"] { width: 32px; height: 28px; padding: 0; border: none; background: none; }
 
 .flyer-style-toggles { display: flex; gap: 6px; }
 .flyer-style-toggles .checkbox-label {
@@ -147,7 +172,7 @@
 .flyer-style-toggles .checkbox-label:nth-child(2) { font-style: italic; }
 .flyer-style-toggles .checkbox-label:nth-child(3) { text-decoration: underline; }
 
-#flyer-add-with-btn {
+#flyer-add-with-btn, #flyer-add-presented-by-btn {
     background: #444;
     color: #eee;
     border: 1px solid #666;

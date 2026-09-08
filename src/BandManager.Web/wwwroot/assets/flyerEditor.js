@@ -49,7 +49,9 @@
     // where a mapping exists, and expanding with-0..with-N to match
     // however many With-acts this gig actually has.
     function buildInitialFields(knownFields, gig) {
-        const fields = knownFields.map((f) => ({ ...f, included: f.defaultVisible }));
+        // Every field starts unchecked - the band admin opts each one in
+        // explicitly rather than starting from a pre-filled flyer.
+        const fields = knownFields.map((f) => ({ ...f, included: false }));
         const valueFor = (key) => {
             switch (key) {
                 case 'title': return gig.title || '';
@@ -71,8 +73,8 @@
             result.push({ ...f, value: valueFor(f.key) });
         }
         withActs.forEach((act, i) => {
-            const base = withTemplateField || { label: 'With', type: 'Text', x: 0.06, y: 0.5, fontSize: 0.05, fontFamily: 'oswald-bold', color: '#ffffff', included: true, rotation: 0 };
-            result.push({ ...base, key: `with-${i}`, label: `With ${i + 1}`, value: act.name || '', included: base.included !== false });
+            const base = withTemplateField || { label: 'With', type: 'Text', x: 0.06, y: 0.5, fontSize: 0.05, fontFamily: 'oswald-bold', color: '#ffffff', rotation: 0 };
+            result.push({ ...base, key: `with-${i}`, label: `With ${i + 1}`, value: act.name || '', included: false });
         });
         if (withActs.length === 0 && withTemplateField) {
             result.push({ ...withTemplateField, value: '', included: false });
@@ -111,37 +113,54 @@
                         <img id="flyer-preview-bg" src="${catalogFileUrl(image.file_path)}" alt="Flyer background">
                         <div id="flyer-preview-fields"></div>
                     </div>
-                    <div class="flyer-field-list" id="flyer-field-list"></div>
+                    <div class="flyer-field-grid" id="flyer-field-grid"></div>
                 </div>
                 <button type="button" id="flyer-add-with-btn">+ Add another "With"</button>
+                <button type="button" id="flyer-add-presented-by-btn">+ Add another Presented By</button>
                 <button type="button" id="flyer-save-btn">Save</button>
                 <p id="flyer-editor-status" class="save-note"></p>
             `;
 
             const bgImg = document.getElementById('flyer-preview-bg');
             const previewFields = document.getElementById('flyer-preview-fields');
-            const fieldList = document.getElementById('flyer-field-list');
+            const fieldGrid = document.getElementById('flyer-field-grid');
+
+            // Which rows are expanded - kept separate from `fields` itself
+            // so it never rides along in the save payload. Every row starts
+            // collapsed.
+            const expandedKeys = new Set();
 
             function renderFieldList() {
-                fieldList.innerHTML = '';
-                fields.forEach((field, i) => {
+                fieldGrid.innerHTML = '';
+                fields.forEach((field) => {
                     const row = document.createElement('div');
                     row.className = 'flyer-field-row';
+                    const expanded = expandedKeys.has(field.key);
                     const fontOptions = fonts.map((f) => `<option value="${f.key}" ${field.fontFamily === f.key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('');
                     row.innerHTML = `
-                        <label class="checkbox-label"><input type="checkbox" data-included ${field.included ? 'checked' : ''}> ${escapeHtml(field.label)}</label>
-                        ${field.type === 'Image'
-                            ? `<button type="button" data-pick-logo>${field.value ? 'Change image' : 'Choose image'}</button>`
-                            : `<input type="text" data-value value="${escapeHtml(field.value || '')}">`}
-                        ${field.type === 'Text' ? `<select data-font>${fontOptions}</select><input type="color" data-color value="${field.color || '#ffffff'}">` : ''}
-                        ${field.type === 'Text' ? `
-                            <span class="flyer-style-toggles">
-                                <label class="checkbox-label" title="Bold"><input type="checkbox" data-bold ${field.bold ? 'checked' : ''}> B</label>
-                                <label class="checkbox-label" title="Italic"><input type="checkbox" data-italic ${field.italic ? 'checked' : ''}> I</label>
-                                <label class="checkbox-label" title="Underline"><input type="checkbox" data-underline ${field.underline ? 'checked' : ''}> U</label>
-                            </span>` : ''}
-                        <span class="flyer-field-hint">drag to move &middot; drag &#8690; to resize &middot; drag &#8635; to rotate</span>
+                        <div class="flyer-field-row-header">
+                            <button type="button" class="flyer-field-row-toggle" data-toggle aria-expanded="${expanded}">${expanded ? '&#9662;' : '&#9656;'}</button>
+                            <label class="checkbox-label"><input type="checkbox" data-included ${field.included ? 'checked' : ''}> ${escapeHtml(field.label)}</label>
+                        </div>
+                        <div class="flyer-field-row-body" data-body ${expanded ? '' : 'hidden'}>
+                            ${field.type === 'Image'
+                                ? `<button type="button" data-pick-logo>${field.value ? 'Change image' : 'Choose image'}</button>`
+                                : `<input type="text" data-value placeholder="Text" value="${escapeHtml(field.value || '')}">`}
+                            ${field.type === 'Text' ? `<select data-font>${fontOptions}</select><input type="color" data-color value="${field.color || '#ffffff'}">` : ''}
+                            ${field.type === 'Text' ? `
+                                <span class="flyer-style-toggles">
+                                    <label class="checkbox-label" title="Bold"><input type="checkbox" data-bold ${field.bold ? 'checked' : ''}> B</label>
+                                    <label class="checkbox-label" title="Italic"><input type="checkbox" data-italic ${field.italic ? 'checked' : ''}> I</label>
+                                    <label class="checkbox-label" title="Underline"><input type="checkbox" data-underline ${field.underline ? 'checked' : ''}> U</label>
+                                </span>` : ''}
+                            <span class="flyer-field-hint">drag to move &middot; drag &#8690; to resize &middot; drag &#8635; to rotate</span>
+                        </div>
                     `;
+                    row.querySelector('[data-toggle]').addEventListener('click', () => {
+                        if (expandedKeys.has(field.key)) expandedKeys.delete(field.key);
+                        else expandedKeys.add(field.key);
+                        renderFieldList();
+                    });
                     row.querySelector('[data-included]').addEventListener('change', (e) => { field.included = e.target.checked; renderPreview(); });
                     const valueInput = row.querySelector('[data-value]');
                     if (valueInput) valueInput.addEventListener('input', (e) => { field.value = e.target.value; renderPreview(); });
@@ -160,7 +179,7 @@
                     if (italicInput) italicInput.addEventListener('change', (e) => { field.italic = e.target.checked; renderPreview(); });
                     const underlineInput = row.querySelector('[data-underline]');
                     if (underlineInput) underlineInput.addEventListener('change', (e) => { field.underline = e.target.checked; renderPreview(); });
-                    fieldList.appendChild(row);
+                    fieldGrid.appendChild(row);
                 });
             }
 
@@ -284,9 +303,51 @@
                     key: `with-${nextIndex}`, label: `With ${nextIndex + 1}`, type: 'Text',
                     x: last ? last.x : 0.06, y: last ? last.y + 0.07 : 0.5,
                     fontSize: last ? last.fontSize : 0.05, fontFamily: last ? last.fontFamily : 'oswald-bold',
-                    color: last ? last.color : '#ffffff', included: true, value: '',
+                    color: last ? last.color : '#ffffff', included: false, value: '',
                     bold: last ? !!last.bold : false, italic: last ? !!last.italic : false, underline: last ? !!last.underline : false,
                     rotation: last ? (last.rotation || 0) : 0
+                });
+                renderFieldList();
+                renderPreview();
+            });
+
+            // Mirrors "+ Add another With" above, but grows a whole group
+            // of 3 fields at once (name/URL/logo) since a "Presented By"
+            // credit is always that trio together - keyed
+            // presentedBy-<groupIndex>-name/url/logo so each group stays
+            // distinguishable in the saved Fields JSON.
+            document.getElementById('flyer-add-presented-by-btn').addEventListener('click', () => {
+                const groupIndexes = new Set(
+                    fields.filter((f) => f.key.startsWith('presentedBy-')).map((f) => Number(f.key.split('-')[1]))
+                );
+                const lastIndex = groupIndexes.size ? Math.max(...groupIndexes) : null;
+                const nextIndex = groupIndexes.size;
+                const lastName = lastIndex === null ? null : fields.find((f) => f.key === `presentedBy-${lastIndex}-name`);
+                const lastUrl = lastIndex === null ? null : fields.find((f) => f.key === `presentedBy-${lastIndex}-url`);
+                const lastLogo = lastIndex === null ? null : fields.find((f) => f.key === `presentedBy-${lastIndex}-logo`);
+                const baseY = lastName ? lastName.y + 0.12 : 0.8;
+
+                fields.push({
+                    key: `presentedBy-${nextIndex}-name`, label: `Presented By ${nextIndex + 1} (name)`, type: 'Text',
+                    x: lastName ? lastName.x : 0.06, y: baseY,
+                    fontSize: lastName ? lastName.fontSize : 0.05, fontFamily: lastName ? lastName.fontFamily : 'oswald-bold',
+                    color: lastName ? lastName.color : '#ffffff', included: false, value: '',
+                    bold: lastName ? !!lastName.bold : false, italic: lastName ? !!lastName.italic : false, underline: lastName ? !!lastName.underline : false,
+                    rotation: lastName ? (lastName.rotation || 0) : 0
+                });
+                fields.push({
+                    key: `presentedBy-${nextIndex}-url`, label: `Presented By ${nextIndex + 1} (URL)`, type: 'Text',
+                    x: lastUrl ? lastUrl.x : 0.06, y: baseY + 0.05,
+                    fontSize: lastUrl ? lastUrl.fontSize : 0.03, fontFamily: lastUrl ? lastUrl.fontFamily : 'oswald-bold',
+                    color: lastUrl ? lastUrl.color : '#ffffff', included: false, value: '',
+                    bold: lastUrl ? !!lastUrl.bold : false, italic: lastUrl ? !!lastUrl.italic : false, underline: lastUrl ? !!lastUrl.underline : false,
+                    rotation: lastUrl ? (lastUrl.rotation || 0) : 0
+                });
+                fields.push({
+                    key: `presentedBy-${nextIndex}-logo`, label: `Presented By ${nextIndex + 1} (logo)`, type: 'Image',
+                    x: lastLogo ? lastLogo.x : 0.06, y: baseY + 0.1,
+                    fontSize: lastLogo ? lastLogo.fontSize : 0.12, fontFamily: null, color: null, included: false, value: '',
+                    bold: false, italic: false, underline: false, rotation: lastLogo ? (lastLogo.rotation || 0) : 0
                 });
                 renderFieldList();
                 renderPreview();

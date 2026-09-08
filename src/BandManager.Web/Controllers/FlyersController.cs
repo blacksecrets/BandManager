@@ -63,9 +63,9 @@ public class FlyersController(
         ("address", "Venue Address", FlyerFieldType.Text),
         ("with-0", "With", FlyerFieldType.Text),
         ("tickets", "Tickets", FlyerFieldType.Text),
-        ("presentedByName", "Presented By (name)", FlyerFieldType.Text),
-        ("presentedByUrl", "Presented By (URL)", FlyerFieldType.Text),
-        ("presentedByLogo", "Presented By (logo)", FlyerFieldType.Image),
+        ("presentedBy-0-name", "Presented By (name)", FlyerFieldType.Text),
+        ("presentedBy-0-url", "Presented By (URL)", FlyerFieldType.Text),
+        ("presentedBy-0-logo", "Presented By (logo)", FlyerFieldType.Image),
     ];
 
     private async Task<(Band Band, IActionResult? Error)> RequireActiveBandAsync()
