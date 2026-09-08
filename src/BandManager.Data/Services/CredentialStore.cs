@@ -52,6 +52,27 @@ public class CredentialStore(ApplicationDbContext db, ICredentialCipher cipher)
         return account?.EncryptedCredentials is not null;
     }
 
+    /// <summary>Whether this Band posts to this platform at all - not
+    /// whether it's automated (see Account.IsOnboarded's doc comment). No
+    /// Account row at all counts as false, same as "never touched."</summary>
+    public async Task<bool> IsOnboardedAsync(Guid bandId, string platformId)
+    {
+        var account = await FindAccountAsync(bandId, platformId);
+        return account?.IsOnboarded ?? false;
+    }
+
+    /// <summary>Flips "we post here" - works for every platform, including
+    /// ones with no CredentialFields at all (nothing to automate, but the
+    /// Band can still say yes/no to using it). Never touches
+    /// EncryptedCredentials - see Account.IsOnboarded's doc comment.</summary>
+    public async Task SetOnboardedAsync(Guid bandId, string platformId, bool onboarded)
+    {
+        var account = await GetOrCreateAccountAsync(bandId, platformId);
+        account.IsOnboarded = onboarded;
+        account.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>Resets a platform back to "not configured" for this Band -
     /// clears the saved credentials and whatever verification result was
     /// recorded (a stale "connection failed" from the old token would be

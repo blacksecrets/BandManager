@@ -5,7 +5,10 @@
 // (see renderGenericCredForm) - a platform with no entry here and no
 // credential_fields is purely informational (no form, just instructions).
 const TEMPLATE_FOR_PLATFORM = {
-    facebook: 'tpl-meta'
+    facebook: 'tpl-meta',
+    spotify: 'tpl-spotify',
+    youtube: 'tpl-youtube',
+    tiktok: 'tpl-tiktok'
 };
 
 let platformsById = {};
@@ -44,6 +47,7 @@ async function loadPlatforms() {
     // (and the <template> content cloned into it) is in the DOM - wiring
     // any of this earlier would silently find nothing.
     wireInstructionsToggles();
+    wireOnboardToggles();
     wireDisconnectButtons();
     wireCredForms();
     wireMetaManualForm();
@@ -54,6 +58,9 @@ async function loadPlatforms() {
     loadMetaAppConfig();
     loadSavedCredentialValues();
     wireReusePickers();
+    wireSpotifyConnect();
+    wireYouTubeConnect();
+    wireTikTokConnect();
 
     // The main dashboard's "Set up X automation" links land here as
     // #meta-section/#gbp-section/#website-section - open (and scroll to)
@@ -101,7 +108,19 @@ function renderPlatformAccordion(platforms) {
         `;
         header.appendChild(toggleBtn);
 
-        if (platform.credential_fields) {
+        // "We post here" - independent of whether it's automated (see
+        // Account.IsOnboarded's doc comment). Real for every platform,
+        // including ones with no API at all (currently just TikTok,
+        // pending its own developer audit) - those just never grow any
+        // connect UI under it.
+        const onboardLabel = document.createElement('label');
+        onboardLabel.className = 'onboard-toggle-label';
+        onboardLabel.title = 'We post to this platform';
+        onboardLabel.innerHTML = `<input type="checkbox" class="onboard-toggle" data-platform="${platform.id}"> <span>We post here</span>`;
+        onboardLabel.addEventListener('click', (e) => e.stopPropagation());
+        header.appendChild(onboardLabel);
+
+        if (platform.credential_fields || TEMPLATE_FOR_PLATFORM[platform.id]) {
             const badge = document.createElement('span');
             badge.className = 'status-badge';
             badge.dataset.platform = platform.id;
@@ -255,6 +274,57 @@ function wireFieldVisibility(form, fields) {
     return reapply;
 }
 
+// "We post here" - see the checkbox's own doc comment in renderPlatformAccordion.
+function wireOnboardToggles() {
+    for (const toggle of document.querySelectorAll('.onboard-toggle[data-platform]')) {
+        toggle.addEventListener('change', async () => {
+            toggle.disabled = true;
+            await fetch(`/api/settings/credentials/${toggle.dataset.platform}/onboarded`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ onboarded: toggle.checked })
+            });
+            toggle.disabled = false;
+        });
+    }
+}
+
+// Same connect/disconnect shape for both - the two providers only differ
+// in their API route prefix and which page "using it" happens on.
+function wireOAuthConnectTemplate(prefix, apiBase) {
+    const connectBtn = document.getElementById(`${prefix}-connect-btn`);
+    const disconnectTool = document.getElementById(`${prefix}-disconnect-tool`);
+    const disconnectBtn = document.getElementById(`${prefix}-disconnect-btn`);
+    const setupNote = document.getElementById(`${prefix}-setup-note`);
+    const connectedNote = document.getElementById(`${prefix}-connected-note`);
+    if (!connectBtn) return;
+
+    (async () => {
+        const [configuredRes, statusRes] = await Promise.all([fetch(`${apiBase}/configured`), fetch(`${apiBase}/status`)]);
+        const { configured } = configuredRes.ok ? await configuredRes.json() : { configured: false };
+        const { connected } = statusRes.ok ? await statusRes.json() : { connected: false };
+
+        setupNote.hidden = configured;
+        connectBtn.hidden = !configured || connected;
+        connectedNote.hidden = !connected;
+        disconnectTool.hidden = !connected;
+    })();
+
+    const displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
+    connectBtn.addEventListener('click', () => { location.href = `${apiBase}/connect`; });
+    disconnectBtn?.addEventListener('click', async () => {
+        if (!confirm(`Disconnect ${displayName}? Saved credentials are cleared - reconnecting later means going through the connect flow again.`)) return;
+        await fetch(`${apiBase}/disconnect`, { method: 'DELETE' });
+        connectBtn.hidden = false;
+        connectedNote.hidden = true;
+        disconnectTool.hidden = true;
+    });
+}
+
+function wireSpotifyConnect() { wireOAuthConnectTemplate('spotify', '/api/spotify'); }
+function wireYouTubeConnect() { wireOAuthConnectTemplate('youtube', '/api/youtube'); }
+function wireTikTokConnect() { wireOAuthConnectTemplate('tiktok', '/api/tiktok'); }
+
 function wireInstructionsToggles() {
     for (const btn of document.querySelectorAll('.instructions-toggle')) {
         const panel = btn.nextElementSibling;
@@ -337,6 +407,10 @@ async function loadStatus() {
     for (const badge of document.querySelectorAll('.status-badge[data-platform]')) {
         const platform = badge.dataset.platform;
         applyBadge(badge, badgeState(data[platform]), expiryOverrideText(data[platform]));
+    }
+
+    for (const toggle of document.querySelectorAll('.onboard-toggle[data-platform]')) {
+        toggle.checked = !!data[toggle.dataset.platform]?.onboarded;
     }
 
     // The modal's own top-of-modal status indicator - same badgeState

@@ -9,6 +9,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web.Controllers;
 
+public record SetOnboardedRequest(bool Onboarded);
+public record SetTikTokOAuthCredentialsRequest(string ClientKey, string ClientSecret);
+
 /// <summary>
 /// Band-scoped credential CRUD - BandAdmin only, matches the old app's
 /// routes/settings.js /api/settings/credentials* shape closely (same
@@ -47,7 +50,11 @@ public class CredentialsController(
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
 
-        var platforms = await db.Platforms.Where(p => p.CredentialFields != null).ToListAsync();
+        // Every platform now, not just ones with CredentialFields - a
+        // platform with no API (YouTube/Spotify/TikTok) still has a real
+        // onboarded yes/no to report, it just never has anything under
+        // configured/verified/expiry.
+        var platforms = await db.Platforms.ToListAsync();
         var accounts = await db.Accounts.Where(a => a.BandId == bandId).ToListAsync();
         var byPlatform = accounts.ToDictionary(a => a.PlatformId);
 
@@ -63,6 +70,7 @@ public class CredentialsController(
 
             result[p.Id] = new
             {
+                onboarded = account?.IsOnboarded ?? false,
                 configured = account?.EncryptedCredentials is not null,
                 label = account?.Label != p.DisplayName ? account?.Label : null,
                 verified = account?.LastVerifiedOk,
@@ -73,6 +81,20 @@ public class CredentialsController(
             };
         }
         return Ok(result);
+    }
+
+    /// <summary>"We post here" - works for every platform, including the
+    /// no-API ones (YouTube/Spotify/TikTok) that Save/Delete below reject.
+    /// Deliberately doesn't touch EncryptedCredentials either way - see
+    /// Account.IsOnboarded's doc comment.</summary>
+    [HttpPut("{platform}/onboarded")]
+    public async Task<IActionResult> SetOnboarded(string platform, [FromBody] SetOnboardedRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (await db.Platforms.FindAsync(platform) is null) return NotFound(new { error = "Unknown platform" });
+
+        await credentialStore.SetOnboardedAsync(bandId, platform, request.Onboarded);
+        return Ok(new { ok = true });
     }
 
     /// <summary>

@@ -19,6 +19,23 @@ public class Account
     public Platform Platform { get; set; } = null!;
 
     public required string Label { get; set; }
+
+    // "We post to this platform" - independent of whether it's actually
+    // automated. Defaults false: PlatformsController.List lazily creates
+    // a blank Account row for every platform a Band doesn't have one for
+    // yet (so every platform always has a stable AccountId), and those
+    // placeholders must start unonboarded - a brand new Band hasn't
+    // chosen to use any platform yet, let alone all eight of them. The
+    // one existing-data migration (AccountOnboarding) backfilled true
+    // onto every row that already existed before this column did, since
+    // those all represented a real, already-active connection - this
+    // default only governs rows created from here on. Toggling this off
+    // does NOT clear EncryptedCredentials - "we no longer post here" and
+    // "disconnect the automation" are deliberately separate actions on
+    // the same row (see CredentialStore.ClearCredentialAsync for the
+    // latter).
+    public bool IsOnboarded { get; set; }
+
     public string? EncryptedCredentials { get; set; }
 
     public DateOnly? TokenExpiresAt { get; set; }
