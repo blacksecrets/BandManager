@@ -64,7 +64,7 @@ async function loadBandInfo() {
     form.city.value = info.city || '';
     form.state.value = info.state || '';
     form.postalCode.value = info.postalCode || '';
-    form.timeZone.value = info.timeZone || '';
+    form.timeZone.value = info.timeZone || 'America/New_York';
 
     const uspsRes = await fetch('/api/address-lookup/configured');
     const { configured } = uspsRes.ok ? await uspsRes.json() : { configured: false };
