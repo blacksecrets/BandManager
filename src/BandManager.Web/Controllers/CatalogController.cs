@@ -74,7 +74,43 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         return byItem;
     }
 
-    private static object Serialize(CatalogItem item, List<object>? usedInFlyers) => new
+    // For a Flyer-category item (a rendered flyer PNG), which Flyer row it
+    // is and whether it's the only one left for its gig - deleting this
+    // Catalog item cascades to delete that Flyer row too (see
+    // ApplicationDbContext's Cascade on Flyer.GeneratedCatalogItemId), so
+    // this is genuinely "removing the flyer," not just an image.
+    private async Task<Dictionary<Guid, object>> LoadFlyerInfoAsync(Guid bandId, IEnumerable<Guid>? onlyForGeneratedItemIds = null)
+    {
+        IQueryable<Flyer> query = db.Flyers.AsNoTracking().Where(f => f.BandId == bandId);
+        if (onlyForGeneratedItemIds is not null) query = query.Where(f => onlyForGeneratedItemIds.Contains(f.GeneratedCatalogItemId));
+
+        var flyers = await query.ToListAsync();
+        if (flyers.Count == 0) return [];
+
+        var gigRefs = flyers.Select(f => f.GigRef).Distinct().ToList();
+        var gigTitlesByRef = await db.Gigs.AsNoTracking()
+            .Where(g => g.BandId == bandId && gigRefs.Contains(g.Ref))
+            .ToDictionaryAsync(g => g.Ref, g => g.Title);
+        var countByGigRef = await db.Flyers.AsNoTracking()
+            .Where(f => f.BandId == bandId && gigRefs.Contains(f.GigRef))
+            .GroupBy(f => f.GigRef)
+            .ToDictionaryAsync(g => g.Key, g => g.Count());
+
+        var result = new Dictionary<Guid, object>();
+        foreach (var f in flyers)
+        {
+            result[f.GeneratedCatalogItemId] = new
+            {
+                flyerId = f.Id,
+                gigRef = f.GigRef,
+                gigTitle = gigTitlesByRef.GetValueOrDefault(f.GigRef, f.GigRef),
+                isLastFlyerForGig = countByGigRef.GetValueOrDefault(f.GigRef, 1) <= 1
+            };
+        }
+        return result;
+    }
+
+    private static object Serialize(CatalogItem item, List<object>? usedInFlyers, object? flyerInfo = null) => new
     {
         id = item.Id,
         media_type = item.MediaType.ToString().ToLowerInvariant(),
@@ -91,7 +127,8 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         uploaded_by = item.UploadedBy,
         created_at = item.CreatedAt,
         category = ToKebabCase(item.Category.ToString()),
-        used_in_flyers = usedInFlyers ?? []
+        used_in_flyers = usedInFlyers ?? [],
+        flyer_info = flyerInfo
     };
 
     private static CatalogCategory? ParseCategory(string? raw) => raw switch
@@ -140,7 +177,8 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         };
         var items = await catalogStore.ListCatalogItemsAsync(bandId, q, parsedType, ParseCategory(category));
         var usage = await LoadFlyerUsageAsync(bandId);
-        return Ok(items.Select(i => Serialize(i, usage.GetValueOrDefault(i.Id))));
+        var flyerInfo = await LoadFlyerInfoAsync(bandId);
+        return Ok(items.Select(i => Serialize(i, usage.GetValueOrDefault(i.Id), flyerInfo.GetValueOrDefault(i.Id))));
     }
 
     [HttpGet("{id:guid}")]
@@ -150,7 +188,8 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         var item = await db.CatalogItems.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && c.BandId == bandId);
         if (item is null) return NotFound(new { error = "Not found" });
         var usage = await LoadFlyerUsageAsync(bandId, [id]);
-        return Ok(Serialize(item, usage.GetValueOrDefault(id)));
+        var flyerInfo = await LoadFlyerInfoAsync(bandId, [id]);
+        return Ok(Serialize(item, usage.GetValueOrDefault(id), flyerInfo.GetValueOrDefault(id)));
     }
 
     [HttpPost("upload")]

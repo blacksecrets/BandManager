@@ -654,9 +654,18 @@ if (document.getElementById('catalog-grid')) {
             reload();
         });
         body.querySelector('#catalog-viewer-delete').addEventListener('click', async () => {
-            let warning = item.category === 'flyer'
-                ? 'Delete this item from the Catalog? This is a generated Flyer\'s image - deleting it deletes that Flyer too.'
-                : 'Delete this item from the Catalog? This can\'t be undone.';
+            let warning;
+            if (item.category === 'flyer') {
+                const info = item.flyer_info;
+                warning = info
+                    ? `Remove this flyer from "${info.gigTitle}"?`
+                    : 'Remove this flyer?';
+                if (info && info.isLastFlyerForGig) {
+                    warning += ' This is the only flyer for that gig - it will be left without one.';
+                }
+            } else {
+                warning = 'Delete this item from the Catalog? This can\'t be undone.';
+            }
             if (usedInFlyers.length > 0) {
                 const gigNames = usedInFlyers.map((f) => f.gigTitle).join(', ');
                 warning += `\n\nThis image is used as the background for these flyers - they will no longer be accessible for editing afterward: ${gigNames}.`;
