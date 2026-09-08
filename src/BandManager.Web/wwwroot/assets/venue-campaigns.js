@@ -391,12 +391,16 @@ function openBookForm(body, c) {
     const box = document.createElement('div');
     box.className = 'venue-status-detail';
     box.innerHTML = `
-        <p class="save-note">This marks the campaign booked. Create the actual show in Gig Management (it can pull this venue's name/address in) - come back here once it's saved if you want it linked for reference, or just confirm below to mark it booked now.</p>
-        <button type="button" id="book-go-to-gigs-btn">Open Gig Management</button>
+        <p class="save-note">Add the show now, using this venue's name and address - marking it booked and linking the gig happen together.</p>
+        <button type="button" id="book-add-gig-btn">Add the Gig</button>
         <button type="button" id="book-confirm-btn">Mark booked (no gig link)</button>
     `;
     body.appendChild(box);
-    document.getElementById('book-go-to-gigs-btn').addEventListener('click', () => { window.open('/gig-sets', '_blank'); });
+    document.getElementById('book-add-gig-btn').addEventListener('click', async () => {
+        const created = await window.openAddGigModal({ prefillVenue: c.venue });
+        if (!created) return;
+        await setStatus(c.id, 'CompleteBooked', { bookedGigId: created.gigId });
+    });
     document.getElementById('book-confirm-btn').addEventListener('click', () => setStatus(c.id, 'CompleteBooked', {}));
 }
 
