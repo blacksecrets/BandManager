@@ -181,24 +181,43 @@ async function removeInstrument(id, name) {
 }
 
 const addInstrumentForm = document.getElementById('add-instrument-form');
+const addInstrumentRoleSelect = document.getElementById('add-instrument-role-select');
+const addInstrumentCustomName = document.getElementById('add-instrument-custom-name');
+
+if (addInstrumentRoleSelect) {
+    addInstrumentRoleSelect.addEventListener('change', () => {
+        const isOther = addInstrumentRoleSelect.value === '__other__';
+        addInstrumentCustomName.hidden = !isOther;
+        addInstrumentCustomName.required = isOther;
+        if (isOther) addInstrumentCustomName.focus();
+    });
+}
+
 if (addInstrumentForm) {
     addInstrumentForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target;
         const status = document.getElementById('add-instrument-status');
+        const name = addInstrumentRoleSelect.value === '__other__'
+            ? addInstrumentCustomName.value.trim()
+            : addInstrumentRoleSelect.value;
+        if (!name) { status.textContent = 'Select a role, or choose "Other" and type one in.'; return; }
+
         const res = await fetch('/api/repertoire/instruments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: form.name.value.trim() })
+            body: JSON.stringify({ name })
         });
         const body = await res.json();
         if (res.ok) {
             status.textContent = '';
             form.reset();
+            addInstrumentCustomName.hidden = true;
+            addInstrumentCustomName.required = false;
             await loadInstruments();
             renderRepertoireBody();
         } else {
-            status.textContent = body.error || 'Could not add instrument.';
+            status.textContent = body.error || 'Could not add that role.';
         }
     });
 }

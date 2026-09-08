@@ -33,8 +33,21 @@
                     <summary>Instruments tracked for this band (<span id="instrument-count">0</span>)</summary>
                     <div id="instrument-list" class="instrument-chip-list"></div>
                     <form id="add-instrument-form" class="cred-form">
-                        <label>Instrument name <input type="text" name="name" placeholder="e.g. Lead Guitar" required autocomplete="off"></label>
-                        <button type="submit">Add instrument</button>
+                        <label>Band Role
+                            <select id="add-instrument-role-select" name="roleSelect" required>
+                                <option value="" disabled selected>Select a role...</option>
+                                <option value="Lead Guitar">Lead Guitar</option>
+                                <option value="Rhythm Guitar">Rhythm Guitar</option>
+                                <option value="Bass">Bass</option>
+                                <option value="Drums">Drums</option>
+                                <option value="Percussion">Percussion</option>
+                                <option value="Lead Vocal">Lead Vocal</option>
+                                <option value="Backup Vocal">Backup Vocal</option>
+                                <option value="__other__">Other (type your own)...</option>
+                            </select>
+                        </label>
+                        <input type="text" name="name" id="add-instrument-custom-name" placeholder="Enter new role name" autocomplete="off" hidden>
+                        <button type="submit">Add role</button>
                         <p id="add-instrument-status" class="save-note"></p>
                     </form>
                 </details>
