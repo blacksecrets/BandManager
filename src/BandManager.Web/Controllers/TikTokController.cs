@@ -40,6 +40,7 @@ public class TikTokController(
     CredentialStore credentialStore,
     IActiveBandAccessor activeBand,
     CatalogStore catalogStore,
+    CadenceAutoLinkService cadenceAutoLink,
     IHttpClientFactory httpClientFactory) : ControllerBase
 {
     private const string PlatformId = "tiktok";
@@ -262,6 +263,14 @@ public class TikTokController(
             return BadRequest(new { error = $"Upload failed: {uploadErr}" });
         }
 
-        return Ok(new { ok = true, publishId, note = "Posting is queued - if this app hasn't completed TikTok's developer audit yet, it'll only be visible privately to the connected account regardless of the privacy level requested." });
+        var linkedTile = await cadenceAutoLink.AutoCompleteVideoTileAsync(bandId, PlatformId, ["Short Video"]);
+
+        return Ok(new
+        {
+            ok = true,
+            publishId,
+            note = "Posting is queued - if this app hasn't completed TikTok's developer audit yet, it'll only be visible privately to the connected account regardless of the privacy level requested.",
+            autoCompletedTile = linkedTile is not null
+        });
     }
 }

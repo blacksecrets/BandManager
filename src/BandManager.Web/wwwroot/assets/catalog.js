@@ -784,7 +784,8 @@ if (document.getElementById('catalog-grid')) {
             const result = await res.json();
             submitBtn.disabled = false;
             if (res.ok) {
-                status.innerHTML = `Posted - <a href="${result.url}" target="_blank" rel="noopener">watch it on YouTube</a>.`;
+                status.innerHTML = `Posted - <a href="${result.url}" target="_blank" rel="noopener">watch it on YouTube</a>.` +
+                    (result.autoCompletedTile ? ' Also marked the matching Dashboard task tile as posted.' : '');
                 youtubeVideosLoaded = false;
                 if (!document.getElementById('catalog-youtube-videos-section').hidden) await refreshYouTubeVideosList();
             } else {
@@ -847,7 +848,9 @@ if (document.getElementById('catalog-grid')) {
             });
             const result = await res.json();
             submitBtn.disabled = false;
-            status.textContent = res.ok ? (result.note || 'Posted.') : (result.error || 'Could not upload that video.');
+            status.textContent = res.ok
+                ? (result.note || 'Posted.') + (result.autoCompletedTile ? ' Also marked the matching Dashboard task tile as posted.' : '')
+                : (result.error || 'Could not upload that video.');
         });
     }
 

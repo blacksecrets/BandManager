@@ -40,6 +40,7 @@ public class YouTubeController(
     CredentialStore credentialStore,
     IActiveBandAccessor activeBand,
     CatalogStore catalogStore,
+    CadenceAutoLinkService cadenceAutoLink,
     IHttpClientFactory httpClientFactory) : ControllerBase
 {
     private const string PlatformId = "youtube";
@@ -263,7 +264,16 @@ public class YouTubeController(
 
         using var doc = JsonDocument.Parse(uploadBody);
         var videoId = doc.RootElement.GetProperty("id").GetString();
-        return Ok(new { ok = true, videoId, url = $"https://youtu.be/{videoId}" });
+
+        // Closes the loop with Cadence - see CadenceAutoLinkService's doc
+        // comment. "Short" maps straight to the Short/Reel content type;
+        // a full-length upload could be either "Full Video" or "Vlog/BTS"
+        // (this form has no way to say which), so both are candidates and
+        // whichever tile is more overdue wins.
+        var candidateContentTypes = request.IsShort ? new[] { "Short/Reel" } : new[] { "Full Video", "Vlog/BTS" };
+        var linkedTile = await cadenceAutoLink.AutoCompleteVideoTileAsync(bandId, PlatformId, candidateContentTypes);
+
+        return Ok(new { ok = true, videoId, url = $"https://youtu.be/{videoId}", autoCompletedTile = linkedTile is not null });
     }
 
     /// <summary>Videos/Shorts on the connected channel - via the channel's

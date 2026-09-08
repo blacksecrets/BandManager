@@ -101,6 +101,7 @@ builder.Services.AddSingleton<ICredentialCipher>(new AesGcmCredentialCipher(keyP
 builder.Services.AddScoped<BandManager.Data.Services.CredentialStore>();
 builder.Services.AddScoped<BandManager.Data.Services.CalendarFeedService>();
 builder.Services.AddScoped<BandManager.Data.Services.BandMembershipService>();
+builder.Services.AddScoped<BandManager.Data.Services.CadenceAutoLinkService>();
 
 var uploadsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "uploads");
 var catalogRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "catalog");
