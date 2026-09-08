@@ -149,6 +149,49 @@
         </div>
     </template>
 
+    <!-- Spotify: playlists of the band's actual songs, not text/photo
+         promo posts - Spotify has no API for the latter at all. Playlist
+         management itself happens on the Repertoire page once connected -
+         this is just the connect/disconnect step. -->
+    <template id="tpl-spotify">
+        <p class="save-note">Connects this band's own Spotify account so members can build/manage playlists of the band's songs, right from the Repertoire page. Spotify has no API for posting announcements - this is for playlists only.</p>
+        <p id="spotify-setup-note" class="verify-error-banner" hidden>Spotify posting isn't set up yet - a SuperAdmin can enable it in Setup.</p>
+        <p id="spotify-connected-note" class="save-note" hidden>Connected.</p>
+        <button type="button" id="spotify-connect-btn">Connect Spotify</button>
+        <div class="disconnect-tool" id="spotify-disconnect-tool" hidden>
+            <button type="button" class="disconnect-btn" id="spotify-disconnect-btn">Disconnect Spotify</button>
+        </div>
+    </template>
+
+    <!-- YouTube: real video/Shorts uploads, not text/photo promo posts -
+         there's no public API for YouTube's Community tab. Uploading
+         itself happens on the Catalog page (pick a video, post it) once
+         connected - this is just the connect/disconnect step. -->
+    <template id="tpl-youtube">
+        <p class="save-note">Connects this band's own YouTube channel so members can post videos and Shorts straight from the Catalog page. YouTube has no API for text/photo announcements - this is for actual video uploads only.</p>
+        <p id="youtube-setup-note" class="verify-error-banner" hidden>YouTube posting isn't set up yet - a SuperAdmin can enable it in Setup.</p>
+        <p id="youtube-connected-note" class="save-note" hidden>Connected.</p>
+        <button type="button" id="youtube-connect-btn">Connect YouTube</button>
+        <div class="disconnect-tool" id="youtube-disconnect-tool" hidden>
+            <button type="button" class="disconnect-btn" id="youtube-disconnect-btn">Disconnect YouTube</button>
+        </div>
+    </template>
+
+    <!-- TikTok: real video/Shorts uploads via the Content Posting API -
+         connect/disconnect only, actual posting happens on the Catalog
+         page. Until this whole app passes TikTok's own developer audit,
+         anything posted lands private/self-only (see TikTokController's
+         doc comment) - that's TikTok's own restriction, not this app's. -->
+    <template id="tpl-tiktok">
+        <p class="save-note">Connects this band's own TikTok account so members can post videos straight from the Catalog page. Until this BandManager instance passes TikTok's own developer audit, anything posted through it lands private (visible only to the connected account) regardless of the privacy setting chosen - that's TikTok's restriction on unaudited apps, not something this app controls.</p>
+        <p id="tiktok-setup-note" class="verify-error-banner" hidden>TikTok posting isn't set up yet - a SuperAdmin can enable it in Setup.</p>
+        <p id="tiktok-connected-note" class="save-note" hidden>Connected.</p>
+        <button type="button" id="tiktok-connect-btn">Connect TikTok</button>
+        <div class="disconnect-tool" id="tiktok-disconnect-tool" hidden>
+            <button type="button" class="disconnect-btn" id="tiktok-disconnect-btn">Disconnect TikTok</button>
+        </div>
+    </template>
+
     <script src="/assets/settings.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>

@@ -46,7 +46,107 @@ async function init() {
     await loadInstruments();
     await loadRepertoire();
     await loadCatalog();
+    await loadSpotifyPlaylists();
 }
+
+// --- Spotify playlists (real songs, not text/photo promo posts - see
+// SpotifyController's doc comment) ---
+function spotifyTrackUriFromUrl(url) {
+    const match = /open\.spotify\.com\/track\/([a-zA-Z0-9]+)/.exec(url || '');
+    return match ? `spotify:track:${match[1]}` : null;
+}
+
+async function loadSpotifyPlaylists() {
+    const statusRes = await fetch('/api/spotify/status');
+    const { connected } = statusRes.ok ? await statusRes.json() : { connected: false };
+    document.getElementById('spotify-not-connected-note').hidden = connected;
+    document.getElementById('spotify-playlists-content').hidden = !connected;
+    if (!connected) return;
+
+    const res = await fetch('/api/spotify/playlists');
+    const list = document.getElementById('spotify-playlist-list');
+    if (!res.ok) { list.innerHTML = '<p class="save-note">Could not load playlists.</p>'; return; }
+    const playlists = await res.json();
+
+    list.innerHTML = '';
+    if (playlists.length === 0) {
+        list.innerHTML = '<p class="save-note">No playlists yet - create one below.</p>';
+        return;
+    }
+    for (const playlist of playlists) list.appendChild(renderSpotifyPlaylist(playlist));
+}
+
+function renderSpotifyPlaylist(playlist) {
+    const card = document.createElement('div');
+    card.className = 'spotify-playlist-card';
+
+    const header = document.createElement('div');
+    header.className = 'spotify-playlist-header';
+    header.innerHTML = `
+        <a href="${playlist.url}" target="_blank" rel="noopener"><strong>${escapeHtml(playlist.name)}</strong></a>
+        <span class="save-note">${playlist.trackCount} track${playlist.trackCount === 1 ? '' : 's'}</span>
+        <button type="button" class="remove-btn">Remove playlist</button>
+    `;
+    header.querySelector('.remove-btn').addEventListener('click', async () => {
+        if (!confirm(`Remove "${playlist.name}" from Spotify?`)) return;
+        const res = await fetch(`/api/spotify/playlists/${playlist.id}`, { method: 'DELETE' });
+        if (res.ok) await loadSpotifyPlaylists();
+    });
+    card.appendChild(header);
+
+    const addRow = document.createElement('div');
+    addRow.className = 'spotify-playlist-add-row';
+    const songsWithSpotify = repertoire.filter((en) => spotifyTrackUriFromUrl(en.song.spotifyUrl));
+    if (songsWithSpotify.length === 0) {
+        addRow.innerHTML = '<span class="save-note">No repertoire songs have a Spotify link yet.</span>';
+    } else {
+        const select = document.createElement('select');
+        select.innerHTML = songsWithSpotify.map((en) =>
+            `<option value="${en.song.id}">${escapeHtml(en.song.title)}${en.song.originalArtist ? ' - ' + escapeHtml(en.song.originalArtist) : ''}</option>`
+        ).join('');
+        addRow.appendChild(select);
+
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.textContent = 'Add song';
+        addBtn.addEventListener('click', async () => {
+            const entry = songsWithSpotify.find((en) => en.song.id === select.value);
+            const trackUri = spotifyTrackUriFromUrl(entry.song.spotifyUrl);
+            addBtn.disabled = true;
+            const res = await fetch(`/api/spotify/playlists/${playlist.id}/tracks`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ trackUri })
+            });
+            addBtn.disabled = false;
+            if (res.ok) await loadSpotifyPlaylists();
+            else { const body = await res.json().catch(() => ({})); alert(body.error || 'Could not add that song.'); }
+        });
+        addRow.appendChild(addBtn);
+    }
+    card.appendChild(addRow);
+
+    return card;
+}
+
+document.getElementById('spotify-create-playlist-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('spotify-create-playlist-status');
+    const res = await fetch('/api/spotify/playlists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: form.name.value.trim(), description: form.description.value.trim() || null, public: true })
+    });
+    const body = await res.json();
+    if (res.ok) {
+        status.textContent = '';
+        form.reset();
+        await loadSpotifyPlaylists();
+    } else {
+        status.textContent = body.error || 'Could not create playlist.';
+    }
+});
 
 // --- Instruments ---
 async function loadInstruments() {

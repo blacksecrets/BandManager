@@ -72,6 +72,25 @@
                 </details>
             </section>
 
+            <section class="platform-card" id="spotify-playlists-section">
+                <h2>Spotify Playlists</h2>
+                <p class="save-note" id="spotify-not-connected-note" hidden>Not connected yet - a Band Admin can connect Spotify under Band Admin &gt; Configure Web Presence.</p>
+
+                <div id="spotify-playlists-content" hidden>
+                    <div id="spotify-playlist-list" class="spotify-playlist-list"></div>
+
+                    <details class="manual-fallback">
+                        <summary>New playlist</summary>
+                        <form id="spotify-create-playlist-form" class="cred-form">
+                            <label>Name <input type="text" name="name" required maxlength="100"></label>
+                            <label>Description <input type="text" name="description" maxlength="300"></label>
+                            <button type="submit">Create playlist</button>
+                            <p id="spotify-create-playlist-status" class="save-note"></p>
+                        </form>
+                    </details>
+                </div>
+            </section>
+
             <section class="platform-card">
                 <h2>Repertoire</h2>
                 <div class="repertoire-table-wrap">

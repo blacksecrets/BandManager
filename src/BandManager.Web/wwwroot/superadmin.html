@@ -161,6 +161,76 @@
             </div>
         </section>
 
+        <section class="platform-card" id="posting-oauth-section" hidden>
+            <h2>Automated posting (Spotify &amp; YouTube)</h2>
+            <p>One registered app per provider for this whole BandManager instance - each Band then connects its own Spotify/YouTube account once this is set up (Band Admin &gt; Configure Web Presence). Requires this instance to be reachable at a real public URL matching the redirect URI registered below (not just localhost).</p>
+
+            <form id="spotify-oauth-cred-form" class="cred-form">
+                <h3>Spotify Web API <span class="status-badge" id="spotify-oauth-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>In the <a href="https://developer.spotify.com/dashboard" target="_blank">Spotify Developer Dashboard</a>, create an app.</li>
+                            <li>Add this exact Redirect URI: <code id="spotify-oauth-redirect-uri"></code></li>
+                            <li>Copy the Client ID and Client Secret and paste them below. Bands will then be able to connect their own Spotify account to manage playlists.</li>
+                        </ol>
+                    </div>
+                </div>
+                <label>Client ID <input type="text" name="clientId" autocomplete="off"></label>
+                <label>Client Secret <input type="password" name="clientSecret" autocomplete="new-password"></label>
+                <button type="submit">Save Spotify credentials</button>
+                <p id="spotify-oauth-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="spotify-oauth-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="spotify-oauth-disconnect-btn">Remove Spotify credentials</button>
+            </div>
+
+            <form id="youtube-oauth-cred-form" class="cred-form">
+                <h3>YouTube Data API (posting) <span class="status-badge" id="youtube-oauth-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>In <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>, create (or pick) a project and enable the <strong>YouTube Data API v3</strong>.</li>
+                            <li>Under <strong>APIs &amp; Services &gt; Credentials</strong>, create an <strong>OAuth client ID</strong> of type <strong>Web application</strong>.</li>
+                            <li>Add this exact Authorized redirect URI: <code id="youtube-oauth-redirect-uri"></code></li>
+                            <li>Copy the Client ID and Client Secret and paste them below. This is separate from the YouTube <em>search</em> API key above - that one only reads, this one posts.</li>
+                        </ol>
+                    </div>
+                </div>
+                <label>Client ID <input type="text" name="clientId" autocomplete="off"></label>
+                <label>Client Secret <input type="password" name="clientSecret" autocomplete="new-password"></label>
+                <button type="submit">Save YouTube credentials</button>
+                <p id="youtube-oauth-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="youtube-oauth-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="youtube-oauth-disconnect-btn">Remove YouTube credentials</button>
+            </div>
+
+            <form id="tiktok-oauth-cred-form" class="cred-form">
+                <h3>TikTok Content Posting API <span class="status-badge" id="tiktok-oauth-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>In the <a href="https://developers.tiktok.com/" target="_blank">TikTok for Developers</a> portal, create an app and add the <strong>Content Posting API</strong> product with the <code>video.publish</code> scope.</li>
+                            <li>Add this exact Redirect URI: <code id="tiktok-oauth-redirect-uri"></code></li>
+                            <li>Copy the Client Key and Client Secret and paste them below.</li>
+                            <li><strong>Important:</strong> until this app passes TikTok's own developer audit, every video posted through it lands private/self-only regardless of what's requested - that's TikTok's own restriction on unaudited apps, not something this app can override. See TikTok's Content Posting API docs for the audit process.</li>
+                        </ol>
+                    </div>
+                </div>
+                <label>Client Key <input type="text" name="clientKey" autocomplete="off"></label>
+                <label>Client Secret <input type="password" name="clientSecret" autocomplete="new-password"></label>
+                <button type="submit">Save TikTok credentials</button>
+                <p id="tiktok-oauth-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="tiktok-oauth-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="tiktok-oauth-disconnect-btn">Remove TikTok credentials</button>
+            </div>
+        </section>
+
         <section class="platform-card" id="usps-section" hidden>
             <h2>Address validation (USPS)</h2>
             <p>Powers the address lookup/pick on every member's Profile page - standardizes and corrects a typed US mailing address against USPS's own database.</p>

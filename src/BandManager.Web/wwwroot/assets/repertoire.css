@@ -124,6 +124,38 @@
 .catalog-edit-row td { background: rgba(255, 255, 255, 0.02); white-space: normal; }
 .catalog-edit-row .cred-form { max-width: 480px; }
 
+.spotify-playlist-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.spotify-playlist-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px 14px;
+}
+.spotify-playlist-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.spotify-playlist-header a { color: #eee; text-decoration: none; }
+.spotify-playlist-header a:hover { text-decoration: underline; }
+.spotify-playlist-header .remove-btn { margin-left: auto; }
+.spotify-playlist-add-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.spotify-playlist-add-row select {
+    background: #1a1a1a;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 5px 7px;
+    font-size: 0.82rem;
+    flex: 1;
+    max-width: 320px;
+}
+.spotify-playlist-add-row button {
+    background: #2e8b3d;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+
 .song-note-input {
     width: 160px;
     background: #1a1a1a;

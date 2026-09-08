@@ -48,6 +48,12 @@
 
         <div id="catalog-grid" class="catalog-grid">Loading...</div>
 
+        <details class="manual-fallback" id="catalog-youtube-videos-section" hidden>
+            <summary>What's live on YouTube</summary>
+            <p class="save-note" id="youtube-videos-not-connected-note" hidden>YouTube isn't connected yet - a Band Admin can connect it under Band Admin &gt; Configure Web Presence.</p>
+            <div id="catalog-youtube-videos-list" class="catalog-youtube-videos-list"></div>
+        </details>
+
         <div id="catalog-flyers-section" hidden>
             <p class="intro">Drag a General image below onto "Flyer Templates" to turn it into one, or upload a new background directly.</p>
             <label class="upload-btn">Upload a Flyer Template<input type="file" id="catalog-upload-template" accept="image/*" hidden></label>
@@ -74,6 +80,20 @@
         <div class="detail-modal">
             <button type="button" class="detail-modal-close" id="gig-picker-modal-close">&times;</button>
             <div id="gig-picker-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="youtube-upload-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="youtube-upload-modal-close">&times;</button>
+            <div id="youtube-upload-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="tiktok-upload-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="tiktok-upload-modal-close">&times;</button>
+            <div id="tiktok-upload-modal-body"></div>
         </div>
     </div>
 

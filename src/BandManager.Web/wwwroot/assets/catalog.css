@@ -104,6 +104,20 @@
 }
 .catalog-empty-note { color: #777; font-style: italic; font-size: 0.85rem; grid-column: 1 / -1; }
 
+.catalog-youtube-videos-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.catalog-youtube-video-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+}
+.catalog-youtube-video-row img { width: 60px; height: 34px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.catalog-youtube-video-row a { color: #8fb4d9; text-decoration: none; flex: 1; }
+.catalog-youtube-video-row a:hover { text-decoration: underline; }
+
 .catalog-tile {
     position: relative;
     background: rgba(255, 255, 255, 0.04);

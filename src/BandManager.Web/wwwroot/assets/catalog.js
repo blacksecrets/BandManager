@@ -115,6 +115,12 @@ if (document.getElementById('catalog-grid')) {
         updateCounts();
         categoryTabsBox.hidden = activeMediaType !== 'image';
 
+        const youtubeSection = document.getElementById('catalog-youtube-videos-section');
+        if (youtubeSection) {
+            youtubeSection.hidden = activeMediaType !== 'video';
+            if (activeMediaType === 'video') loadYouTubeVideosPanel();
+        }
+
         if (activeMediaType === 'image' && activeImageCategory === 'flyers') {
             grid.hidden = true;
             flyersSection.hidden = false;
@@ -131,6 +137,51 @@ if (document.getElementById('catalog-grid')) {
             return;
         }
         for (const item of filtered) grid.appendChild(renderTile(item));
+    }
+
+    // --- "What's live on YouTube" - add/remove a video or Short, not
+    // just add (see YouTubeController.ListVideos/DeleteVideo) ---
+    let youtubeVideosLoaded = false;
+    async function loadYouTubeVideosPanel() {
+        if (youtubeVideosLoaded) return;
+        youtubeVideosLoaded = true;
+
+        const statusRes = await fetch('/api/youtube/status');
+        const { connected } = statusRes.ok ? await statusRes.json() : { connected: false };
+        document.getElementById('youtube-videos-not-connected-note').hidden = connected;
+        if (!connected) return;
+
+        await refreshYouTubeVideosList();
+    }
+
+    async function refreshYouTubeVideosList() {
+        const list = document.getElementById('catalog-youtube-videos-list');
+        list.innerHTML = '<p class="save-note">Loading...</p>';
+        const res = await fetch('/api/youtube/videos');
+        if (!res.ok) { list.innerHTML = '<p class="save-note">Could not load videos.</p>'; return; }
+        const videos = await res.json();
+
+        list.innerHTML = '';
+        if (videos.length === 0) {
+            list.innerHTML = '<p class="save-note">Nothing posted yet.</p>';
+            return;
+        }
+        for (const v of videos) {
+            const row = document.createElement('div');
+            row.className = 'catalog-youtube-video-row';
+            row.innerHTML = `
+                ${v.thumbnail ? `<img src="${v.thumbnail}" alt="">` : ''}
+                <a href="${v.url}" target="_blank" rel="noopener">${escapeHtmlCatalog(v.title)}</a>
+                <button type="button" class="remove-btn">Remove</button>
+            `;
+            row.querySelector('.remove-btn').addEventListener('click', async () => {
+                if (!confirm(`Remove "${v.title}" from YouTube? This can't be undone.`)) return;
+                const delRes = await fetch(`/api/youtube/videos/${v.videoId}`, { method: 'DELETE' });
+                if (delRes.ok) await refreshYouTubeVideosList();
+                else { const body = await delRes.json().catch(() => ({})); alert(body.error || 'Could not remove that video.'); }
+            });
+            list.appendChild(row);
+        }
     }
 
     // --- Flyers sub-tab: General (drag source), Flyer Templates, Generated Flyers ---
@@ -366,6 +417,8 @@ if (document.getElementById('catalog-grid')) {
                     <button type="button" id="catalog-viewer-capture">Capture frame</button>
                     <button type="button" id="catalog-viewer-trim-toggle">Trim</button>
                     <button type="button" id="catalog-viewer-split-toggle">Split</button>
+                    <button type="button" id="catalog-viewer-post-youtube">Post to YouTube</button>
+                    <button type="button" id="catalog-viewer-post-tiktok">Post to TikTok</button>
                 ` : ''}
                 ${item.category === 'flyer-template' ? `
                     <button type="button" id="catalog-viewer-edit-template">Edit Template</button>
@@ -488,6 +541,9 @@ if (document.getElementById('catalog-grid')) {
                     if (res.ok) reload();
                 }, 'image/jpeg');
             });
+
+            body.querySelector('#catalog-viewer-post-youtube').addEventListener('click', () => openYouTubeUploadModal(item));
+            body.querySelector('#catalog-viewer-post-tiktok').addEventListener('click', () => openTikTokUploadModal(item));
         }
 
         if (item.category === 'flyer-template') {
@@ -580,6 +636,130 @@ if (document.getElementById('catalog-grid')) {
             closeGigPicker();
             const result = await window.openFlyerEditor({ templateId, gigRef });
             if (result) reload();
+        });
+    }
+
+    // --- Post to YouTube (real video/Shorts upload - see YouTubeController's
+    // doc comment for why this isn't a text/photo promo post) ---
+    function closeYouTubeUploadModal() { document.getElementById('youtube-upload-modal-backdrop').hidden = true; }
+    document.getElementById('youtube-upload-modal-close').addEventListener('click', closeYouTubeUploadModal);
+    document.getElementById('youtube-upload-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'youtube-upload-modal-backdrop') closeYouTubeUploadModal(); });
+
+    async function openYouTubeUploadModal(item) {
+        const body = document.getElementById('youtube-upload-modal-body');
+        body.innerHTML = '<h2>Post to YouTube</h2><p class="save-note">Checking connection...</p>';
+        document.getElementById('youtube-upload-modal-backdrop').hidden = false;
+
+        const statusRes = await fetch('/api/youtube/status');
+        const { connected } = statusRes.ok ? await statusRes.json() : { connected: false };
+        if (!connected) {
+            body.innerHTML = '<h2>Post to YouTube</h2><p class="save-note">YouTube isn\'t connected for this band yet - a Band Admin can connect it under Band Admin &gt; Configure Web Presence.</p>';
+            return;
+        }
+
+        body.innerHTML = `
+            <h2>Post to YouTube</h2>
+            <form id="youtube-upload-form" class="cred-form">
+                <label>Title <input type="text" name="title" required maxlength="100" value="${escapeHtmlCatalog(item.label || item.original_filename || '')}"></label>
+                <label>Description <textarea name="description" rows="4"></textarea></label>
+                <label class="checkbox-label"><input type="checkbox" name="isShort"> Post as a Short <span class="field-hint">(only matters if the video is vertical/square and under 3 minutes - YouTube decides based on the file itself)</span></label>
+                <label>Visibility
+                    <select name="privacyStatus">
+                        <option value="public">Public</option>
+                        <option value="unlisted">Unlisted</option>
+                        <option value="private">Private</option>
+                    </select>
+                </label>
+                <button type="submit">Upload to YouTube</button>
+                <p id="youtube-upload-status" class="save-note"></p>
+            </form>
+        `;
+        document.getElementById('youtube-upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const status = document.getElementById('youtube-upload-status');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            status.textContent = 'Uploading - this can take a while for larger files...';
+
+            const res = await fetch('/api/youtube/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    catalogItemId: item.id,
+                    title: form.title.value.trim(),
+                    description: form.description.value.trim() || null,
+                    isShort: form.isShort.checked,
+                    privacyStatus: form.privacyStatus.value
+                })
+            });
+            const result = await res.json();
+            submitBtn.disabled = false;
+            if (res.ok) {
+                status.innerHTML = `Posted - <a href="${result.url}" target="_blank" rel="noopener">watch it on YouTube</a>.`;
+                youtubeVideosLoaded = false;
+                if (!document.getElementById('catalog-youtube-videos-section').hidden) await refreshYouTubeVideosList();
+            } else {
+                status.textContent = result.error || 'Could not upload that video.';
+            }
+        });
+    }
+
+    // --- Post to TikTok (see TikTokController's doc comment for the
+    // private-until-audited caveat this has that YouTube/Spotify don't) ---
+    function closeTikTokUploadModal() { document.getElementById('tiktok-upload-modal-backdrop').hidden = true; }
+    document.getElementById('tiktok-upload-modal-close').addEventListener('click', closeTikTokUploadModal);
+    document.getElementById('tiktok-upload-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'tiktok-upload-modal-backdrop') closeTikTokUploadModal(); });
+
+    async function openTikTokUploadModal(item) {
+        const body = document.getElementById('tiktok-upload-modal-body');
+        body.innerHTML = '<h2>Post to TikTok</h2><p class="save-note">Checking connection...</p>';
+        document.getElementById('tiktok-upload-modal-backdrop').hidden = false;
+
+        const statusRes = await fetch('/api/tiktok/status');
+        const { connected } = statusRes.ok ? await statusRes.json() : { connected: false };
+        if (!connected) {
+            body.innerHTML = '<h2>Post to TikTok</h2><p class="save-note">TikTok isn\'t connected for this band yet - a Band Admin can connect it under Band Admin &gt; Configure Web Presence.</p>';
+            return;
+        }
+
+        body.innerHTML = `
+            <h2>Post to TikTok</h2>
+            <p class="save-note">Until this BandManager instance passes TikTok's own developer audit, this lands private (visible only to the connected account) no matter what's chosen below.</p>
+            <form id="tiktok-upload-form" class="cred-form">
+                <label>Caption <input type="text" name="title" required maxlength="150" value="${escapeHtmlCatalog(item.label || item.original_filename || '')}"></label>
+                <label>Visibility
+                    <select name="privacyLevel">
+                        <option value="SELF_ONLY">Only me</option>
+                        <option value="PUBLIC_TO_EVERYONE">Public</option>
+                        <option value="MUTUAL_FOLLOW_FRIENDS">Friends</option>
+                        <option value="FOLLOWER_OF_CREATOR">Followers</option>
+                    </select>
+                </label>
+                <button type="submit">Upload to TikTok</button>
+                <p id="tiktok-upload-status" class="save-note"></p>
+            </form>
+        `;
+        document.getElementById('tiktok-upload-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const status = document.getElementById('tiktok-upload-status');
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            status.textContent = 'Uploading - this can take a while for larger files...';
+
+            const res = await fetch('/api/tiktok/upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    catalogItemId: item.id,
+                    title: form.title.value.trim(),
+                    privacyLevel: form.privacyLevel.value
+                })
+            });
+            const result = await res.json();
+            submitBtn.disabled = false;
+            status.textContent = res.ok ? (result.note || 'Posted.') : (result.error || 'Could not upload that video.');
         });
     }
 

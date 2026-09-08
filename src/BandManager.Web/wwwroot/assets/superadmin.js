@@ -11,6 +11,7 @@ async function loadSuperAdminPage() {
     document.getElementById('song-search-section').hidden = false;
     document.getElementById('song-import-section').hidden = false;
     document.getElementById('calendar-oauth-section').hidden = false;
+    document.getElementById('posting-oauth-section').hidden = false;
     document.getElementById('usps-section').hidden = false;
     document.getElementById('admin-branding-section').hidden = false;
 
@@ -21,6 +22,7 @@ async function loadSuperAdminPage() {
     loadAllUsers();
     loadSongSearchCredentials();
     loadCalendarOAuthCredentials();
+    loadPostingOAuthCredentials();
     loadUspsCredentials();
     loadBranding();
     renderSongImportBandCheckboxes();
@@ -235,6 +237,130 @@ document.getElementById('outlook-disconnect-btn').addEventListener('click', asyn
     await fetch('/api/superadmin/calendar-oauth-credentials/outlook', { method: 'DELETE' });
     document.getElementById('outlook-cred-form').reset();
     loadCalendarOAuthCredentials();
+});
+
+// --- Automated posting OAuth apps (Spotify + YouTube) ---
+async function loadPostingOAuthCredentials() {
+    document.getElementById('spotify-oauth-redirect-uri').textContent = `${location.origin}/api/spotify/callback`;
+    document.getElementById('youtube-oauth-redirect-uri').textContent = `${location.origin}/api/youtube/callback`;
+    document.getElementById('tiktok-oauth-redirect-uri').textContent = `${location.origin}/api/tiktok/callback`;
+
+    const [res, tiktokRes] = await Promise.all([
+        fetch('/api/superadmin/posting-oauth-credentials'),
+        fetch('/api/superadmin/posting-oauth-credentials/tiktok')
+    ]);
+
+    if (res.ok) {
+        const { spotify, youtube } = await res.json();
+
+        const spotifyBadge = document.getElementById('spotify-oauth-status-badge');
+        const spotifyForm = document.getElementById('spotify-oauth-cred-form');
+        if (spotify) {
+            spotifyBadge.textContent = 'Configured';
+            spotifyBadge.classList.add('configured');
+            spotifyForm.clientId.value = spotify.clientId || '';
+            spotifyForm.clientSecret.value = spotify.clientSecret || '';
+            document.getElementById('spotify-oauth-disconnect-tool').hidden = false;
+        } else {
+            spotifyBadge.textContent = 'Not configured';
+            spotifyBadge.classList.remove('configured');
+            document.getElementById('spotify-oauth-disconnect-tool').hidden = true;
+        }
+
+        const youtubeBadge = document.getElementById('youtube-oauth-status-badge');
+        const youtubeForm = document.getElementById('youtube-oauth-cred-form');
+        if (youtube) {
+            youtubeBadge.textContent = 'Configured';
+            youtubeBadge.classList.add('configured');
+            youtubeForm.clientId.value = youtube.clientId || '';
+            youtubeForm.clientSecret.value = youtube.clientSecret || '';
+            document.getElementById('youtube-oauth-disconnect-tool').hidden = false;
+        } else {
+            youtubeBadge.textContent = 'Not configured';
+            youtubeBadge.classList.remove('configured');
+            document.getElementById('youtube-oauth-disconnect-tool').hidden = true;
+        }
+    }
+
+    if (tiktokRes.ok) {
+        const { tiktok } = await tiktokRes.json();
+        const tiktokBadge = document.getElementById('tiktok-oauth-status-badge');
+        const tiktokForm = document.getElementById('tiktok-oauth-cred-form');
+        if (tiktok) {
+            tiktokBadge.textContent = 'Configured';
+            tiktokBadge.classList.add('configured');
+            tiktokForm.clientKey.value = tiktok.clientKey || '';
+            tiktokForm.clientSecret.value = tiktok.clientSecret || '';
+            document.getElementById('tiktok-oauth-disconnect-tool').hidden = false;
+        } else {
+            tiktokBadge.textContent = 'Not configured';
+            tiktokBadge.classList.remove('configured');
+            document.getElementById('tiktok-oauth-disconnect-tool').hidden = true;
+        }
+    }
+}
+
+document.getElementById('spotify-oauth-cred-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('spotify-oauth-cred-status');
+    const res = await fetch('/api/superadmin/posting-oauth-credentials/spotify', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: form.clientId.value.trim(), clientSecret: form.clientSecret.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save.');
+    if (res.ok) loadPostingOAuthCredentials();
+});
+
+document.getElementById('spotify-oauth-disconnect-btn').addEventListener('click', async () => {
+    if (!confirm('Remove the Spotify OAuth credentials? Bands will no longer be able to connect (or reconnect) Spotify.')) return;
+    await fetch('/api/superadmin/posting-oauth-credentials/spotify', { method: 'DELETE' });
+    document.getElementById('spotify-oauth-cred-form').reset();
+    loadPostingOAuthCredentials();
+});
+
+document.getElementById('youtube-oauth-cred-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('youtube-oauth-cred-status');
+    const res = await fetch('/api/superadmin/posting-oauth-credentials/youtube', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId: form.clientId.value.trim(), clientSecret: form.clientSecret.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save.');
+    if (res.ok) loadPostingOAuthCredentials();
+});
+
+document.getElementById('youtube-oauth-disconnect-btn').addEventListener('click', async () => {
+    if (!confirm('Remove the YouTube OAuth credentials? Bands will no longer be able to connect (or reconnect) YouTube posting.')) return;
+    await fetch('/api/superadmin/posting-oauth-credentials/youtube', { method: 'DELETE' });
+    document.getElementById('youtube-oauth-cred-form').reset();
+    loadPostingOAuthCredentials();
+});
+
+document.getElementById('tiktok-oauth-cred-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('tiktok-oauth-cred-status');
+    const res = await fetch('/api/superadmin/posting-oauth-credentials/tiktok', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientKey: form.clientKey.value.trim(), clientSecret: form.clientSecret.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save.');
+    if (res.ok) loadPostingOAuthCredentials();
+});
+
+document.getElementById('tiktok-oauth-disconnect-btn').addEventListener('click', async () => {
+    if (!confirm('Remove the TikTok OAuth credentials? Bands will no longer be able to connect (or reconnect) TikTok posting.')) return;
+    await fetch('/api/superadmin/posting-oauth-credentials/tiktok', { method: 'DELETE' });
+    document.getElementById('tiktok-oauth-cred-form').reset();
+    loadPostingOAuthCredentials();
 });
 
 // --- USPS address validation ---

@@ -514,6 +514,30 @@ document.getElementById('print-setlist-go-btn').addEventListener('click', () => 
     window.open(`/print-setlist.html?${params.toString()}`, '_blank');
 });
 
+// --- Save as Spotify Playlist (real songs, not a promo post - see
+// SpotifyController.CreatePlaylistFromGig's doc comment) ---
+document.getElementById('gig-set-spotify-btn').addEventListener('click', async () => {
+    if (!selectedGigRef || currentSongs.length === 0) { alert('Add some songs to this set first.'); return; }
+    const statusRes = await fetch('/api/spotify/status');
+    const { connected } = statusRes.ok ? await statusRes.json() : { connected: false };
+    if (!connected) { alert('Spotify isn\'t connected for this band yet - a Band Admin can connect it under Band Admin > Configure Web Presence.'); return; }
+
+    const btn = document.getElementById('gig-set-spotify-btn');
+    btn.disabled = true;
+    btn.textContent = 'Uploading...';
+    const res = await fetch(`/api/spotify/playlists/from-gig/${encodeURIComponent(selectedGigRef)}`, { method: 'POST' });
+    const result = await res.json();
+    btn.disabled = false;
+    btn.textContent = 'Save as Spotify Playlist';
+
+    if (res.ok) {
+        const skippedNote = result.skipped > 0 ? ` (${result.skipped} song${result.skipped === 1 ? '' : 's'} skipped - no Spotify link yet)` : '';
+        alert(`Created "${result.name}" with ${result.trackCount} song${result.trackCount === 1 ? '' : 's'}${skippedNote}.\n${result.url}`);
+    } else {
+        alert(result.error || 'Could not create the playlist.');
+    }
+});
+
 // --- Gig Prep (per-user, per-gig checklist) ---
 let gigPrepItems = [];
 let gigPrepActiveType = 0;

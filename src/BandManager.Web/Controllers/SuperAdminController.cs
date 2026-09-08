@@ -151,6 +151,102 @@ public class SuperAdminController(
         return Ok(new { ok = true });
     }
 
+    // --- Spotify (playlist management) / YouTube (video posting) OAuth
+    // apps --- one registered OAuth app per provider for this whole
+    // BandManager instance, same global/SuperAdmin-managed/PlatformSettings-
+    // backed shape as the calendar OAuth apps above. Each Band then
+    // connects its own Spotify/YouTube account under this app via
+    // SpotifyController/YouTubeController, writing into that Band's own
+    // Account row (platform "spotify"/"youtube") - same Account entity
+    // every other platform already uses, just populated by an OAuth
+    // callback instead of a pasted-in manual form. Deliberately a
+    // different PlatformSettings key than "youtube_credentials" (that one
+    // is the read-only Data API *search* key used by SongSearchService -
+    // a plain API key, not an OAuth app, and unrelated to posting).
+    private const string SpotifyOAuthKey = "spotify_oauth_credentials";
+    private const string YouTubeOAuthKey = "youtube_oauth_credentials";
+
+    [HttpGet("posting-oauth-credentials")]
+    public async Task<IActionResult> GetPostingOAuthCredentials()
+    {
+        var spotify = await SongSearchService.GetCredentialAsync(db, cipher, SpotifyOAuthKey);
+        var youtube = await SongSearchService.GetCredentialAsync(db, cipher, YouTubeOAuthKey);
+        return Ok(new { spotify, youtube });
+    }
+
+    [HttpPut("posting-oauth-credentials/spotify")]
+    public async Task<IActionResult> SetSpotifyOAuthCredentials([FromBody] SetCalendarOAuthCredentialsRequest request)
+    {
+        var clientId = request.ClientId?.Trim();
+        var clientSecret = request.ClientSecret?.Trim();
+        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+            return BadRequest(new { error = "Client ID and Client Secret are both required." });
+        await SongSearchService.SetCredentialAsync(db, cipher, SpotifyOAuthKey,
+            new() { ["clientId"] = clientId, ["clientSecret"] = clientSecret });
+        return Ok(new { ok = true });
+    }
+
+    [HttpDelete("posting-oauth-credentials/spotify")]
+    public async Task<IActionResult> ClearSpotifyOAuthCredentials()
+    {
+        await SongSearchService.ClearCredentialAsync(db, SpotifyOAuthKey);
+        return Ok(new { ok = true });
+    }
+
+    [HttpPut("posting-oauth-credentials/youtube")]
+    public async Task<IActionResult> SetYouTubeOAuthCredentials([FromBody] SetCalendarOAuthCredentialsRequest request)
+    {
+        var clientId = request.ClientId?.Trim();
+        var clientSecret = request.ClientSecret?.Trim();
+        if (string.IsNullOrEmpty(clientId) || string.IsNullOrEmpty(clientSecret))
+            return BadRequest(new { error = "Client ID and Client Secret are both required." });
+        await SongSearchService.SetCredentialAsync(db, cipher, YouTubeOAuthKey,
+            new() { ["clientId"] = clientId, ["clientSecret"] = clientSecret });
+        return Ok(new { ok = true });
+    }
+
+    [HttpDelete("posting-oauth-credentials/youtube")]
+    public async Task<IActionResult> ClearYouTubeOAuthCredentials()
+    {
+        await SongSearchService.ClearCredentialAsync(db, YouTubeOAuthKey);
+        return Ok(new { ok = true });
+    }
+
+    // --- TikTok (video posting) OAuth app --- separate from Spotify/
+    // YouTube above only because TikTok's own OAuth uses "client_key"
+    // instead of "client_id" as its param name; same global/SuperAdmin-
+    // managed/PlatformSettings-backed shape otherwise. See TikTokController's
+    // doc comment for the real caveat this one has that Spotify/YouTube
+    // don't: TikTok also requires this whole app to pass their own
+    // developer audit before any post through it is publicly visible.
+    private const string TikTokOAuthKey = "tiktok_oauth_credentials";
+
+    [HttpGet("posting-oauth-credentials/tiktok")]
+    public async Task<IActionResult> GetTikTokOAuthCredentials()
+    {
+        var tiktok = await SongSearchService.GetCredentialAsync(db, cipher, TikTokOAuthKey);
+        return Ok(new { tiktok });
+    }
+
+    [HttpPut("posting-oauth-credentials/tiktok")]
+    public async Task<IActionResult> SetTikTokOAuthCredentials([FromBody] SetTikTokOAuthCredentialsRequest request)
+    {
+        var clientKey = request.ClientKey?.Trim();
+        var clientSecret = request.ClientSecret?.Trim();
+        if (string.IsNullOrEmpty(clientKey) || string.IsNullOrEmpty(clientSecret))
+            return BadRequest(new { error = "Client Key and Client Secret are both required." });
+        await SongSearchService.SetCredentialAsync(db, cipher, TikTokOAuthKey,
+            new() { ["clientKey"] = clientKey, ["clientSecret"] = clientSecret });
+        return Ok(new { ok = true });
+    }
+
+    [HttpDelete("posting-oauth-credentials/tiktok")]
+    public async Task<IActionResult> ClearTikTokOAuthCredentials()
+    {
+        await SongSearchService.ClearCredentialAsync(db, TikTokOAuthKey);
+        return Ok(new { ok = true });
+    }
+
     // --- USPS address validation (Profile page's address fields) ---
     // Same global/SuperAdmin-managed/PlatformSettings-backed shape as
     // everything else in this section - see AddressLookupService.
