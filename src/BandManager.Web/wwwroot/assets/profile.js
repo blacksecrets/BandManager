@@ -65,6 +65,32 @@ document.getElementById('name-form').addEventListener('submit', async (e) => {
 });
 
 // --- Contact info / address ---
+
+// A US phone number, formatted XXX-YYY-ZZZZ on blur. 10 digits after
+// stripping everything else (spaces, dashes, parens, a leading "1"
+// country code) - anything else is flagged inline rather than silently
+// accepted or silently reformatted wrong.
+function formatCellNumber(raw) {
+    let digits = raw.replace(/\D/g, '');
+    if (digits.length === 11 && digits.startsWith('1')) digits = digits.slice(1);
+    if (digits.length !== 10) return null;
+    return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+document.querySelector('#contact-form input[name="cellNumber"]').addEventListener('blur', (e) => {
+    const errorEl = document.getElementById('cell-number-error');
+    const raw = e.target.value.trim();
+    if (!raw) { errorEl.hidden = true; return; }
+
+    const formatted = formatCellNumber(raw);
+    if (formatted) {
+        e.target.value = formatted;
+        errorEl.hidden = true;
+    } else {
+        errorEl.textContent = "That doesn't look like a valid 10-digit phone number.";
+        errorEl.hidden = false;
+    }
+});
 async function loadUspsConfigured() {
     const res = await fetch('/api/address-lookup/configured');
     const { configured } = res.ok ? await res.json() : { configured: false };
@@ -76,6 +102,11 @@ document.getElementById('contact-form').addEventListener('submit', async (e) => 
     e.preventDefault();
     const form = e.target;
     const status = document.getElementById('contact-status');
+
+    if (!document.getElementById('cell-number-error').hidden) {
+        status.textContent = 'Fix the cell number before saving.';
+        return;
+    }
 
     const res = await fetch('/api/profile/contact', {
         method: 'PUT',
@@ -178,10 +209,45 @@ function renderGearItem(item, { expanded = false } = {}) {
     header.className = 'gear-item-header';
     header.innerHTML = `
         <button type="button" class="gear-collapse-toggle">${expanded ? '▾' : '▸'}</button>
+        <span class="drag-handle gear-drag-handle" title="Drag into Gig Prep Defaults">⠿</span>
         <span class="gear-item-summary">${escapeHtmlProfile(gearSummaryLabel(item.type, item.make, item.model))}</span>
         <button type="button" class="remove-btn gear-remove-btn">Remove</button>
     `;
     card.appendChild(header);
+
+    // The only way a gear item reaches Gig Prep Defaults - dragged (or
+    // clicked, as a touch/discoverability fallback) straight from here,
+    // never from a second gear-picker duplicated inside that section.
+    const dragHandle = header.querySelector('.gear-drag-handle');
+    dragHandle.addEventListener('click', () => addGigPrepDefaultFromGear(item));
+    dragHandle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const dropZone = document.getElementById('gig-prep-default-list');
+        card.classList.add('dragging');
+        let over = false;
+
+        function onPointerMove(ev) {
+            const el = document.elementFromPoint(ev.clientX, ev.clientY);
+            const hit = !!(el && el.closest('.gig-prep-list') === dropZone);
+            if (hit !== over) { dropZone.classList.toggle('drag-over', hit); over = hit; }
+        }
+        function cleanup() {
+            document.removeEventListener('pointermove', onPointerMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            document.removeEventListener('pointercancel', onPointerUp);
+            card.classList.remove('dragging');
+            dropZone.classList.remove('drag-over');
+        }
+        function onPointerUp() {
+            const dropped = over;
+            cleanup();
+            if (dropped) addGigPrepDefaultFromGear(item);
+        }
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+        document.addEventListener('pointercancel', onPointerUp);
+    });
 
     const body = document.createElement('div');
     body.className = 'gear-item-body';
@@ -355,30 +421,15 @@ async function loadGigPrepDefaults() {
     await renderGigPrepDefaultTabs();
 }
 
-// Async, and always re-fetches /api/gear when the Packing tab is showing -
-// no cached gear list, so a gear item just added/edited/removed on this
-// same page shows up (or drops out) immediately, not only after a reload.
+// Gear only ever comes from the My Gear cards above via drag (see
+// makeGearCardDraggable) - there's deliberately no second "pick your
+// gear" list duplicated inside this section.
 async function renderGigPrepDefaultTabs() {
     renderGigPrepTabs(document.getElementById('gig-prep-default-tabs'), gigPrepDefaultActiveType, (type) => {
         gigPrepDefaultActiveType = type;
         renderGigPrepDefaultTabs();
     });
     renderGigPrepDefaultList();
-
-    const gearPanel = document.getElementById('gig-prep-default-gear-panel');
-    gearPanel.hidden = gigPrepDefaultActiveType !== 1; // Packing
-    if (!gearPanel.hidden) {
-        const gearRes = await fetch('/api/gear');
-        const gear = gearRes.ok ? await gearRes.json() : [];
-        const existingTexts = new Set(gigPrepDefaults.filter((i) => i.listType === 1).map((i) => i.text));
-        renderGigPrepGearPanel(
-            document.getElementById('gig-prep-default-gear-list'),
-            gear,
-            existingTexts,
-            document.getElementById('gig-prep-default-list'),
-            addGigPrepDefaultFromGear
-        );
-    }
 }
 
 function renderGigPrepDefaultList() {
