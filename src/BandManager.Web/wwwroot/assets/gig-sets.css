@@ -51,6 +51,13 @@
 .gig-set-repertoire-item.dragging { opacity: 0.4; }
 .gig-set-repertoire-item small { display: block; color: #999; }
 
+.gig-set-list-panel {
+    border: 1px solid #333;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: rgba(255, 255, 255, 0.015);
+}
+.gig-set-list-panel h3 { margin: 0 0 8px; font-size: 0.9rem; }
 .gig-set-list-panel.drag-over { outline: 2px dashed #4a6fa5; outline-offset: -2px; border-radius: 6px; }
 
 .gig-set-song-list { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-height: 60px; }
