@@ -17,6 +17,23 @@
         return '/' + String(relPath || '').replace(/\\/g, '/').replace(/^data\/catalog\//, 'catalog-files/');
     }
 
+    // SuperAdmin-uploaded custom fonts (key "custom-<id>") aren't in
+    // flyerEditor.css's static @font-face rules like the 7 bundled ones -
+    // this injects one on first use of each, so the live preview can
+    // render them too. Keyed by font key so a reopen doesn't duplicate.
+    const injectedCustomFonts = new Set();
+    function ensureCustomFontFace(font) {
+        if (!font.fileUrl || injectedCustomFonts.has(font.key)) return;
+        injectedCustomFonts.add(font.key);
+        const style = document.createElement('style');
+        style.textContent = `@font-face { font-family: 'flyer-${font.key}'; src: url('${font.fileUrl}') format('${font.format || 'truetype'}'); }`;
+        document.head.appendChild(style);
+    }
+    function cssFontFamily(fonts, key) {
+        const font = fonts.find((f) => f.key === key);
+        return font && font.fileUrl ? `'flyer-${font.key}', sans-serif` : `var(--flyer-font-${key || 'oswald-bold'})`;
+    }
+
     const backdrop = document.createElement('div');
     backdrop.id = 'flyer-editor-backdrop';
     backdrop.className = 'detail-modal-backdrop';
@@ -102,6 +119,7 @@
             const image = await imageRes.json();
             const gig = await gigRes.json();
             const fonts = fontsRes.ok ? await fontsRes.json() : [];
+            fonts.forEach(ensureCustomFontFace);
             const knownFields = await knownFieldsRes.json();
 
             let fields = buildInitialFields(knownFields, gig);
@@ -196,7 +214,7 @@
                         el.textContent = field.value || field.label;
                         el.style.color = field.color || '#ffffff';
                         el.style.fontSize = `${(field.fontSize || 0.04) * bgImg.clientHeight}px`;
-                        el.style.fontFamily = `var(--flyer-font-${field.fontFamily || 'oswald-bold'})`;
+                        el.style.fontFamily = cssFontFamily(fonts, field.fontFamily);
                         el.style.fontWeight = field.bold ? 'bold' : 'normal';
                         el.style.fontStyle = field.italic ? 'italic' : 'normal';
                         el.style.textDecoration = field.underline ? 'underline' : 'none';

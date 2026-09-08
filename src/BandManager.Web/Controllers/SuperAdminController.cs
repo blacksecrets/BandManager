@@ -38,7 +38,8 @@ public class SuperAdminController(
     UserManager<ApplicationUser> userManager,
     UserProvisioningService userProvisioning,
     BandMembershipService membershipService,
-    ICredentialCipher cipher) : ControllerBase
+    ICredentialCipher cipher,
+    IWebHostEnvironment env) : ControllerBase
 {
     private const string YouTubeCredentialsKey = "youtube_credentials";
     private const string SpotifyCredentialsKey = "spotify_credentials";
@@ -613,5 +614,58 @@ public class SuperAdminController(
             .Select(u => new { id = u.Id, username = u.UserName })
             .ToListAsync();
         return Ok(users);
+    }
+
+    // --- Custom flyer fonts ---
+    // Platform-wide, SuperAdmin-uploaded, expanding the flyer editor's
+    // font list beyond the 7 bundled ones - see CustomFlyerFont.cs. Files
+    // live under data/fonts/ (persistent bind mount), served back out via
+    // Program.cs's authenticated /custom-fonts static route.
+    private const long MaxFontBytes = 20_000_000;
+    private string CustomFontsRootPath => Path.Combine(env.ContentRootPath, "data", "fonts");
+
+    [HttpGet("fonts")]
+    public async Task<IActionResult> ListCustomFonts()
+    {
+        var fonts = await db.CustomFlyerFonts.AsNoTracking().OrderBy(f => f.Label).ToListAsync();
+        return Ok(fonts.Select(f => new { id = f.Id, label = f.Label, fileUrl = $"/custom-fonts/{f.Id}{f.Extension}" }));
+    }
+
+    [HttpPost("fonts")]
+    [RequestSizeLimit(MaxFontBytes)]
+    public async Task<IActionResult> UploadCustomFont()
+    {
+        if (!Request.HasFormContentType) return BadRequest(new { error = "Provide a font file" });
+        var form = await Request.ReadFormAsync();
+        var file = form.Files.GetFile("file");
+        var label = form["label"].ToString().Trim();
+        if (file is null || file.Length == 0) return BadRequest(new { error = "Provide a font file" });
+        if (label.Length == 0) return BadRequest(new { error = "A label is required" });
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension != ".ttf" && extension != ".otf")
+            return BadRequest(new { error = "Only .ttf and .otf font files are supported" });
+
+        var font = new CustomFlyerFont { Label = label, Extension = extension };
+        Directory.CreateDirectory(CustomFontsRootPath);
+        var path = Path.Combine(CustomFontsRootPath, $"{font.Id}{extension}");
+        await using (var stream = System.IO.File.Create(path))
+            await file.CopyToAsync(stream);
+
+        db.CustomFlyerFonts.Add(font);
+        await db.SaveChangesAsync();
+        return Ok(new { id = font.Id, label = font.Label, fileUrl = $"/custom-fonts/{font.Id}{font.Extension}" });
+    }
+
+    [HttpDelete("fonts/{id:guid}")]
+    public async Task<IActionResult> DeleteCustomFont(Guid id)
+    {
+        var font = await db.CustomFlyerFonts.FindAsync(id);
+        if (font is null) return NotFound(new { error = "Not found" });
+        var path = Path.Combine(CustomFontsRootPath, $"{font.Id}{font.Extension}");
+        db.CustomFlyerFonts.Remove(font);
+        await db.SaveChangesAsync();
+        if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+        return Ok(new { ok = true });
     }
 }

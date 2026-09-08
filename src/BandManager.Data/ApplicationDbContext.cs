@@ -63,6 +63,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Availability> Availabilities => Set<Availability>();
 
     public DbSet<Flyer> Flyers => Set<Flyer>();
+    public DbSet<CustomFlyerFont> CustomFlyerFonts => Set<CustomFlyerFont>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

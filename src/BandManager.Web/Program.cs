@@ -106,6 +106,7 @@ var uploadsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", 
 var catalogRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "catalog");
 var flyerCacheRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "flyer-cache");
 var bandBrandingRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "band-branding");
+var customFontsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "fonts");
 
 builder.Services.AddHttpClient(); // generic IHttpClientFactory, for FlyerCache/CatalogStore below
 
@@ -220,6 +221,7 @@ void MapAuthenticatedStaticFiles(string requestPath, string physicalPath)
 
 MapAuthenticatedStaticFiles("/uploads", uploadsRootPath);
 MapAuthenticatedStaticFiles("/band-branding", bandBrandingRootPath);
+MapAuthenticatedStaticFiles("/custom-fonts", customFontsRootPath);
 // Extensionless page routes - the reused frontend's nav links (topbar
 // <a href="/settings">, etc., carried over unchanged from the old app)
 // point at these, not the .html filenames directly. The .html files stay

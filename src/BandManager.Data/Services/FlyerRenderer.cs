@@ -16,7 +16,7 @@ namespace BandManager.Data.Services;
 /// </summary>
 public static class FlyerRenderer
 {
-    public static byte[] RenderFlyer(byte[] backgroundBytes, List<FlyerFieldDef> fields, string fontsRootPath, Func<string, byte[]?>? logoResolver)
+    public static byte[] RenderFlyer(byte[] backgroundBytes, List<FlyerFieldDef> fields, string fontsRootPath, Func<string, byte[]?>? logoResolver, Func<string, string?>? customFontPathResolver = null)
     {
         SKBitmap? decoded;
         try
@@ -41,7 +41,7 @@ public static class FlyerRenderer
                 continue;
             }
 
-            DrawTextField(canvas, background, field, fontsRootPath);
+            DrawTextField(canvas, background, field, fontsRootPath, customFontPathResolver);
         }
 
         canvas.Flush();
@@ -54,10 +54,11 @@ public static class FlyerRenderer
     // manually-drawn line) rather than switching to a different font file -
     // most of the 7 bundled fonts are single-weight display faces with no
     // separate bold/italic variant bundled to switch to.
-    private static void DrawTextField(SKCanvas canvas, SKBitmap background, FlyerFieldDef field, string fontsRootPath)
+    private static void DrawTextField(SKCanvas canvas, SKBitmap background, FlyerFieldDef field, string fontsRootPath, Func<string, string?>? customFontPathResolver)
     {
         var fontSizePx = (float)((field.FontSize ?? 0.04) * background.Height);
-        var typeface = FlyerFonts.LoadTypeface(fontsRootPath, field.FontFamily);
+        var customFontPath = field.FontFamily is not null ? customFontPathResolver?.Invoke(field.FontFamily) : null;
+        var typeface = FlyerFonts.LoadTypeface(fontsRootPath, field.FontFamily, customFontPath);
         using var font = new SKFont(typeface, fontSizePx) { Embolden = field.Bold };
         using var paint = new SKPaint { Color = ParseColor(field.Color), IsAntialias = true };
 

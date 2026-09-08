@@ -46,6 +46,11 @@ public class FlyersController(
     // "a controller needs a root path" (see its branding-upload actions).
     private string FontsRootPath => Path.Combine(env.WebRootPath, "fonts");
 
+    // Where SuperAdmin-uploaded custom fonts live - data/, not wwwroot/,
+    // since wwwroot is baked into the image and wiped on redeploy (see
+    // CustomFlyerFont.cs and Program.cs's /custom-fonts static route).
+    private string CustomFontsRootPath => Path.Combine(env.ContentRootPath, "data", "fonts");
+
     // Every field the app currently knows how to put on a flyer - seeded
     // in a simple default vertical stack down the left third of the image,
     // white Oswald Bold text, all visible, whenever someone starts a new
@@ -83,7 +88,19 @@ public class FlyersController(
 
     [HttpGet("fonts")]
     [Authorize(Policy = "BandMember")]
-    public IActionResult Fonts() => Ok(FlyerFonts.Available.Select(f => new { key = f.Key, label = f.Label }));
+    public async Task<IActionResult> Fonts()
+    {
+        var bundled = FlyerFonts.Available.Select(f => new { key = f.Key, label = f.Label, fileUrl = (string?)null, format = (string?)null });
+        var custom = await db.CustomFlyerFonts.AsNoTracking().OrderBy(f => f.Label).ToListAsync();
+        var customEntries = custom.Select(f => new
+        {
+            key = $"custom-{f.Id}",
+            label = f.Label,
+            fileUrl = (string?)$"/custom-fonts/{f.Id}{f.Extension}",
+            format = (string?)(f.Extension.Equals(".otf", StringComparison.OrdinalIgnoreCase) ? "opentype" : "truetype")
+        });
+        return Ok(bundled.Concat(customEntries));
+    }
 
     // The default field layout a brand-new flyer starts from, for
     // flyerEditor.js to seed when it isn't editing an existing Flyer -
@@ -144,8 +161,14 @@ public class FlyersController(
             catch (InvalidOperationException) { return null; }
         }
 
+        var customFontKeys = fields.Select(f => f.FontFamily).Where(k => k is not null && k.StartsWith("custom-", StringComparison.Ordinal))
+            .Select(k => k!["custom-".Length..]).Distinct().ToList();
+        var customFontsById = customFontKeys.Count == 0 ? []
+            : await db.CustomFlyerFonts.AsNoTracking().Where(f => customFontKeys.Contains(f.Id.ToString())).ToDictionaryAsync(f => $"custom-{f.Id}", f => Path.Combine(CustomFontsRootPath, $"{f.Id}{f.Extension}"));
+        string? CustomFontPathResolver(string key) => customFontsById.GetValueOrDefault(key);
+
         byte[] rendered;
-        try { rendered = FlyerRenderer.RenderFlyer(backgroundBytes, fields, FontsRootPath, LogoResolver); }
+        try { rendered = FlyerRenderer.RenderFlyer(backgroundBytes, fields, FontsRootPath, LogoResolver, CustomFontPathResolver); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
 
         var gigRef = gig.Ref;

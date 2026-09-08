@@ -14,6 +14,7 @@ async function loadSuperAdminPage() {
     document.getElementById('posting-oauth-section').hidden = false;
     document.getElementById('usps-section').hidden = false;
     document.getElementById('admin-branding-section').hidden = false;
+    document.getElementById('flyer-fonts-section').hidden = false;
 
     loadAllUsersPicker();
     // Awaited before loadAllUsers/renderSongImportBandCheckboxes - both
@@ -26,6 +27,7 @@ async function loadSuperAdminPage() {
     loadUspsCredentials();
     loadBranding();
     renderSongImportBandCheckboxes();
+    loadFlyerFonts();
 }
 
 // --- Bulk song CSV import ---
@@ -790,5 +792,59 @@ for (const type of ['logo', 'background', 'favicon']) {
         if (res.ok) setBrandingPreview(type, null);
     });
 }
+
+// --- Flyer fonts (SuperAdmin-uploaded, platform-wide) ---
+async function loadFlyerFonts() {
+    const res = await fetch('/api/superadmin/fonts');
+    if (!res.ok) return;
+    const fonts = await res.json();
+    const tbody = document.getElementById('flyer-fonts-table-body');
+    tbody.innerHTML = '';
+    for (const font of fonts) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${escapeHtml(font.label)}</td><td></td>`;
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-btn';
+        removeBtn.textContent = 'Remove';
+        removeBtn.addEventListener('click', async () => {
+            if (!confirm(`Remove the font "${font.label}"? Flyers already using it keep their already-rendered image, but re-saving them will fall back to a bundled font.`)) return;
+            const delRes = await fetch(`/api/superadmin/fonts/${font.id}`, { method: 'DELETE' });
+            if (delRes.ok) loadFlyerFonts();
+        });
+        tr.lastElementChild.appendChild(removeBtn);
+        tbody.appendChild(tr);
+    }
+}
+
+document.getElementById('flyer-font-file').addEventListener('change', () => {
+    const input = document.getElementById('flyer-font-file');
+    document.getElementById('flyer-font-file-name').textContent = input.files[0] ? input.files[0].name : '';
+});
+
+document.getElementById('flyer-font-upload-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('flyer-font-upload-status');
+    const fileInput = document.getElementById('flyer-font-file');
+    const label = form.label.value.trim();
+
+    if (!label) { status.textContent = 'Enter a name for this font.'; return; }
+    if (!fileInput.files[0]) { status.textContent = 'Choose a .ttf or .otf file.'; return; }
+
+    status.textContent = 'Uploading...';
+    const body = new FormData();
+    body.append('label', label);
+    body.append('file', fileInput.files[0]);
+    const res = await fetch('/api/superadmin/fonts', { method: 'POST', body });
+    const result = await res.json().catch(() => ({}));
+    if (res.ok) {
+        status.textContent = `${label} uploaded.`;
+        form.reset();
+        document.getElementById('flyer-font-file-name').textContent = '';
+        loadFlyerFonts();
+    } else {
+        status.textContent = result.error || 'Could not upload that font.';
+    }
+});
 
 loadSuperAdminPage();

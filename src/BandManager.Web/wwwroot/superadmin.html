@@ -294,6 +294,24 @@
             </div>
             <p id="branding-status" class="save-note"></p>
         </section>
+
+        <section class="platform-card" id="flyer-fonts-section" hidden>
+            <h2>Flyer fonts</h2>
+            <p>Fonts every band can pick from in the flyer editor, beyond the 7 built in. Accepts .ttf and .otf files.</p>
+
+            <form id="flyer-font-upload-form" class="cred-form">
+                <label>Font name <input type="text" name="label" placeholder="e.g. Impact" autocomplete="off"></label>
+                <label class="upload-btn">Choose font file<input type="file" id="flyer-font-file" accept=".ttf,.otf" hidden></label>
+                <span id="flyer-font-file-name" class="field-hint"></span>
+                <button type="submit">Upload font</button>
+                <p id="flyer-font-upload-status" class="save-note"></p>
+            </form>
+
+            <table class="user-table" id="flyer-fonts-table">
+                <thead><tr><th>Name</th><th></th></tr></thead>
+                <tbody id="flyer-fonts-table-body"></tbody>
+            </table>
+        </section>
     </main>
 
     <script src="/assets/superadmin.js"></script>

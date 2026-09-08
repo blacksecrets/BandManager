@@ -30,8 +30,23 @@ public static class FlyerFonts
     private static readonly Dictionary<string, SKTypeface> Cache = new();
     private static readonly Lock CacheLock = new();
 
-    public static SKTypeface LoadTypeface(string fontsRootPath, string? key)
+    // customFontPath is the resolved absolute file path for a
+    // "custom-{id}" key (see CustomFlyerFont.cs) - the caller (FlyersController)
+    // looks that up from the DB since this class has no DB access itself,
+    // same delegate-passing pattern FlyerRenderer already uses for logos.
+    public static SKTypeface LoadTypeface(string fontsRootPath, string? key, string? customFontPath = null)
     {
+        if (!string.IsNullOrEmpty(key) && key.StartsWith("custom-", StringComparison.Ordinal) && customFontPath is not null)
+        {
+            lock (CacheLock)
+            {
+                if (Cache.TryGetValue(key, out var cachedCustom)) return cachedCustom;
+                var customTypeface = SKTypeface.FromFile(customFontPath) ?? SKTypeface.Default;
+                Cache[key] = customTypeface;
+                return customTypeface;
+            }
+        }
+
         var resolvedKey = Available.Any(f => f.Key == key) ? key! : Available[0].Key;
         lock (CacheLock)
         {
