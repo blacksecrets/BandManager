@@ -549,7 +549,56 @@ public class SuperAdminController(
         db.Bands.Add(band);
         db.BandMemberships.Add(new BandMembership { UserId = adminUser.Id, BandId = band.Id, Role = BandRole.BandAdmin });
         await db.SaveChangesAsync();
+
+        await ApplyDefaultCadenceRulesAsync(band.Id);
         return Ok(new { id = band.Id, name = band.Name, slug = band.Slug });
+    }
+
+    // Gives a brand-new band a working starter set of posting cadence,
+    // modeled on Black Secrets' own real cadence (see
+    // DefaultCadenceRuleSeedData) - otherwise a band starts at zero rules
+    // and generates zero task tiles until an admin builds every one by
+    // hand. Creates whichever Accounts are needed too, mirroring
+    // PlatformsController.List's lazy-create pattern, since a CadenceRule
+    // needs a real AccountId - "we post here" (Account.IsOnboarded) stays
+    // false either way, same as any other new Account, so this doesn't
+    // silently mark platforms connected that aren't.
+    private async Task ApplyDefaultCadenceRulesAsync(Guid bandId)
+    {
+        var templates = await db.DefaultCadenceRuleTemplates.OrderBy(t => t.SortOrder).ToListAsync();
+        if (templates.Count == 0) return;
+
+        var accountIdByPlatform = await db.Accounts.Where(a => a.BandId == bandId)
+            .ToDictionaryAsync(a => a.PlatformId, a => a.Id);
+
+        foreach (var platformId in templates.Select(t => t.PlatformId).Distinct())
+        {
+            if (accountIdByPlatform.ContainsKey(platformId)) continue;
+            var platform = await db.Platforms.FindAsync(platformId);
+            if (platform is null) continue;
+            var account = new Account { BandId = bandId, PlatformId = platformId, Label = platform.DisplayName };
+            db.Accounts.Add(account);
+            accountIdByPlatform[platformId] = account.Id;
+        }
+        await db.SaveChangesAsync();
+
+        foreach (var t in templates)
+        {
+            if (!accountIdByPlatform.TryGetValue(t.PlatformId, out var accountId)) continue;
+            db.CadenceRules.Add(new CadenceRule
+            {
+                AccountId = accountId,
+                ContentTypeId = t.ContentTypeId,
+                Kind = t.Kind,
+                Category = t.Category,
+                Description = t.Description,
+                ScheduleType = t.ScheduleType,
+                ScheduleDays = t.ScheduleDays,
+                MessageTemplates = t.MessageTemplates,
+                ManualInstructions = t.ManualInstructions
+            });
+        }
+        await db.SaveChangesAsync();
     }
 
     // Powers the "pick an existing user" half of the Band Admin picker

@@ -24,6 +24,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BandSetting> BandSettings => Set<BandSetting>();
 
     public DbSet<CadenceRule> CadenceRules => Set<CadenceRule>();
+    public DbSet<DefaultCadenceRuleTemplate> DefaultCadenceRuleTemplates => Set<DefaultCadenceRuleTemplate>();
     public DbSet<CalendarFeedToken> CalendarFeedTokens => Set<CalendarFeedToken>();
     public DbSet<UserExternalCalendarConnection> UserExternalCalendarConnections => Set<UserExternalCalendarConnection>();
     public DbSet<CatalogItem> CatalogItems => Set<CatalogItem>();
@@ -162,6 +163,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             // simply unassigned if it ever happens.
             b.HasOne(x => x.AssigneeUser1).WithMany().HasForeignKey(x => x.AssigneeUserId1).OnDelete(DeleteBehavior.SetNull);
             b.HasOne(x => x.AssigneeUser2).WithMany().HasForeignKey(x => x.AssigneeUserId2).OnDelete(DeleteBehavior.SetNull);
+            b.Property(x => x.ScheduleDays)
+                .HasConversion(JsonValueConverter.For<List<string>>(), JsonValueConverter.Comparer<List<string>>());
+            b.Property(x => x.MessageTemplates)
+                .HasConversion(JsonValueConverter.For<Dictionary<string, string>>(), JsonValueConverter.Comparer<Dictionary<string, string>>());
+        });
+
+        builder.Entity<DefaultCadenceRuleTemplate>(b =>
+        {
+            b.HasKey(x => x.Key);
             b.Property(x => x.ScheduleDays)
                 .HasConversion(JsonValueConverter.For<List<string>>(), JsonValueConverter.Comparer<List<string>>());
             b.Property(x => x.MessageTemplates)

@@ -5,7 +5,8 @@ namespace BandManager.Data.Seed;
 
 /// <summary>
 /// Applies the global reference-data seed (Platforms, ContentTypes,
-/// PlatformContentTypes) on every startup - upserts, not insert-only, so
+/// PlatformContentTypes, DefaultCadenceRuleTemplates) on every startup -
+/// upserts, not insert-only, so
 /// an edit to the seed data (new instructions text, a platform gaining
 /// credential_fields) takes effect on the next restart instead of being
 /// stuck at whatever was first seeded. Mirrors the old app's
@@ -44,6 +45,28 @@ public static class DbSeeder
             {
                 existing.RequiredArtifacts = contentType.RequiredArtifacts;
                 existing.SortOrder = contentType.SortOrder;
+            }
+        }
+
+        foreach (var template in DefaultCadenceRuleSeedData.All)
+        {
+            var existing = await db.DefaultCadenceRuleTemplates.FindAsync(template.Key);
+            if (existing is null)
+            {
+                db.DefaultCadenceRuleTemplates.Add(template);
+            }
+            else
+            {
+                existing.PlatformId = template.PlatformId;
+                existing.ContentTypeId = template.ContentTypeId;
+                existing.Kind = template.Kind;
+                existing.Category = template.Category;
+                existing.Description = template.Description;
+                existing.ScheduleType = template.ScheduleType;
+                existing.ScheduleDays = template.ScheduleDays;
+                existing.MessageTemplates = template.MessageTemplates;
+                existing.ManualInstructions = template.ManualInstructions;
+                existing.SortOrder = template.SortOrder;
             }
         }
 
