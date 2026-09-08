@@ -470,16 +470,25 @@ body {
 }
 .detail-modal-close {
     position: absolute;
-    top: 12px;
-    right: 12px;
-    background: none;
-    border: none;
-    color: #999;
-    font-size: 1.4rem;
-    cursor: pointer;
+    top: 10px;
+    right: 10px;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #d32f2f;
+    border: 2px solid #1a1a1a;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 1.1rem;
     line-height: 1;
+    padding: 0;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+    z-index: 5;
 }
-.detail-modal-close:hover { color: #eee; }
+.detail-modal-close:hover { background: #f44336; }
 
 .image-modal {
     background: #1a1a1a;
