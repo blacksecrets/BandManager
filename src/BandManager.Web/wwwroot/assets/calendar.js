@@ -1,4 +1,5 @@
-let currentMonth = new Date(); // any Date within the visible month
+let currentDate = new Date(); // anchor date - a day in the visible month/week, or the visible day itself
+let currentView = 'month'; // 'month' | 'week' | 'day'
 let entriesByDate = {}; // "yyyy-MM-dd" -> array of entries
 let availabilityByDate = {}; // "yyyy-MM-dd" -> array of {userId, firstName, status, note}
 let bandMembers = []; // [{id, firstName}]
@@ -24,9 +25,18 @@ async function init() {
     document.getElementById('calendar-content').hidden = !hasBand;
     if (!hasBand) return;
 
-    document.getElementById('calendar-prev-month').addEventListener('click', () => { currentMonth.setMonth(currentMonth.getMonth() - 1); render(); });
-    document.getElementById('calendar-next-month').addEventListener('click', () => { currentMonth.setMonth(currentMonth.getMonth() + 1); render(); });
-    document.getElementById('calendar-today-btn').addEventListener('click', () => { currentMonth = new Date(); render(); });
+    document.getElementById('calendar-prev-month').addEventListener('click', () => { stepDate(-1); render(); });
+    document.getElementById('calendar-next-month').addEventListener('click', () => { stepDate(1); render(); });
+    document.getElementById('calendar-today-btn').addEventListener('click', () => { currentDate = new Date(); render(); });
+
+    for (const tab of document.querySelectorAll('.calendar-view-tab')) {
+        tab.classList.toggle('active', tab.dataset.view === currentView);
+        tab.addEventListener('click', () => {
+            currentView = tab.dataset.view;
+            for (const t of document.querySelectorAll('.calendar-view-tab')) t.classList.toggle('active', t === tab);
+            render();
+        });
+    }
 
     if (me.isAdmin) {
         const btn = document.getElementById('calendar-recurring-btn');
@@ -124,9 +134,28 @@ async function loadEntries(monthStart, monthEnd) {
     return map;
 }
 
+// Moves currentDate by one unit of whatever view is currently active -
+// a month for Month view, 7 days for Week, 1 day for Day - so Prev/Next
+// always means "the next thing this view shows," not always "next month."
+function stepDate(direction) {
+    if (currentView === 'month') currentDate.setMonth(currentDate.getMonth() + direction);
+    else if (currentView === 'week') currentDate.setDate(currentDate.getDate() + direction * 7);
+    else currentDate.setDate(currentDate.getDate() + direction);
+}
+
 async function render() {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
+    document.getElementById('calendar-grid').classList.remove('calendar-grid-week');
+    if (currentView === 'month') await renderMonthView();
+    else if (currentView === 'week') await renderWeekView();
+    else await renderDayView();
+}
+
+async function renderMonthView() {
+    document.getElementById('calendar-grid').hidden = false;
+    document.getElementById('calendar-day-view').hidden = true;
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0);
 
@@ -183,6 +212,118 @@ async function render() {
     }
 }
 
+async function renderWeekView() {
+    const grid = document.getElementById('calendar-grid');
+    grid.hidden = false;
+    grid.classList.add('calendar-grid-week');
+    document.getElementById('calendar-day-view').hidden = true;
+
+    const weekStart = new Date(currentDate);
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+
+    document.getElementById('calendar-month-label').textContent =
+        `${weekStart.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${weekEnd.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+    entriesByDate = await loadEntries(weekStart, weekEnd);
+
+    grid.innerHTML = '';
+    for (const label of ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']) {
+        const head = document.createElement('div');
+        head.className = 'calendar-weekday-head';
+        head.textContent = label;
+        grid.appendChild(head);
+    }
+
+    const today = isoDate(new Date());
+    for (let i = 0; i < 7; i++) {
+        const cellDate = new Date(weekStart);
+        cellDate.setDate(weekStart.getDate() + i);
+        const dateStr = isoDate(cellDate);
+
+        const cell = document.createElement('div');
+        cell.className = 'calendar-day-cell' + (dateStr === today ? ' calendar-day-today' : '');
+
+        const dayNum = document.createElement('div');
+        dayNum.className = 'calendar-day-num';
+        dayNum.textContent = cellDate.getDate();
+        cell.appendChild(dayNum);
+
+        // No 3-item cap here (unlike Month view) - Week's cells are much
+        // taller specifically so a full day's entries fit without truncation.
+        const dayEntries = entriesByDate[dateStr] || [];
+        for (const entry of dayEntries) {
+            const chip = document.createElement('div');
+            chip.className = `calendar-entry-chip calendar-entry-${entry.kind}`;
+            chip.textContent = entry.kind === 'gig' ? entry.title : (entry.title || 'Rehearsal');
+            cell.appendChild(chip);
+        }
+
+        cell.addEventListener('click', () => openDayModal(dateStr, cellDate, dayEntries));
+        grid.appendChild(cell);
+    }
+}
+
+// Unlike Month/Week (which drill into a day via the modal), Day view
+// renders that same entry-list-plus-roster content directly on the page -
+// reusing openDayModal's own markup/classes, just not inside a modal.
+async function renderDayView() {
+    document.getElementById('calendar-grid').hidden = true;
+    const dayView = document.getElementById('calendar-day-view');
+    dayView.hidden = false;
+
+    const dateStr = isoDate(currentDate);
+    document.getElementById('calendar-month-label').textContent =
+        currentDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+    const from = new Date(currentDate); from.setDate(from.getDate() - 1);
+    const to = new Date(currentDate); to.setDate(to.getDate() + 1);
+    entriesByDate = await loadEntries(from, to);
+    const dayEntries = entriesByDate[dateStr] || [];
+
+    dayView.innerHTML = '';
+
+    const list = document.createElement('div');
+    list.className = 'calendar-day-entry-list';
+    if (dayEntries.length === 0) {
+        list.innerHTML = '<p class="save-note">Nothing scheduled.</p>';
+    } else {
+        for (const entry of dayEntries) {
+            const row = document.createElement('div');
+            row.className = `calendar-day-entry calendar-entry-${entry.kind}`;
+            if (entry.kind === 'gig') {
+                row.innerHTML = `
+                    <strong>${escapeHtml(entry.title)}</strong>
+                    <span class="save-note">${escapeHtml(entry.venue || '')}${entry.time ? ' · ' + escapeHtml(entry.time) : ''}</span>
+                `;
+                row.addEventListener('click', () => { location.href = `/gig-sets`; });
+            } else {
+                const start = new Date(entry.startsAt);
+                const end = new Date(entry.endsAt);
+                const timeRange = `${start.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}`;
+                row.innerHTML = `
+                    <strong>${escapeHtml(entry.title || 'Rehearsal')}</strong>
+                    <span class="save-note">${timeRange}${entry.location ? ' · ' + escapeHtml(entry.location) : ''}</span>
+                `;
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', () => openRehearsalModal(dateStr, entry));
+            }
+            list.appendChild(row);
+        }
+    }
+    dayView.appendChild(list);
+
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'calendar-add-rehearsal-btn';
+    addBtn.textContent = '+ Add Rehearsal';
+    addBtn.addEventListener('click', () => openRehearsalModal(dateStr, null));
+    dayView.appendChild(addBtn);
+
+    dayView.appendChild(buildAvailabilityRoster(dateStr, () => renderDayView()));
+}
+
 function closeDayModal() { document.getElementById('calendar-day-modal-backdrop').hidden = true; }
 document.getElementById('calendar-day-modal-close').addEventListener('click', closeDayModal);
 document.getElementById('calendar-day-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'calendar-day-modal-backdrop') closeDayModal(); });
@@ -225,7 +366,7 @@ function openDayModal(dateStr, dateObj, entries) {
     addBtn.addEventListener('click', () => openRehearsalModal(dateStr, null));
     body.appendChild(addBtn);
 
-    body.appendChild(buildAvailabilityRoster(dateStr));
+    body.appendChild(buildAvailabilityRoster(dateStr, () => openDayModal(dateStr, dateObj, entries)));
 
     document.getElementById('calendar-day-modal-backdrop').hidden = false;
 }
@@ -365,7 +506,7 @@ document.getElementById('calendar-recurring-form').addEventListener('submit', as
     await render();
 });
 
-function buildAvailabilityRoster(dateStr) {
+function buildAvailabilityRoster(dateStr, onChanged) {
     const wrap = document.createElement('div');
     wrap.className = 'calendar-roster';
 
@@ -416,9 +557,8 @@ function buildAvailabilityRoster(dateStr) {
                         body: JSON.stringify({ status: select.value, note: entry?.note ?? null })
                     });
                 }
-                const dayEntries = entriesByDate[dateStr] || [];
                 await refreshAvailability();
-                openDayModal(dateStr, new Date(dateStr + 'T00:00:00'), dayEntries);
+                onChanged();
             });
             row.appendChild(select);
         } else {
@@ -436,8 +576,8 @@ function buildAvailabilityRoster(dateStr) {
 }
 
 async function refreshAvailability() {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
     const monthStart = new Date(year, month, 1);
     const monthEnd = new Date(year, month + 1, 0);
     const from = new Date(monthStart); from.setDate(from.getDate() - 7);

@@ -15,11 +15,34 @@
 }
 .calendar-nav-row button:hover { background: #444; }
 
+.calendar-view-tabs { display: flex; gap: 2px; margin-left: 8px; }
+.calendar-view-tab {
+    background: none;
+    border: 1px solid #555;
+    color: #aaa;
+    padding: 6px 12px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.calendar-view-tab:first-child { border-radius: 6px 0 0 6px; }
+.calendar-view-tab:last-child { border-radius: 0 6px 6px 0; }
+.calendar-view-tab:not(:first-child) { border-left: none; }
+.calendar-view-tab:hover { background: #2c2c2c; color: #eee; }
+.calendar-view-tab.active { background: #c0392b; border-color: #c0392b; color: #fff; }
+
 .calendar-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
 }
+/* display:grid above otherwise wins over the hidden attribute's implicit
+   display:none - an author display rule beats the UA stylesheet even at
+   equal selector specificity. */
+.calendar-grid[hidden] { display: none; }
+.calendar-grid.calendar-grid-week .calendar-day-cell { min-height: 220px; }
+
+.calendar-day-view { max-width: 640px; margin: 0 auto; }
+.calendar-day-view-heading { font-size: 1.1rem; color: #eee; margin: 0 0 4px; text-align: center; }
 .calendar-weekday-head {
     text-align: center;
     color: #999;

@@ -26,10 +26,16 @@
                 <h2 id="calendar-month-label"></h2>
                 <button type="button" id="calendar-next-month">&rarr;</button>
                 <button type="button" id="calendar-today-btn">Today</button>
+                <div class="calendar-view-tabs" id="calendar-view-tabs">
+                    <button type="button" class="calendar-view-tab" data-view="month">Month</button>
+                    <button type="button" class="calendar-view-tab" data-view="week">Week</button>
+                    <button type="button" class="calendar-view-tab" data-view="day">Day</button>
+                </div>
                 <button type="button" id="calendar-recurring-btn" hidden>Recurring Schedule</button>
             </div>
 
             <div class="calendar-grid" id="calendar-grid"></div>
+            <div id="calendar-day-view" class="calendar-day-view" hidden></div>
 
             <details class="calendar-sync-panel">
                 <summary>Sync to your calendar</summary>
