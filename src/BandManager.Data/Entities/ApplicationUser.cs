@@ -50,6 +50,12 @@ public class ApplicationUser : IdentityUser<Guid>
     // forced to have an opinion yet" pattern.
     public string? CatalogViewMode { get; set; }
 
+    // Separate from CatalogViewMode above - the Flyers sub-tab gets its
+    // own independent Thumbnails/Details choice rather than sharing one
+    // value with the General sub-tab (they're different-sized libraries
+    // with different natural defaults).
+    public string? CatalogViewModeFlyers { get; set; }
+
     public ICollection<BandMembership> BandMemberships { get; set; } = new List<BandMembership>();
     public ICollection<Gear> Gear { get; set; } = new List<Gear>();
 }

@@ -16,7 +16,7 @@ public record SetMemberRolesRequest(List<string> Roles);
 public record UpdateUsernameRequest(string Username);
 public record UpdateNameRequest(string? FirstName, string? LastName);
 public record UpdateContactRequest(string? CellNumber, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode);
-public record UpdateCatalogViewModeRequest(string ViewMode);
+public record UpdateCatalogViewModeRequest(string ViewMode, string? Tab = null);
 
 /// <summary>
 /// Self-service profile (any logged-in user) + Band-scoped user
@@ -91,6 +91,7 @@ public class ProfileController(
             state = user.State,
             postalCode = user.PostalCode,
             catalogViewMode = user.CatalogViewMode ?? "thumbnails",
+            catalogViewModeFlyers = user.CatalogViewModeFlyers ?? "thumbnails",
             isSuperAdmin = user.IsSuperAdmin,
             activeBandRole,
             activeBandName,
@@ -114,9 +115,10 @@ public class ProfileController(
         if (request.ViewMode is not ("thumbnails" or "details"))
             return BadRequest(new { error = "viewMode must be \"thumbnails\" or \"details\"." });
 
-        user.CatalogViewMode = request.ViewMode;
+        if (request.Tab == "flyers") user.CatalogViewModeFlyers = request.ViewMode;
+        else user.CatalogViewMode = request.ViewMode;
         await userManager.UpdateAsync(user);
-        return Ok(new { ok = true, catalogViewMode = user.CatalogViewMode });
+        return Ok(new { ok = true, catalogViewMode = user.CatalogViewMode, catalogViewModeFlyers = user.CatalogViewModeFlyers });
     }
 
     // The account's UserName IS its email (required + validated at every

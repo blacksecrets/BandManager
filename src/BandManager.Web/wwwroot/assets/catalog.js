@@ -68,7 +68,15 @@ if (document.getElementById('catalog-grid')) {
     let activeMediaType = 'image';
     let activeImageCategory = 'general';
     let imageFilter = 'all';
-    let viewMode = 'thumbnails';
+    // General and Flyers each remember their own Thumbnails/Details choice -
+    // switching tabs never changes the other tab's view.
+    let viewModeGeneral = 'thumbnails';
+    let viewModeFlyers = 'thumbnails';
+    function currentViewMode() { return activeImageCategory === 'flyers' ? viewModeFlyers : viewModeGeneral; }
+    function setCurrentViewMode(mode) {
+        if (activeImageCategory === 'flyers') viewModeFlyers = mode;
+        else viewModeGeneral = mode;
+    }
     let allItems = [];
     let searchQuery = '';
     let sortKey = 'date';
@@ -91,18 +99,19 @@ if (document.getElementById('catalog-grid')) {
         const res = await fetch('/api/profile/me');
         if (!res.ok) return;
         const me = await res.json();
-        viewMode = me.catalogViewMode === 'details' ? 'details' : 'thumbnails';
-        viewSelect.value = viewMode;
+        viewModeGeneral = me.catalogViewMode === 'details' ? 'details' : 'thumbnails';
+        viewModeFlyers = me.catalogViewModeFlyers === 'details' ? 'details' : 'thumbnails';
+        viewSelect.value = currentViewMode();
     }
 
     viewSelect.addEventListener('change', async () => {
-        viewMode = viewSelect.value;
+        setCurrentViewMode(viewSelect.value);
         currentPage = 1;
         render();
         await fetch('/api/profile/catalog-view-mode', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ viewMode })
+            body: JSON.stringify({ viewMode: viewSelect.value, tab: activeImageCategory === 'flyers' ? 'flyers' : 'general' })
         });
     });
 
@@ -265,7 +274,7 @@ if (document.getElementById('catalog-grid')) {
             });
         }
 
-        if (viewMode === 'details') renderDetails(filtered, { showBadge });
+        if (currentViewMode() === 'details') renderDetails(filtered, { showBadge });
         else renderThumbnails(filtered, { showBadge });
     }
 
@@ -366,6 +375,7 @@ if (document.getElementById('catalog-grid')) {
         if (!btn) return;
         activeImageCategory = btn.dataset.category;
         categoryTabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t === btn));
+        viewSelect.value = currentViewMode();
         currentPage = 1;
         render();
     });
