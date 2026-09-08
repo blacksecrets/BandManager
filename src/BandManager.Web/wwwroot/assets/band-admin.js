@@ -13,14 +13,15 @@ async function loadBandAdmin() {
     noBandEl.textContent = 'Select a band from the switcher above to manage it.';
     noBandEl.hidden = hasBand;
     document.getElementById('band-info-section').hidden = !hasBand;
-    document.getElementById('band-repertoire-import-section').hidden = !hasBand;
     document.getElementById('band-branding-section').hidden = !hasBand;
     document.getElementById('band-users-section').hidden = !hasBand;
+    document.getElementById('band-roles-section').hidden = !hasBand;
     if (!hasBand) return;
 
     loadBandInfo();
     loadBandBranding();
     loadBandRoleOptions().then(loadUsers);
+    loadBandRolesMembers();
 }
 
 // --- Band Information (name/phone/mailing address) ---
@@ -341,48 +342,74 @@ document.getElementById('add-user-form').addEventListener('submit', async (e) =>
     }
 });
 
-// --- Repertoire CSV import ---
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str ?? '';
     return div.innerHTML;
 }
 
-document.getElementById('repertoire-csv-upload').addEventListener('change', async () => {
-    const input = document.getElementById('repertoire-csv-upload');
-    if (!input.files[0]) return;
-    const status = document.getElementById('repertoire-import-status');
-    const errorsBox = document.getElementById('repertoire-import-errors');
-    errorsBox.innerHTML = '';
-    status.textContent = 'Importing...';
+// --- Band Roles (who plays/does what - separate from the Repertoire
+// page's Instrument Tunings list, which tracks per-song tuning notes,
+// not who's assigned to anything) ---
+let bandRolesCurrentMemberId = null;
 
-    const form = new FormData();
-    form.append('file', input.files[0]);
+async function loadBandRolesMembers() {
+    const res = await fetch('/api/profile/band-members');
+    const members = res.ok ? await res.json() : [];
+    const select = document.getElementById('band-roles-member-select');
+    select.innerHTML = '<option value="" disabled selected>Select a member...</option>' +
+        members.map((m) => `<option value="${m.id}">${escapeHtml(m.firstName)}</option>`).join('');
+}
 
-    const res = await fetch('/api/repertoire/import', { method: 'POST', body: form });
-    const body = await res.json();
-    input.value = '';
+function renderBandRolesCheckboxes(checkedRoles) {
+    const checked = new Set(checkedRoles || []);
+    const box = document.getElementById('band-roles-checkboxes');
+    box.innerHTML = bandRoleOptions.map((r) =>
+        `<label><input type="checkbox" name="roles" value="${escapeHtml(r)}" ${checked.has(r) ? 'checked' : ''}> ${escapeHtml(r)}</label>`
+    ).join('');
+}
 
-    if (res.ok) {
-        status.textContent = `${body.newSongsAdded} new song(s) added (pending review), ${body.changesSubmittedForReview} change(s) submitted for review, ${body.unchanged} already matched exactly.` +
-            (body.alreadyPendingSkipped ? ` ${body.alreadyPendingSkipped} skipped - already has an edit under review.` : '');
+document.getElementById('band-roles-member-select').addEventListener('change', async (e) => {
+    bandRolesCurrentMemberId = e.target.value;
+    document.getElementById('band-roles-status').textContent = '';
+    const res = await fetch('/api/profile/users');
+    const users = res.ok ? await res.json() : [];
+    const user = users.find((u) => u.id === bandRolesCurrentMemberId);
+    renderBandRolesCheckboxes(user ? user.roles : []);
+});
+
+document.getElementById('band-roles-add-custom-btn').addEventListener('click', () => {
+    const name = prompt('Role name (e.g. "Merch Table Lead"):');
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+    if (bandRoleOptions.includes(trimmed)) {
+        const box = document.getElementById('band-roles-checkboxes');
+        const existing = [...box.querySelectorAll('input[name="roles"]')].find((i) => i.value === trimmed);
+        if (existing) existing.checked = true;
         return;
     }
+    if (!confirm(`Add "${trimmed}" as a new role for this band? It'll be available to pick for any member from now on.`)) return;
+    bandRoleOptions.push(trimmed);
+    const box = document.getElementById('band-roles-checkboxes');
+    const label = document.createElement('label');
+    label.innerHTML = `<input type="checkbox" name="roles" value="${escapeHtml(trimmed)}" checked> ${escapeHtml(trimmed)}`;
+    box.appendChild(label);
+});
 
-    status.textContent = body.error || 'Import failed.';
-    if (Array.isArray(body.rowErrors) && body.rowErrors.length > 0) {
-        const table = document.createElement('table');
-        table.className = 'user-table';
-        table.innerHTML = '<thead><tr><th>Row</th><th>Column</th><th>Problem</th></tr></thead>';
-        const tbody = document.createElement('tbody');
-        for (const e of body.rowErrors) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td>${e.row}</td><td>${escapeHtml(e.column)}</td><td>${escapeHtml(e.message)}</td>`;
-            tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        errorsBox.appendChild(table);
-    }
+document.getElementById('band-roles-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const status = document.getElementById('band-roles-status');
+    if (!bandRolesCurrentMemberId) { status.textContent = 'Select a band member first.'; return; }
+
+    const roles = [...document.querySelectorAll('#band-roles-checkboxes input:checked')].map((i) => i.value);
+    const res = await fetch(`/api/profile/users/${bandRolesCurrentMemberId}/roles`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roles })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save roles.');
+    if (res.ok) loadUsers();
 });
 
 loadBandAdmin();

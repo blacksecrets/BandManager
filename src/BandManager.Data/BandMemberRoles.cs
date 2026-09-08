@@ -13,12 +13,13 @@ public static class BandMemberRoles
     public static readonly string[] All =
     [
         // Performance
-        "Lead Vocalist",
-        "Backing Vocalist",
-        "Guitarist",
-        "Bassist",
-        "Drummer",
-        "Percussionist",
+        "Lead Guitar",
+        "Rhythm Guitar",
+        "Bass",
+        "Drums",
+        "Percussion",
+        "Lead Vocal",
+        "Backup Vocal",
         "Keyboardist/Pianist",
         "Saxophonist",
         "Trumpet/Brass",
@@ -43,5 +44,18 @@ public static class BandMemberRoles
         "Publicist",
         "Photographer/Videographer",
         "Other"
+    ];
+
+    // The subset of All that plausibly needs a per-song tuning tracked
+    // (Repertoire's own Instrument Tunings list, BandInstrument.cs) -
+    // deliberately excludes Songwriter/Producer and every Crew/Business
+    // role, which have no meaningful "tuning." Used only for the
+    // one-way auto-add convenience in ProfileController.SetMemberRoles -
+    // never removes or renames a tuning-tracker entry, just seeds it.
+    public static readonly string[] TuningEligible =
+    [
+        "Lead Guitar", "Rhythm Guitar", "Bass", "Drums", "Percussion",
+        "Lead Vocal", "Backup Vocal", "Keyboardist/Pianist", "Saxophonist",
+        "Trumpet/Brass", "Violinist/Strings", "DJ", "Other Instrumentalist"
     ];
 }

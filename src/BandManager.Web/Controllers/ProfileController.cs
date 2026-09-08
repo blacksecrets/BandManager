@@ -272,16 +272,60 @@ public class ProfileController(
     }
 
     // The seed picklist for "role(s) in the band" (Bassist, Sound
-    // Engineer, ...) - see BandMemberRoles.cs. Any logged-in user can
-    // read it (it's just a static list, not sensitive), so both the
-    // add-member form and an existing member's own "edit my roles"
-    // affordance can populate the same checkboxes from one source.
+    // Engineer, ...) - see BandMemberRoles.cs - plus any custom role
+    // string this specific band has already saved (via SetMemberRoles
+    // below), so a typed-in role only has to be confirmed once and then
+    // behaves like a normal checkbox for the rest of that band. Custom
+    // entries never leak to another band - each BandMemberRole row
+    // carries its own BandId, so this merge only ever looks at the
+    // active band's own rows.
     [HttpGet("band-roles")]
     [Authorize]
-    public IActionResult BandRoles() => Ok(BandManager.Data.BandMemberRoles.All);
+    public async Task<IActionResult> BandRoles()
+    {
+        var bandId = activeBand.GetActiveBandId();
+        if (bandId is null) return Ok(BandManager.Data.BandMemberRoles.All);
 
+        var custom = await db.BandMemberRoles.Where(r => r.BandId == bandId.Value)
+            .Select(r => r.Role).Distinct().ToListAsync();
+        return Ok(BandManager.Data.BandMemberRoles.All.Concat(custom.Except(BandManager.Data.BandMemberRoles.All)));
+    }
+
+    // Custom roles are confirmed client-side (an "are you sure?" prompt)
+    // before ever reaching here, so this only guards against garbage
+    // (empty/absurdly long strings) - it no longer requires membership
+    // in BandMemberRoles.All, which would defeat the whole point of a
+    // custom entry.
     private static List<string> CleanRoles(IEnumerable<string>? roles) =>
-        (roles ?? []).Select(r => r.Trim()).Where(r => BandManager.Data.BandMemberRoles.All.Contains(r)).Distinct().ToList();
+        (roles ?? []).Select(r => r.Trim()).Where(r => r.Length is > 0 and <= 60).Distinct().ToList();
+
+    // Read-only, self-service: every band the current user belongs to,
+    // and their Band Role(s) in each - not scoped to the active band,
+    // since the point is seeing all of them at once. A band the user
+    // belongs to but holds no roles in still appears (empty list), so
+    // "you're in this band but haven't been assigned a role yet" is
+    // visible too.
+    [HttpGet("my-roles")]
+    [Authorize]
+    public async Task<IActionResult> MyRoles()
+    {
+        var userId = userManager.GetUserId(User);
+        if (userId is null) return Unauthorized();
+        var uid = Guid.Parse(userId);
+
+        var bands = await db.BandMemberships.Include(m => m.Band).AsNoTracking()
+            .Where(m => m.UserId == uid && !m.Band.IsArchived)
+            .OrderBy(m => m.Band.Name)
+            .Select(m => new { m.BandId, BandName = m.Band.Name })
+            .ToListAsync();
+
+        var rolesByBand = await db.BandMemberRoles.AsNoTracking()
+            .Where(r => r.UserId == uid)
+            .GroupBy(r => r.BandId)
+            .ToDictionaryAsync(g => g.Key, g => g.Select(r => r.Role).OrderBy(r => r).ToList());
+
+        return Ok(bands.Select(b => new { bandName = b.BandName, roles = rolesByBand.GetValueOrDefault(b.BandId, []) }));
+    }
 
     [HttpGet("users")]
     [Authorize(Policy = "BandAdmin")]
@@ -335,13 +379,39 @@ public class ProfileController(
             return BadRequest(new { error = "That user is already a member of this band." });
         }
 
+        var cleanRoles = CleanRoles(request.Roles);
         db.BandMemberships.Add(new BandMembership { UserId = user!.Id, BandId = bandId, Role = role });
-        foreach (var r in CleanRoles(request.Roles))
+        foreach (var r in cleanRoles)
         {
             db.BandMemberRoles.Add(new BandMemberRole { UserId = user.Id, BandId = bandId, Role = r });
         }
         await db.SaveChangesAsync();
+        await AutoAddTuningInstrumentsAsync(bandId, cleanRoles);
         return Ok(new { ok = true });
+    }
+
+    // One-way convenience: a newly-assigned instrument-shaped Band Role
+    // (see BandMemberRoles.TuningEligible) gets mirrored onto the
+    // Repertoire tuning tracker (BandInstrument) automatically, so an
+    // admin doesn't have to type "Lead Guitar" in two different places.
+    // Never renames or removes an existing BandInstrument row, and never
+    // duplicates one that's already there (by exact name) - the tuning
+    // tracker stays independently editable either way.
+    private async Task AutoAddTuningInstrumentsAsync(Guid bandId, IEnumerable<string> roles)
+    {
+        var eligible = roles.Where(r => BandManager.Data.BandMemberRoles.TuningEligible.Contains(r)).Distinct().ToList();
+        if (eligible.Count == 0) return;
+
+        var existingNames = await db.BandInstruments.Where(i => i.BandId == bandId).Select(i => i.Name).ToListAsync();
+        var toAdd = eligible.Where(r => !existingNames.Contains(r)).ToList();
+        if (toAdd.Count == 0) return;
+
+        var nextSort = existingNames.Count == 0 ? 0 : await db.BandInstruments.Where(i => i.BandId == bandId).MaxAsync(i => i.SortOrder) + 1;
+        foreach (var name in toAdd)
+        {
+            db.BandInstruments.Add(new BandInstrument { BandId = bandId, Name = name, SortOrder = nextSort++ });
+        }
+        await db.SaveChangesAsync();
     }
 
     // Replaces the full role set for an existing member - the picker UI
@@ -356,14 +426,16 @@ public class ProfileController(
         if (!await db.BandMemberships.AnyAsync(m => m.UserId == userId && m.BandId == bandId))
             return NotFound(new { error = "Not found" });
 
+        var cleanRoles = CleanRoles(request.Roles);
         var existing = db.BandMemberRoles.Where(r => r.UserId == userId && r.BandId == bandId);
         db.BandMemberRoles.RemoveRange(existing);
-        foreach (var r in CleanRoles(request.Roles))
+        foreach (var r in cleanRoles)
         {
             db.BandMemberRoles.Add(new BandMemberRole { UserId = userId, BandId = bandId, Role = r });
         }
         await db.SaveChangesAsync();
-        return Ok(new { ok = true, roles = CleanRoles(request.Roles) });
+        await AutoAddTuningInstrumentsAsync(bandId, cleanRoles);
+        return Ok(new { ok = true, roles = cleanRoles });
     }
 
     // Manual override for "this email is actually good" while there's no

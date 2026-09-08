@@ -562,4 +562,26 @@ document.getElementById('notification-prefs-save').addEventListener('click', asy
 
 loadNotificationPrefs();
 
+// --- Your roles (read-only, across every band this user belongs to) ---
+async function loadRoles() {
+    const res = await fetch('/api/profile/my-roles');
+    if (!res.ok) return;
+    const bands = await res.json();
+    const box = document.getElementById('your-roles-list');
+
+    if (bands.length === 0) {
+        box.innerHTML = '<p class="save-note">Not a member of any band yet.</p>';
+        return;
+    }
+
+    box.innerHTML = bands.map((b) => `
+        <p class="your-roles-band-name"><strong>${escapeHtmlProfile(b.bandName)}</strong></p>
+        ${b.roles.length > 0
+            ? `<ul class="your-roles-list">${b.roles.map((r) => `<li>${escapeHtmlProfile(r)}</li>`).join('')}</ul>`
+            : `<p class="save-note">No roles assigned yet.</p>`}
+    `).join('');
+}
+
+loadRoles();
+
 loadMe();
