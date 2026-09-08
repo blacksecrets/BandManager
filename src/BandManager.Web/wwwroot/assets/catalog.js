@@ -282,14 +282,16 @@ if (document.getElementById('catalog-grid')) {
 
     deleteBtn.addEventListener('click', async () => {
         if (selectedIds.size === 0) return;
-        if (!confirm(`Delete ${selectedIds.size} item(s) from the Catalog? This can't be undone - anything that already used a copy of these is unaffected.`)) return;
-        await fetch('/api/catalog/delete', {
+        if (!confirm(`Delete ${selectedIds.size} item(s) from the Catalog? This can't be undone. Deleting a generated Flyer's image deletes that Flyer too. An item still used as a Flyer Template's background can't be deleted until the template is removed first.`)) return;
+        const res = await fetch('/api/catalog/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ids: [...selectedIds] })
         });
+        const body = await res.json().catch(() => ({}));
         selectedIds.clear();
         deleteBtn.disabled = true;
+        if (body.errors && body.errors.length) alert(body.errors.join('\n'));
         reload();
     });
 
@@ -519,13 +521,20 @@ if (document.getElementById('catalog-grid')) {
             reload();
         });
         body.querySelector('#catalog-viewer-delete').addEventListener('click', async () => {
-            if (!confirm('Delete this item from the Catalog?')) return;
-            await fetch('/api/catalog/delete', {
+            const warning = item.category === 'flyer'
+                ? 'Delete this item from the Catalog? This is a generated Flyer\'s image - deleting it deletes that Flyer too.'
+                : item.category === 'flyer-template'
+                    ? 'Delete this Flyer Template\'s background image? Use "Edit Template" > "Delete Template" instead to remove the template itself - this image can\'t be deleted while a template still uses it.'
+                    : 'Delete this item from the Catalog? This can\'t be undone.';
+            if (!confirm(warning)) return;
+            const res = await fetch('/api/catalog/delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ ids: [item.id] })
             });
+            const resBody = await res.json().catch(() => ({}));
             closeCatalogViewer();
+            if (resBody.errors && resBody.errors.length) alert(resBody.errors.join('\n'));
             reload();
         });
 

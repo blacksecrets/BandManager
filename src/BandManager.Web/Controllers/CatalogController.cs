@@ -167,7 +167,7 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
     public async Task<IActionResult> Delete([FromBody] CatalogDeleteRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
-        var count = await catalogStore.DeleteCatalogItemsAsync(bandId, request.Ids);
-        return Ok(new { ok = true, deleted = count });
+        var (deleted, errors) = await catalogStore.DeleteCatalogItemsAsync(bandId, request.Ids);
+        return Ok(new { ok = true, deleted, errors });
     }
 }

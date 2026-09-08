@@ -147,3 +147,13 @@
     cursor: pointer;
 }
 #flyer-save-btn:hover, #flyer-template-save-btn:hover { background: #38a84a; }
+
+#flyer-template-delete-btn {
+    background: none;
+    border: 1px solid #663333;
+    color: #d98080;
+    padding: 8px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#flyer-template-delete-btn:hover { background: #3a1a1a; border-color: #c00; }

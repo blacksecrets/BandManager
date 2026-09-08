@@ -65,7 +65,10 @@
                     </div>
                     <div class="flyer-field-list" id="flyer-template-field-list"></div>
                 </div>
-                <button type="button" id="flyer-template-save-btn">Save</button>
+                <div class="cred-form-buttons">
+                    <button type="button" id="flyer-template-save-btn">Save</button>
+                    <button type="button" id="flyer-template-delete-btn" class="remove-btn">Delete Template</button>
+                </div>
                 <p id="flyer-template-editor-status" class="save-note"></p>
             `;
 
@@ -182,6 +185,15 @@
                 const resBody = await res.json().catch(() => ({}));
                 if (!res.ok) { status.textContent = resBody.error || 'Could not save.'; return; }
                 close(resBody);
+            });
+
+            document.getElementById('flyer-template-delete-btn').addEventListener('click', async () => {
+                if (!confirm(`Delete the template "${template.name}"? This only removes the template itself - any Flyers already created from it are unaffected.`)) return;
+                const status = document.getElementById('flyer-template-editor-status');
+                status.textContent = 'Deleting...';
+                const res = await fetch(`/api/flyer-templates/${templateId}`, { method: 'DELETE' });
+                if (!res.ok) { status.textContent = 'Could not delete.'; return; }
+                close({ deleted: true });
             });
         });
     };

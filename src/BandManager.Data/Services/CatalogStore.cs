@@ -192,11 +192,35 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         return (item, null);
     }
 
-    public async Task<int> DeleteCatalogItemsAsync(Guid bandId, IEnumerable<Guid> ids)
+    // Deletes one row (and its files) at a time rather than a single
+    // RemoveRange+SaveChanges - a row still referenced elsewhere with a
+    // Restrict FK (e.g. a Flyer Template's background image) must fail
+    // for THAT row alone, not silently roll back every other item in the
+    // same request. Files are only deleted from disk after the DB row is
+    // confirmed gone - deleting the file first (the previous behavior)
+    // left an orphaned, still-referenced row pointing at nothing once the
+    // DB delete failed.
+    public async Task<(int Deleted, List<string> Errors)> DeleteCatalogItemsAsync(Guid bandId, IEnumerable<Guid> ids)
     {
         var items = await db.CatalogItems.Where(c => c.BandId == bandId && ids.Contains(c.Id)).ToListAsync();
+        var errors = new List<string>();
+        var deletedCount = 0;
+
         foreach (var item in items)
         {
+            db.CatalogItems.Remove(item);
+            try
+            {
+                await db.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                db.Entry(item).State = EntityState.Unchanged;
+                errors.Add($"\"{item.Label ?? item.OriginalFilename}\" is still in use (e.g. as a Flyer Template's background) and can't be deleted until that's removed first.");
+                continue;
+            }
+
+            deletedCount++;
             try { File.Delete(ResolveFullPath(item)); } catch { /* best-effort */ }
             if (item.ThumbnailPath is not null)
             {
@@ -204,9 +228,7 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
                 try { File.Delete(Path.Combine(catalogRootPath, thumbRelative.Replace('/', Path.DirectorySeparatorChar))); } catch { /* best-effort */ }
             }
         }
-        db.CatalogItems.RemoveRange(items);
-        await db.SaveChangesAsync();
-        return items.Count;
+        return (deletedCount, errors);
     }
 
     /// <summary>Paste-a-URL mode: fetches, validates, and returns bytes -
