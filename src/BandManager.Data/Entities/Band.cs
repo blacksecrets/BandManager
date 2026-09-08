@@ -30,6 +30,13 @@ public class Band
     public string? State { get; set; }
     public string? PostalCode { get; set; }
 
+    // IANA time zone id (e.g. "America/New_York") - .NET on Linux resolves
+    // TimeZoneInfo by these ids natively, no separate Windows-id mapping
+    // needed. Nothing reads this yet (every date/time in the app today is
+    // free text - see Gig.Date/Time) - it's a real field with nowhere to
+    // apply itself until something needs to compute across time zones.
+    public string? TimeZone { get; set; }
+
     // This Band's own branding (distinct from the platform-level
     // BandManager shell branding in PlatformSettings, which only applies
     // when no Band is selected). Applied everywhere once a Band is active -

@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BandManager.Web.Controllers;
 
 public record UpdateAccentColorRequest(string Color);
-public record UpdateBandInfoRequest(string Name, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode);
+public record UpdateBandInfoRequest(string Name, string? Phone, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode, string? TimeZone);
 
 /// <summary>
 /// The active Band's own branding (logo/background/favicon/accent color) -
@@ -133,11 +133,22 @@ public class BandAdminController(
         return Ok(new { ok = true });
     }
 
-    // The band's own name/mailing address/phone - previously editable
-    // nowhere in the app once a band was created (SuperAdminController's
-    // CreateBand only ever sets Name once, at creation). Name stays
-    // required (mirrors Band.Name's own non-null contract); contact
-    // fields are all optional, same as ApplicationUser's/Venue's.
+    // The full IANA time zone list, from the OS's own tzdata (.NET on
+    // Linux resolves TimeZoneInfo by IANA id natively - no hardcoded list
+    // to keep in sync). BandMember, not BandAdmin - it's just reference
+    // data for populating the dropdown, same trust level as the font list
+    // FlyersController.Fonts() exposes.
+    [HttpGet("timezones")]
+    [Authorize(Policy = "BandMember")]
+    public IActionResult TimeZones() =>
+        Ok(TimeZoneInfo.GetSystemTimeZones().Select(tz => new { id = tz.Id, displayName = tz.DisplayName }));
+
+    // The band's own name/mailing address/phone/time zone - previously
+    // editable nowhere in the app once a band was created
+    // (SuperAdminController's CreateBand only ever sets Name once, at
+    // creation). Name stays required (mirrors Band.Name's own non-null
+    // contract); everything else is optional, same as ApplicationUser's/
+    // Venue's.
     [HttpGet("info")]
     public async Task<IActionResult> GetInfo()
     {
@@ -152,7 +163,8 @@ public class BandAdminController(
             addressLine2 = band.AddressLine2,
             city = band.City,
             state = band.State,
-            postalCode = band.PostalCode
+            postalCode = band.PostalCode,
+            timeZone = band.TimeZone
         });
     }
 
@@ -162,6 +174,13 @@ public class BandAdminController(
         if (RequireActiveBand(out var bandId) is { } err) return err;
         var name = request.Name?.Trim();
         if (string.IsNullOrEmpty(name)) return BadRequest(new { error = "Band name is required." });
+
+        string? timeZone = string.IsNullOrWhiteSpace(request.TimeZone) ? null : request.TimeZone.Trim();
+        if (timeZone is not null)
+        {
+            try { TimeZoneInfo.FindSystemTimeZoneById(timeZone); }
+            catch (TimeZoneNotFoundException) { return BadRequest(new { error = "Unrecognized time zone." }); }
+        }
 
         var band = await db.Bands.FindAsync(bandId);
         if (band is null) return NotFound();
@@ -174,6 +193,7 @@ public class BandAdminController(
         band.City = Clean(request.City);
         band.State = Clean(request.State);
         band.PostalCode = Clean(request.PostalCode);
+        band.TimeZone = timeZone;
         await db.SaveChangesAsync();
         return Ok(new { ok = true, name = band.Name });
     }

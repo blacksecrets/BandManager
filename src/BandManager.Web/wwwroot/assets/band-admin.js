@@ -35,7 +35,24 @@ function formatBandPhone(raw) {
     return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+let timeZonesLoaded = false;
+async function loadTimeZoneOptions() {
+    if (timeZonesLoaded) return;
+    const select = document.getElementById('band-info-form').timeZone;
+    const res = await fetch('/api/band-admin/timezones');
+    if (!res.ok) return;
+    const zones = await res.json();
+    timeZonesLoaded = true;
+    for (const tz of zones) {
+        const opt = document.createElement('option');
+        opt.value = tz.id;
+        opt.textContent = tz.displayName;
+        select.appendChild(opt);
+    }
+}
+
 async function loadBandInfo() {
+    await loadTimeZoneOptions();
     const res = await fetch('/api/band-admin/info');
     if (!res.ok) return;
     const info = await res.json();
@@ -47,6 +64,7 @@ async function loadBandInfo() {
     form.city.value = info.city || '';
     form.state.value = info.state || '';
     form.postalCode.value = info.postalCode || '';
+    form.timeZone.value = info.timeZone || '';
 
     const uspsRes = await fetch('/api/address-lookup/configured');
     const { configured } = uspsRes.ok ? await uspsRes.json() : { configured: false };
@@ -89,7 +107,8 @@ document.getElementById('band-info-form').addEventListener('submit', async (e) =
             addressLine2: form.addressLine2.value.trim(),
             city: form.city.value.trim(),
             state: form.state.value.trim(),
-            postalCode: form.postalCode.value.trim()
+            postalCode: form.postalCode.value.trim(),
+            timeZone: form.timeZone.value || null
         })
     });
     const body = await res.json();
