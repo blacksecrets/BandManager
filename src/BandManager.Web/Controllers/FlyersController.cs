@@ -133,6 +133,48 @@ public class FlyersController(
         return Ok(fields);
     }
 
+    // Powers the "Edit" button on an already-generated flyer's viewer
+    // modal - returns enough to reopen the editor pre-populated with this
+    // flyer's actual saved background/fields, instead of the blank
+    // known-fields default. Saving from there still creates a NEW Flyer
+    // row (see Create below) - editing never overwrites history.
+    [HttpGet("{id:guid}")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> Get(Guid id)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var flyer = await db.Flyers.AsNoTracking().FirstOrDefaultAsync(f => f.Id == id && f.BandId == band.Id);
+        if (flyer is null) return NotFound(new { error = "Flyer not found" });
+        if (flyer.SourceCatalogItemId is null)
+            return BadRequest(new { error = "This flyer's original background image was deleted, so it can't be reopened for editing." });
+
+        return Ok(new
+        {
+            id = flyer.Id,
+            sourceCatalogItemId = flyer.SourceCatalogItemId,
+            gigRef = flyer.GigRef,
+            fields = flyer.Fields.Select(f => new
+            {
+                key = f.Key,
+                label = f.Label,
+                type = f.Type.ToString(),
+                x = f.X,
+                y = f.Y,
+                fontSize = f.FontSize,
+                fontFamily = f.FontFamily,
+                color = f.Color,
+                included = f.DefaultVisible,
+                value = f.Value,
+                bold = f.Bold,
+                italic = f.Italic,
+                underline = f.Underline,
+                rotation = f.Rotation
+            })
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SaveFlyerRequest request)
     {

@@ -498,6 +498,7 @@ if (document.getElementById('catalog-grid')) {
                     <button type="button" id="catalog-viewer-post-tiktok">Post to TikTok</button>
                 ` : ''}
                 ${isImage && item.category === 'general' ? `<button type="button" id="catalog-viewer-create-flyer">Create Flyer</button>` : ''}
+                ${isImage && item.category === 'flyer' && item.flyer_info ? `<button type="button" id="catalog-viewer-edit-flyer">Edit</button>` : ''}
                 <button type="button" id="catalog-viewer-rename">Rename</button>
                 <button type="button" id="catalog-viewer-delete">Delete</button>
             </div>
@@ -639,6 +640,14 @@ if (document.getElementById('catalog-grid')) {
         if (isImage && item.category === 'general') {
             body.querySelector('#catalog-viewer-create-flyer').addEventListener('click', () => {
                 openGigPickerForFlyer(item.id);
+            });
+        }
+
+        if (isImage && item.category === 'flyer' && item.flyer_info) {
+            body.querySelector('#catalog-viewer-edit-flyer').addEventListener('click', async () => {
+                closeCatalogViewer();
+                const result = await window.openFlyerEditor({ flyerId: item.flyer_info.flyerId });
+                if (result) reload();
             });
         }
 

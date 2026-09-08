@@ -99,12 +99,33 @@
         return result;
     }
 
-    window.openFlyerEditor = function openFlyerEditor({ catalogItemId, gigRef }) {
+    // flyerId (editing an already-generated flyer) is mutually exclusive
+    // with catalogItemId/gigRef (starting a fresh one) - when given, the
+    // background image and gig are resolved from the flyer itself, and
+    // its saved field values/positions are the starting point instead of
+    // the blank known-fields default. Saving still always creates a NEW
+    // Flyer row (see FlyersController.Create) - this never overwrites the
+    // flyer being edited, only starts from it.
+    window.openFlyerEditor = function openFlyerEditor({ catalogItemId, gigRef, flyerId } = {}) {
         return new Promise(async (resolve) => {
             resolvePromise = resolve;
             const body = document.getElementById('flyer-editor-body');
             body.innerHTML = '<p class="save-note">Loading...</p>';
             backdrop.hidden = false;
+
+            let existingFields = null;
+            if (flyerId) {
+                const flyerRes = await fetch(`/api/flyers/${flyerId}`);
+                if (!flyerRes.ok) {
+                    const errBody = await flyerRes.json().catch(() => ({}));
+                    body.innerHTML = `<p class="save-note">${escapeHtml(errBody.error || 'Could not load that flyer.')}</p>`;
+                    return;
+                }
+                const flyer = await flyerRes.json();
+                catalogItemId = flyer.sourceCatalogItemId;
+                gigRef = flyer.gigRef;
+                existingFields = flyer.fields;
+            }
 
             const [imageRes, gigRes, fontsRes, knownFieldsRes] = await Promise.all([
                 fetch(`/api/catalog/${catalogItemId}`),
@@ -122,10 +143,10 @@
             fonts.forEach(ensureCustomFontFace);
             const knownFields = await knownFieldsRes.json();
 
-            let fields = buildInitialFields(knownFields, gig);
+            let fields = existingFields || buildInitialFields(knownFields, gig);
 
             body.innerHTML = `
-                <h2>Create Flyer: ${escapeHtml(gig.title)}</h2>
+                <h2>${flyerId ? 'Edit Flyer' : 'Create Flyer'}: ${escapeHtml(gig.title)}</h2>
                 <div class="flyer-editor-layout">
                     <div class="flyer-preview-wrap">
                         <img id="flyer-preview-bg" src="${catalogFileUrl(image.file_path)}" alt="Flyer background">
