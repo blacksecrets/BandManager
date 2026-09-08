@@ -65,6 +65,7 @@ public static class FlyerRenderer
         var y = (float)(field.Y * background.Height);
 
         canvas.Save();
+        if (field.Rotation != 0) canvas.RotateDegrees((float)field.Rotation, x, y);
         if (field.Italic)
         {
             // Classic fake-italic: shear the canvas around the text's own
@@ -102,7 +103,13 @@ public static class FlyerRenderer
         using var resizedLogo = logoBmp.Resize(new SKImageInfo(Math.Max(1, targetWidth), Math.Max(1, targetHeight)), SKSamplingOptions.Default);
         if (resizedLogo is null) return;
 
-        canvas.DrawBitmap(resizedLogo, (float)(field.X * background.Width), (float)(field.Y * background.Height), new SKSamplingOptions());
+        var x = (float)(field.X * background.Width);
+        var y = (float)(field.Y * background.Height);
+
+        canvas.Save();
+        if (field.Rotation != 0) canvas.RotateDegrees((float)field.Rotation, x, y);
+        canvas.DrawBitmap(resizedLogo, x, y, new SKSamplingOptions());
+        canvas.Restore();
     }
 
     private static SKColor ParseColor(string? hex) =>

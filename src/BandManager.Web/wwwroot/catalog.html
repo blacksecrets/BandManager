@@ -46,27 +46,31 @@
             <button type="button" class="catalog-tab" data-category="flyers">Flyers</button>
         </div>
 
+        <div class="catalog-view-controls" id="catalog-view-controls" hidden>
+            <label class="catalog-view-select-label">View:
+                <select id="catalog-view-select">
+                    <option value="thumbnails">Thumbnails</option>
+                    <option value="details">Details</option>
+                </select>
+            </label>
+            <label class="catalog-view-select-label" id="catalog-image-filter-label">Show:
+                <select id="catalog-image-filter-select">
+                    <option value="all">All Images</option>
+                    <option value="flyer">Flyer Images</option>
+                    <option value="non-flyer">Non-Flyer Images</option>
+                </select>
+            </label>
+        </div>
+
         <div id="catalog-grid" class="catalog-grid">Loading...</div>
+        <div id="catalog-details" class="catalog-details" hidden></div>
+        <div class="catalog-pagination" id="catalog-pagination" hidden></div>
 
         <details class="manual-fallback" id="catalog-youtube-videos-section" hidden>
             <summary>What's live on YouTube</summary>
             <p class="save-note" id="youtube-videos-not-connected-note" hidden>YouTube isn't connected yet - a Band Admin can connect it under Band Admin &gt; Configure Web Presence.</p>
             <div id="catalog-youtube-videos-list" class="catalog-youtube-videos-list"></div>
         </details>
-
-        <div id="catalog-flyers-section" hidden>
-            <p class="intro">Drag a General image below onto "Flyer Templates" to turn it into one, or upload a new background directly.</p>
-            <label class="upload-btn">Upload a Flyer Template<input type="file" id="catalog-upload-template" accept="image/*" hidden></label>
-
-            <h3>General images (drag one down to make it a template)</h3>
-            <div id="catalog-flyers-general-grid" class="catalog-grid"></div>
-
-            <h3>Flyer Templates</h3>
-            <div id="catalog-flyer-templates-grid" class="catalog-grid"></div>
-
-            <h3>Generated Flyers</h3>
-            <div id="catalog-flyers-grid" class="catalog-grid"></div>
-        </div>
     </main>
 
     <div id="catalog-viewer-backdrop" class="detail-modal-backdrop" hidden>
@@ -114,7 +118,6 @@
 
     <script src="/assets/catalog.js"></script>
     <script src="/assets/flyerEditor.js"></script>
-    <script src="/assets/flyerTemplateEditor.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>

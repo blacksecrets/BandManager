@@ -10,16 +10,21 @@ namespace BandManager.Web.Controllers;
 
 public record SaveFlyerFieldDto(
     string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool Included, string? Value,
-    bool Bold = false, bool Italic = false, bool Underline = false);
-public record SaveFlyerRequest(Guid TemplateId, string GigRef, List<SaveFlyerFieldDto> Fields);
+    bool Bold = false, bool Italic = false, bool Underline = false, double Rotation = 0);
+public record SaveFlyerRequest(Guid SourceCatalogItemId, string GigRef, List<SaveFlyerFieldDto> Fields);
 
 /// <summary>
-/// Builds a final flyer image from a FlyerTemplate + typed field values for
-/// one specific gig, saves it to the Catalog, and pushes it live as that
-/// gig's site flyer - reusing the same GitHubSiteClient/GigsSiteEditor/
-/// FlyerCache calls GigsController.UploadFlyer already makes (direct
-/// service composition, not an internal HTTP call to that endpoint, since
-/// the bytes are already in hand here from FlyerRenderer).
+/// Builds a final flyer image from an existing Catalog image + typed field
+/// values for one specific gig, saves it to the Catalog, and pushes it live
+/// as that gig's site flyer - reusing the same GitHubSiteClient/
+/// GigsSiteEditor/FlyerCache calls GigsController.UploadFlyer already
+/// makes (direct service composition, not an internal HTTP call to that
+/// endpoint, since the bytes are already in hand here from FlyerRenderer).
+///
+/// There is no "Flyer Template" concept - any General Catalog image can be
+/// the background directly (see KnownFields below for the starter field
+/// layout every flyer seeds from, moved here from the now-deleted
+/// FlyerTemplatesController).
 /// </summary>
 [ApiController]
 [Route("/api/flyers")]
@@ -41,6 +46,28 @@ public class FlyersController(
     // "a controller needs a root path" (see its branding-upload actions).
     private string FontsRootPath => Path.Combine(env.WebRootPath, "fonts");
 
+    // Every field the app currently knows how to put on a flyer - seeded
+    // in a simple default vertical stack down the left third of the image,
+    // white Oswald Bold text, all visible, whenever someone starts a new
+    // flyer from an image. With-acts start at a single slot (with-0);
+    // flyerEditor.js grows more to match however many With-acts the gig
+    // actually has.
+    public static readonly (string Key, string Label, FlyerFieldType Type)[] KnownFields =
+    [
+        ("title", "Title", FlyerFieldType.Text),
+        ("date", "Date", FlyerFieldType.Text),
+        ("doorsTime", "Doors Time", FlyerFieldType.Text),
+        ("openerTime", "Opener Start Time", FlyerFieldType.Text),
+        ("headlinerTime", "Headliner Start Time", FlyerFieldType.Text),
+        ("venue", "Venue Name", FlyerFieldType.Text),
+        ("address", "Venue Address", FlyerFieldType.Text),
+        ("with-0", "With", FlyerFieldType.Text),
+        ("tickets", "Tickets", FlyerFieldType.Text),
+        ("presentedByName", "Presented By (name)", FlyerFieldType.Text),
+        ("presentedByUrl", "Presented By (URL)", FlyerFieldType.Text),
+        ("presentedByLogo", "Presented By (logo)", FlyerFieldType.Image),
+    ];
+
     private async Task<(Band Band, IActionResult? Error)> RequireActiveBandAsync()
     {
         var id = activeBand.GetActiveBandId();
@@ -54,6 +81,41 @@ public class FlyersController(
         !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
         && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
 
+    [HttpGet("fonts")]
+    [Authorize(Policy = "BandMember")]
+    public IActionResult Fonts() => Ok(FlyerFonts.Available.Select(f => new { key = f.Key, label = f.Label }));
+
+    // The default field layout a brand-new flyer starts from, for
+    // flyerEditor.js to seed when it isn't editing an existing Flyer -
+    // same shape/positions FlyerTemplatesController used to seed a
+    // template with, just not persisted as its own row anymore.
+    [HttpGet("known-fields")]
+    [Authorize(Policy = "BandMember")]
+    public IActionResult KnownFieldsDefaults([FromQuery] string? defaultFontFamily)
+    {
+        var defaultFont = string.IsNullOrWhiteSpace(defaultFontFamily) ? FlyerFonts.Available[0].Key : defaultFontFamily;
+        var fields = new List<object>();
+        var y = 0.08;
+        foreach (var (key, label, type) in KnownFields)
+        {
+            fields.Add(new
+            {
+                key,
+                label,
+                type = type.ToString(),
+                x = 0.06,
+                y,
+                fontSize = type == FlyerFieldType.Image ? 0.12 : 0.05,
+                fontFamily = defaultFont,
+                color = "#ffffff",
+                defaultVisible = true,
+                rotation = 0
+            });
+            y += type == FlyerFieldType.Image ? 0.14 : 0.07;
+        }
+        return Ok(fields);
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] SaveFlyerRequest request)
     {
@@ -63,18 +125,17 @@ public class FlyersController(
         var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == request.GigRef);
         if (gig is null) return NotFound(new { error = "Gig not found" });
 
-        var template = await db.FlyerTemplates.Include(t => t.BackgroundCatalogItem)
-            .FirstOrDefaultAsync(t => t.Id == request.TemplateId && t.BandId == band.Id);
-        if (template is null) return NotFound(new { error = "Template not found" });
+        var source = await db.CatalogItems.FirstOrDefaultAsync(c => c.Id == request.SourceCatalogItemId && c.BandId == band.Id);
+        if (source is null) return NotFound(new { error = "Source image not found" });
 
         byte[] backgroundBytes;
-        try { backgroundBytes = await catalogStore.GetCatalogItemBufferAsync(band.Id, template.BackgroundCatalogItemId); }
+        try { backgroundBytes = await catalogStore.GetCatalogItemBufferAsync(band.Id, source.Id); }
         catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
 
         var fields = request.Fields.Select(f => new FlyerFieldDef(
             f.Key, f.Label, Enum.Parse<FlyerFieldType>(f.Type, ignoreCase: true),
             f.X, f.Y, f.FontSize, f.FontFamily, f.Color, f.Included, f.Value,
-            f.Bold, f.Italic, f.Underline)).ToList();
+            f.Bold, f.Italic, f.Underline, f.Rotation)).ToList();
 
         byte[]? LogoResolver(string catalogItemIdStr)
         {
@@ -97,7 +158,7 @@ public class FlyersController(
         {
             BandId = band.Id,
             GeneratedCatalogItemId = catalogItem.Id,
-            FlyerTemplateId = template.Id,
+            SourceCatalogItemId = source.Id,
             GigRef = gigRef,
             Fields = fields
         };

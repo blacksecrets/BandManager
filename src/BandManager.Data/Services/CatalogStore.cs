@@ -171,35 +171,17 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         return item;
     }
 
-    /// <summary>Moves an image between General/FlyerTemplate/Flyer -
-    /// either by direct classification (an admin-driven upload) or by the
-    /// Catalog page's drag gesture. Rejects reclassifying AWAY from
-    /// FlyerTemplate while a FlyerTemplate row still points at this item as
-    /// its background - that FK is Restrict, so letting the DB throw would
-    /// surface as a raw 500 instead of a clear error.</summary>
-    public async Task<(CatalogItem? Item, string? Error)> ReclassifyItemAsync(Guid bandId, Guid id, CatalogCategory category)
-    {
-        var item = await db.CatalogItems.FirstOrDefaultAsync(c => c.Id == id && c.BandId == bandId);
-        if (item is null) return (null, "Not found");
-        if (item.MediaType != MediaType.Image)
-            return (null, "Only images can be categorized as a flyer or flyer template.");
-        if (item.Category == CatalogCategory.FlyerTemplate && category != CatalogCategory.FlyerTemplate
-            && await db.FlyerTemplates.AnyAsync(t => t.BackgroundCatalogItemId == id))
-            return (null, "Delete or reassign the Flyer Template using this image first.");
-
-        item.Category = category;
-        await db.SaveChangesAsync();
-        return (item, null);
-    }
-
     // Deletes one row (and its files) at a time rather than a single
-    // RemoveRange+SaveChanges - a row still referenced elsewhere with a
-    // Restrict FK (e.g. a Flyer Template's background image) must fail
-    // for THAT row alone, not silently roll back every other item in the
-    // same request. Files are only deleted from disk after the DB row is
-    // confirmed gone - deleting the file first (the previous behavior)
-    // left an orphaned, still-referenced row pointing at nothing once the
-    // DB delete failed.
+    // RemoveRange+SaveChanges, so one row's unexpected failure doesn't
+    // silently roll back every other item in the same request. Deleting an
+    // image that's a Flyer's SourceCatalogItem is allowed (that FK is
+    // SetNull, not Restrict - see ApplicationDbContext) - the frontend
+    // warns about it beforehand using the used_in_flyers list
+    // (CatalogController), this is just a safety net for any other
+    // unexpected FK failure. Files are only deleted from disk after the DB
+    // row is confirmed gone - deleting the file first (the previous
+    // behavior) left an orphaned, still-referenced row pointing at nothing
+    // once the DB delete failed.
     public async Task<(int Deleted, List<string> Errors)> DeleteCatalogItemsAsync(Guid bandId, IEnumerable<Guid> ids)
     {
         var items = await db.CatalogItems.Where(c => c.BandId == bandId && ids.Contains(c.Id)).ToListAsync();
@@ -216,7 +198,7 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
             catch (DbUpdateException)
             {
                 db.Entry(item).State = EntityState.Unchanged;
-                errors.Add($"\"{item.Label ?? item.OriginalFilename}\" is still in use (e.g. as a Flyer Template's background) and can't be deleted until that's removed first.");
+                errors.Add($"\"{item.Label ?? item.OriginalFilename}\" could not be deleted - it's still referenced elsewhere.");
                 continue;
             }
 

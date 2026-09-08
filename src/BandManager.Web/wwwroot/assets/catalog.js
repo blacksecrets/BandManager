@@ -33,23 +33,49 @@ async function fetchCatalogItems(q, category) {
     return res.json();
 }
 
+// A small red "winged F" badge - marks an image that's the background
+// source of one or more Flyers. Same markup wherever it's shown
+// (thumbnail corner, Details row, the big modal image) via this one
+// builder, sized by the CSS class alone.
+function flyerBadgeHtml(extraClass) {
+    return `<span class="flyer-usage-badge${extraClass ? ' ' + extraClass : ''}" title="Used as a flyer background">
+        <svg viewBox="0 0 32 18" aria-hidden="true">
+            <path d="M1,9 Q8,2 15,9 Q8,12 1,9Z"></path>
+            <path d="M31,9 Q24,2 17,9 Q24,12 31,9Z"></path>
+            <text x="16" y="13">F</text>
+        </svg>
+    </span>`;
+}
+
 // --- Standalone page mode ---
 
 if (document.getElementById('catalog-grid')) {
     const grid = document.getElementById('catalog-grid');
+    const detailsBox = document.getElementById('catalog-details');
+    const paginationBox = document.getElementById('catalog-pagination');
     const tabsBox = document.getElementById('catalog-media-tabs');
     const searchInput = document.getElementById('catalog-search');
     const addBtn = document.getElementById('catalog-add-btn');
     const addPanel = document.getElementById('catalog-add-panel');
     const deleteBtn = document.getElementById('catalog-delete-btn');
+    const viewControls = document.getElementById('catalog-view-controls');
+    const viewSelect = document.getElementById('catalog-view-select');
+    const imageFilterLabel = document.getElementById('catalog-image-filter-label');
+    const imageFilterSelect = document.getElementById('catalog-image-filter-select');
+
+    const PAGE_SIZE = 10;
 
     let activeMediaType = 'image';
     let activeImageCategory = 'general';
+    let imageFilter = 'all';
+    let viewMode = 'thumbnails';
     let allItems = [];
     let searchQuery = '';
+    let sortKey = 'date';
+    let sortDir = 'desc';
+    let currentPage = 1;
     const selectedIds = new Set();
     const categoryTabsBox = document.getElementById('catalog-category-tabs');
-    const flyersSection = document.getElementById('catalog-flyers-section');
 
     function updateCounts() {
         const counts = { image: 0, video: 0, audio: 0 };
@@ -61,7 +87,32 @@ if (document.getElementById('catalog-grid')) {
         }
     }
 
-    function renderTile(item) {
+    async function loadViewMode() {
+        const res = await fetch('/api/profile/me');
+        if (!res.ok) return;
+        const me = await res.json();
+        viewMode = me.catalogViewMode === 'details' ? 'details' : 'thumbnails';
+        viewSelect.value = viewMode;
+    }
+
+    viewSelect.addEventListener('change', async () => {
+        viewMode = viewSelect.value;
+        currentPage = 1;
+        render();
+        await fetch('/api/profile/catalog-view-mode', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ viewMode })
+        });
+    });
+
+    imageFilterSelect.addEventListener('change', () => {
+        imageFilter = imageFilterSelect.value;
+        currentPage = 1;
+        render();
+    });
+
+    function renderTile(item, { showBadge = false } = {}) {
         const tile = document.createElement('div');
         tile.className = 'catalog-tile' + (selectedIds.has(item.id) ? ' selected' : '');
         tile.dataset.id = item.id;
@@ -101,6 +152,10 @@ if (document.getElementById('catalog-grid')) {
         }
         tile.appendChild(media);
 
+        if (showBadge && item.used_in_flyers && item.used_in_flyers.length > 0) {
+            tile.insertAdjacentHTML('beforeend', flyerBadgeHtml('flyer-usage-badge-tile'));
+        }
+
         const label = document.createElement('div');
         label.className = 'catalog-tile-label';
         label.textContent = item.label || item.original_filename || `#${item.id}`;
@@ -109,6 +164,109 @@ if (document.getElementById('catalog-grid')) {
         tile.addEventListener('click', () => openCatalogViewer(item));
 
         return tile;
+    }
+
+    function itemName(item) { return item.label || item.original_filename || `#${item.id}`; }
+
+    function sortedItems(items) {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        return [...items].sort((a, b) => {
+            if (sortKey === 'name') return dir * itemName(a).localeCompare(itemName(b));
+            if (sortKey === 'flyer') return dir * ((a.used_in_flyers?.length || 0) - (b.used_in_flyers?.length || 0));
+            return dir * (new Date(a.created_at) - new Date(b.created_at));
+        });
+    }
+
+    function renderThumbnails(items, { showBadge }) {
+        detailsBox.hidden = true;
+        paginationBox.hidden = true;
+        grid.hidden = false;
+        grid.innerHTML = '';
+        if (items.length === 0) {
+            grid.innerHTML = `<p class="catalog-empty-note">Nothing here yet.</p>`;
+            return;
+        }
+        for (const item of sortedItems(items)) grid.appendChild(renderTile(item, { showBadge }));
+    }
+
+    function sortHeaderHtml(key, label) {
+        const active = sortKey === key;
+        const arrow = active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+        return `<th data-sort-key="${key}" class="${active ? 'sorted' : ''}">${label}${arrow}</th>`;
+    }
+
+    function renderDetails(items, { showBadge }) {
+        grid.hidden = true;
+        detailsBox.hidden = false;
+        paginationBox.hidden = false;
+
+        const sorted = sortedItems(items);
+        const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+        if (currentPage > totalPages) currentPage = totalPages;
+        const pageItems = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
+        detailsBox.innerHTML = `
+            <table class="catalog-details-table">
+                <thead><tr>
+                    <th class="catalog-details-thumb-col"></th>
+                    ${sortHeaderHtml('name', 'Name')}
+                    ${sortHeaderHtml('date', 'Date')}
+                    ${showBadge ? sortHeaderHtml('flyer', 'Flyer') : ''}
+                </tr></thead>
+                <tbody></tbody>
+            </table>
+        `;
+        const tbody = detailsBox.querySelector('tbody');
+        if (pageItems.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${showBadge ? 4 : 3}" class="catalog-empty-note">Nothing here yet.</td></tr>`;
+        }
+        for (const item of pageItems) {
+            const row = document.createElement('tr');
+            row.className = 'catalog-details-row';
+            const thumbSrc = item.media_type === 'image' ? catalogFileUrl(item.thumbnail_path || item.file_path) : null;
+            row.innerHTML = `
+                <td class="catalog-details-thumb-col">${thumbSrc ? `<img src="${thumbSrc}" alt="" class="catalog-details-thumb">` : '<span class="catalog-details-thumb-placeholder"></span>'}</td>
+                <td>${escapeHtmlCatalog(itemName(item))}</td>
+                <td>${new Date(item.created_at).toLocaleDateString()}</td>
+                ${showBadge ? `<td>${item.used_in_flyers && item.used_in_flyers.length > 0 ? flyerBadgeHtml() : ''}</td>` : ''}
+            `;
+            row.addEventListener('click', () => openCatalogViewer(item));
+            tbody.appendChild(row);
+        }
+
+        detailsBox.querySelectorAll('th[data-sort-key]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sortKey;
+                if (sortKey === key) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                else { sortKey = key; sortDir = 'asc'; }
+                currentPage = 1;
+                render();
+            });
+        });
+
+        paginationBox.innerHTML = `
+            <button type="button" id="catalog-page-prev" ${currentPage <= 1 ? 'disabled' : ''}>&laquo; Prev</button>
+            <span class="catalog-pagination-status">Page ${currentPage} of ${totalPages}</span>
+            <button type="button" id="catalog-page-next" ${currentPage >= totalPages ? 'disabled' : ''}>Next &raquo;</button>
+        `;
+        paginationBox.querySelector('#catalog-page-prev').addEventListener('click', () => { currentPage--; render(); });
+        paginationBox.querySelector('#catalog-page-next').addEventListener('click', () => { currentPage++; render(); });
+    }
+
+    function renderItemSet(items, { showFilter, showBadge }) {
+        viewControls.hidden = false;
+        imageFilterLabel.hidden = !showFilter;
+
+        let filtered = items;
+        if (showFilter && imageFilter !== 'all') {
+            filtered = items.filter((i) => {
+                const used = (i.used_in_flyers && i.used_in_flyers.length > 0);
+                return imageFilter === 'flyer' ? used : !used;
+            });
+        }
+
+        if (viewMode === 'details') renderDetails(filtered, { showBadge });
+        else renderThumbnails(filtered, { showBadge });
     }
 
     function render() {
@@ -121,22 +279,22 @@ if (document.getElementById('catalog-grid')) {
             if (activeMediaType === 'video') loadYouTubeVideosPanel();
         }
 
-        if (activeMediaType === 'image' && activeImageCategory === 'flyers') {
-            grid.hidden = true;
-            flyersSection.hidden = false;
-            renderFlyersSection();
+        if (activeMediaType !== 'image') {
+            viewControls.hidden = true;
+            imageFilterLabel.hidden = true;
+            const filtered = allItems.filter((i) => i.media_type === activeMediaType);
+            renderThumbnails(filtered, { showBadge: false });
             return;
         }
-        grid.hidden = false;
-        flyersSection.hidden = true;
 
-        const filtered = allItems.filter((i) => i.media_type === activeMediaType && (activeMediaType !== 'image' || i.category === 'general'));
-        grid.innerHTML = '';
-        if (filtered.length === 0) {
-            grid.innerHTML = `<p class="catalog-empty-note">No ${activeMediaType === 'image' ? 'photos' : activeMediaType} yet.</p>`;
+        if (activeImageCategory === 'flyers') {
+            const flyers = allItems.filter((i) => i.media_type === 'image' && i.category === 'flyer');
+            renderItemSet(flyers, { showFilter: false, showBadge: false });
             return;
         }
-        for (const item of filtered) grid.appendChild(renderTile(item));
+
+        const general = allItems.filter((i) => i.media_type === 'image' && i.category === 'general');
+        renderItemSet(general, { showFilter: true, showBadge: true });
     }
 
     // --- "What's live on YouTube" - add/remove a video or Short, not
@@ -184,90 +342,6 @@ if (document.getElementById('catalog-grid')) {
         }
     }
 
-    // --- Flyers sub-tab: General (drag source), Flyer Templates, Generated Flyers ---
-    function renderFlyersSection() {
-        const generalGrid = document.getElementById('catalog-flyers-general-grid');
-        const templatesGrid = document.getElementById('catalog-flyer-templates-grid');
-        const flyersGrid = document.getElementById('catalog-flyers-grid');
-        generalGrid.innerHTML = '';
-        templatesGrid.innerHTML = '';
-        flyersGrid.innerHTML = '';
-
-        const generalImages = allItems.filter((i) => i.media_type === 'image' && i.category === 'general');
-        const templates = allItems.filter((i) => i.media_type === 'image' && i.category === 'flyer-template');
-        const flyers = allItems.filter((i) => i.media_type === 'image' && i.category === 'flyer');
-
-        if (generalImages.length === 0) generalGrid.innerHTML = '<p class="catalog-empty-note">No general images yet.</p>';
-        for (const item of generalImages) generalGrid.appendChild(renderDraggableGeneralTile(item));
-
-        if (templates.length === 0) templatesGrid.innerHTML = '<p class="catalog-empty-note">No Flyer Templates yet - upload one above, or drag a general image here.</p>';
-        for (const item of templates) templatesGrid.appendChild(renderTile(item));
-
-        if (flyers.length === 0) flyersGrid.innerHTML = '<p class="catalog-empty-note">No flyers created yet.</p>';
-        for (const item of flyers) flyersGrid.appendChild(renderTile(item));
-    }
-
-    function renderDraggableGeneralTile(item) {
-        const tile = renderTile(item);
-        const handle = document.createElement('span');
-        handle.className = 'drag-handle catalog-tile-drag-handle';
-        handle.textContent = '⠿';
-        handle.addEventListener('pointerdown', (e) => startCatalogTileDrag(e, tile, item));
-        tile.appendChild(handle);
-        return tile;
-    }
-
-    // Manual pointer-events drag (matches dashboard.js's startSectionDrag
-    // convention - no native HTML5 drag-and-drop) - dragging a General
-    // image tile onto the Flyer Templates grid reclassifies it in place.
-    function startCatalogTileDrag(e, tile, item) {
-        e.preventDefault();
-        tile.classList.add('dragging');
-        const templatesZone = document.getElementById('catalog-flyer-templates-grid');
-        let over = false;
-
-        function onPointerMove(ev) {
-            const el = document.elementFromPoint(ev.clientX, ev.clientY);
-            const hit = !!(el && el.closest('#catalog-flyer-templates-grid'));
-            if (hit !== over) { templatesZone.classList.toggle('drag-over', hit); over = hit; }
-        }
-        function cleanup() {
-            document.removeEventListener('pointermove', onPointerMove);
-            document.removeEventListener('pointerup', onPointerUp);
-            document.removeEventListener('pointercancel', onPointerUp);
-            tile.classList.remove('dragging');
-            templatesZone.classList.remove('drag-over');
-        }
-        async function onPointerUp() {
-            const dropped = over;
-            cleanup();
-            if (!dropped) return;
-            await reclassifyAsTemplate(item);
-        }
-        document.addEventListener('pointermove', onPointerMove);
-        document.addEventListener('pointerup', onPointerUp);
-        document.addEventListener('pointercancel', onPointerUp);
-    }
-
-    async function reclassifyAsTemplate(item) {
-        const reclassifyRes = await fetch(`/api/catalog/${item.id}/reclassify`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ category: 'flyer-template' })
-        });
-        if (!reclassifyRes.ok) {
-            const body = await reclassifyRes.json().catch(() => ({}));
-            alert(body.error || 'Could not reclassify that image.');
-            return;
-        }
-        await fetch('/api/flyer-templates', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ backgroundCatalogItemId: item.id, name: item.label || item.original_filename || 'New Template' })
-        });
-        await reload();
-    }
-
     async function reload() {
         const items = await fetchCatalogItems(searchQuery);
         if (items === null) {
@@ -283,6 +357,7 @@ if (document.getElementById('catalog-grid')) {
         if (!btn) return;
         activeMediaType = btn.dataset.mediaType;
         tabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t === btn));
+        currentPage = 1;
         render();
     });
 
@@ -291,6 +366,7 @@ if (document.getElementById('catalog-grid')) {
         if (!btn) return;
         activeImageCategory = btn.dataset.category;
         categoryTabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t === btn));
+        currentPage = 1;
         render();
     });
 
@@ -301,43 +377,30 @@ if (document.getElementById('catalog-grid')) {
         categoryTabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t.dataset.category === 'flyers'));
     }
 
-    document.getElementById('catalog-upload-template').addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        e.target.value = '';
-        if (!file) return;
-        const form = new FormData();
-        form.append('file', file);
-        const uploadRes = await fetch('/api/catalog/upload', { method: 'POST', body: form });
-        const item = await uploadRes.json();
-        if (!uploadRes.ok) { alert(item.error || 'Could not upload.'); return; }
-        await reclassifyAsTemplate(item);
-        const templates = await fetchCatalogItems('', 'flyer-template');
-        const created = (templates || []).find((t) => t.id === item.id);
-        if (created) {
-            const listRes = await fetch('/api/flyer-templates');
-            const list = listRes.ok ? await listRes.json() : [];
-            const template = list.find((t) => t.backgroundCatalogItemId === item.id);
-            if (template) await window.openFlyerTemplateEditor(template.id);
-        }
-        await reload();
-    });
-
     let searchTimer = null;
     searchInput.addEventListener('input', () => {
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => {
             searchQuery = searchInput.value.trim();
+            currentPage = 1;
             reload();
         }, 250);
     });
 
     deleteBtn.addEventListener('click', async () => {
         if (selectedIds.size === 0) return;
-        if (!confirm(`Delete ${selectedIds.size} item(s) from the Catalog? This can't be undone. Deleting a generated Flyer's image deletes that Flyer too. An item still used as a Flyer Template's background can't be deleted until the template is removed first.`)) return;
+        const idsToDelete = [...selectedIds];
+        const usedItems = allItems.filter((i) => idsToDelete.includes(i.id) && i.used_in_flyers && i.used_in_flyers.length > 0);
+        let warning = `Delete ${selectedIds.size} item(s) from the Catalog? This can't be undone. Deleting a generated Flyer's image deletes that Flyer too.`;
+        if (usedItems.length > 0) {
+            const gigNames = [...new Set(usedItems.flatMap((i) => i.used_in_flyers.map((f) => f.gigTitle)))];
+            warning += `\n\nThis includes image(s) used as the background for these flyers - they will no longer be accessible for editing: ${gigNames.join(', ')}.`;
+        }
+        if (!confirm(warning)) return;
         const res = await fetch('/api/catalog/delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ids: [...selectedIds] })
+            body: JSON.stringify({ ids: idsToDelete })
         });
         const body = await res.json().catch(() => ({}));
         selectedIds.clear();
@@ -399,9 +462,14 @@ if (document.getElementById('catalog-grid')) {
         const filename = item.original_filename || `catalog-${item.id}`;
 
         const isVideo = item.media_type === 'video';
+        const isImage = item.media_type === 'image';
+        const usedInFlyers = item.used_in_flyers || [];
         let mediaHtml = '';
-        if (item.media_type === 'image') {
-            mediaHtml = `<img src="${url}" alt="${escapeHtmlCatalog(item.label || '')}">`;
+        if (isImage) {
+            mediaHtml = `<div class="catalog-viewer-image-wrap">
+                <img id="catalog-viewer-image" src="${url}" alt="${escapeHtmlCatalog(item.label || '')}">
+                ${usedInFlyers.length > 0 ? flyerBadgeHtml('flyer-usage-badge-modal') : ''}
+            </div>`;
         } else if (isVideo) {
             mediaHtml = `<video id="catalog-viewer-video" src="${url}" controls></video><canvas id="catalog-viewer-canvas" hidden></canvas>`;
         } else {
@@ -411,8 +479,17 @@ if (document.getElementById('catalog-grid')) {
         body.innerHTML = `
             ${mediaHtml}
             <p class="catalog-viewer-label">${escapeHtmlCatalog(item.label || item.original_filename || '')}</p>
+            ${usedInFlyers.length > 0 ? `
+                <label class="catalog-viewer-flyers-label">Flyers:
+                    <select id="catalog-viewer-flyers-select">
+                        <option value="">(original image)</option>
+                        ${usedInFlyers.map((f) => `<option value="${f.renderedFilePath}">${escapeHtmlCatalog(f.gigTitle)}</option>`).join('')}
+                    </select>
+                </label>
+            ` : ''}
             <div class="catalog-viewer-actions">
                 <a href="${url}" download="${escapeHtmlCatalog(filename)}">Download</a>
+                ${isImage ? `<button type="button" id="catalog-viewer-print">Print</button>` : ''}
                 ${isVideo ? `
                     <button type="button" id="catalog-viewer-capture">Capture frame</button>
                     <button type="button" id="catalog-viewer-trim-toggle">Trim</button>
@@ -420,10 +497,7 @@ if (document.getElementById('catalog-grid')) {
                     <button type="button" id="catalog-viewer-post-youtube">Post to YouTube</button>
                     <button type="button" id="catalog-viewer-post-tiktok">Post to TikTok</button>
                 ` : ''}
-                ${item.category === 'flyer-template' ? `
-                    <button type="button" id="catalog-viewer-edit-template">Edit Template</button>
-                    <button type="button" id="catalog-viewer-create-flyer">Create Flyer from This Template</button>
-                ` : ''}
+                ${isImage && item.category === 'general' ? `<button type="button" id="catalog-viewer-create-flyer">Create Flyer</button>` : ''}
                 <button type="button" id="catalog-viewer-rename">Rename</button>
                 <button type="button" id="catalog-viewer-delete">Delete</button>
             </div>
@@ -440,6 +514,22 @@ if (document.getElementById('catalog-grid')) {
             ` : ''}
             <p class="catalog-viewer-status" id="catalog-viewer-status"></p>
         `;
+
+        if (isImage && usedInFlyers.length > 0) {
+            const imgEl = body.querySelector('#catalog-viewer-image');
+            const badgeEl = body.querySelector('.flyer-usage-badge-modal');
+            body.querySelector('#catalog-viewer-flyers-select').addEventListener('change', (e) => {
+                const path = e.target.value;
+                imgEl.src = path ? catalogFileUrl(path) : url;
+                if (badgeEl) badgeEl.hidden = !!path;
+            });
+        }
+
+        if (isImage) {
+            body.querySelector('#catalog-viewer-print').addEventListener('click', () => {
+                window.open(`/print-image.html?catalogItemId=${item.id}`, '_blank');
+            });
+        }
 
         if (isVideo) {
             const video = body.querySelector('#catalog-viewer-video');
@@ -546,22 +636,9 @@ if (document.getElementById('catalog-grid')) {
             body.querySelector('#catalog-viewer-post-tiktok').addEventListener('click', () => openTikTokUploadModal(item));
         }
 
-        if (item.category === 'flyer-template') {
-            body.querySelector('#catalog-viewer-edit-template').addEventListener('click', async () => {
-                const listRes = await fetch('/api/flyer-templates');
-                const list = listRes.ok ? await listRes.json() : [];
-                const template = list.find((t) => t.backgroundCatalogItemId === item.id);
-                if (!template) { alert('Could not find that template.'); return; }
-                closeCatalogViewer();
-                await window.openFlyerTemplateEditor(template.id);
-                reload();
-            });
-            body.querySelector('#catalog-viewer-create-flyer').addEventListener('click', async () => {
-                const listRes = await fetch('/api/flyer-templates');
-                const list = listRes.ok ? await listRes.json() : [];
-                const template = list.find((t) => t.backgroundCatalogItemId === item.id);
-                if (!template) { alert('Could not find that template.'); return; }
-                openGigPickerForTemplate(template.id);
+        if (isImage && item.category === 'general') {
+            body.querySelector('#catalog-viewer-create-flyer').addEventListener('click', () => {
+                openGigPickerForFlyer(item.id);
             });
         }
 
@@ -577,11 +654,13 @@ if (document.getElementById('catalog-grid')) {
             reload();
         });
         body.querySelector('#catalog-viewer-delete').addEventListener('click', async () => {
-            const warning = item.category === 'flyer'
+            let warning = item.category === 'flyer'
                 ? 'Delete this item from the Catalog? This is a generated Flyer\'s image - deleting it deletes that Flyer too.'
-                : item.category === 'flyer-template'
-                    ? 'Delete this Flyer Template\'s background image? Use "Edit Template" > "Delete Template" instead to remove the template itself - this image can\'t be deleted while a template still uses it.'
-                    : 'Delete this item from the Catalog? This can\'t be undone.';
+                : 'Delete this item from the Catalog? This can\'t be undone.';
+            if (usedInFlyers.length > 0) {
+                const gigNames = usedInFlyers.map((f) => f.gigTitle).join(', ');
+                warning += `\n\nThis image is used as the background for these flyers - they will no longer be accessible for editing afterward: ${gigNames}.`;
+            }
             if (!confirm(warning)) return;
             const res = await fetch('/api/catalog/delete', {
                 method: 'POST',
@@ -603,12 +682,12 @@ if (document.getElementById('catalog-grid')) {
         document.getElementById('catalog-viewer-body').innerHTML = '';
     }
 
-    // --- Gig picker for "Create Flyer from This Template" ---
+    // --- Gig picker for "Create Flyer" ---
     function closeGigPicker() { document.getElementById('gig-picker-modal-backdrop').hidden = true; }
     document.getElementById('gig-picker-modal-close').addEventListener('click', closeGigPicker);
     document.getElementById('gig-picker-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'gig-picker-modal-backdrop') closeGigPicker(); });
 
-    async function openGigPickerForTemplate(templateId) {
+    async function openGigPickerForFlyer(catalogItemId) {
         const body = document.getElementById('gig-picker-modal-body');
         body.innerHTML = '<h2>Choose a Gig</h2><p class="save-note">Loading...</p>';
         document.getElementById('gig-picker-modal-backdrop').hidden = false;
@@ -617,7 +696,7 @@ if (document.getElementById('catalog-grid')) {
         if (!res.ok) { body.innerHTML = '<h2>Choose a Gig</h2><p class="save-note">Could not load gigs.</p>'; return; }
         const allGigs = await res.json();
         if (allGigs.length === 0) {
-            body.innerHTML = '<h2>Choose a Gig</h2><p class="save-note">No gigs found on this band\'s site.</p>';
+            body.innerHTML = '<h2>Choose a Gig</h2><p class="save-note">No gigs found - add one in Gig Management first.</p>';
             return;
         }
         const upcoming = allGigs.filter((g) => !g.isPast);
@@ -634,7 +713,7 @@ if (document.getElementById('catalog-grid')) {
         document.getElementById('gig-picker-confirm').addEventListener('click', async () => {
             const gigRef = document.getElementById('gig-picker-select').value;
             closeGigPicker();
-            const result = await window.openFlyerEditor({ templateId, gigRef });
+            const result = await window.openFlyerEditor({ catalogItemId, gigRef });
             if (result) reload();
         });
     }
@@ -771,7 +850,10 @@ if (document.getElementById('catalog-grid')) {
         if (e.key === 'Escape') closeCatalogViewer();
     });
 
-    reload();
+    (async () => {
+        await loadViewMode();
+        await reload();
+    })();
 }
 
 // --- Exported helpers, usable from any page that links this file ---
@@ -806,8 +888,12 @@ function createMediaModeButtons(container, onModeChange) {
 }
 
 // Opens a single-select instance of the Catalog grid in a shared modal.
-// Resolves with the chosen item, or null on cancel.
-window.openCatalogPicker = function openCatalogPicker({ mediaType }) {
+// Resolves with the chosen item, or null on cancel. `category` is an
+// optional client-side filter ('general' | 'flyer') - e.g. picking a
+// background for a new flyer only makes sense among General images, never
+// an already-rendered Flyer output. Omit it for the historical
+// every-image behavior every existing caller still gets.
+window.openCatalogPicker = function openCatalogPicker({ mediaType, category }) {
     return new Promise((resolve) => {
         const backdrop = document.getElementById('catalog-picker-modal-backdrop');
         const grid = document.getElementById('catalog-picker-grid');
@@ -833,7 +919,8 @@ window.openCatalogPicker = function openCatalogPicker({ mediaType }) {
         function onKeydown(e) { if (e.key === 'Escape') finish(null); }
 
         async function renderGrid(q) {
-            const items = ((await fetchCatalogItems(q)) || []).filter((i) => i.media_type === mediaType);
+            let items = ((await fetchCatalogItems(q)) || []).filter((i) => i.media_type === mediaType);
+            if (category) items = items.filter((i) => i.category === category);
             grid.innerHTML = '';
             if (items.length === 0) {
                 grid.innerHTML = '<p class="catalog-empty-note">Nothing here yet.</p>';

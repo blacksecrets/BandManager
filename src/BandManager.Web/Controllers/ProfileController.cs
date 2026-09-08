@@ -16,6 +16,7 @@ public record SetMemberRolesRequest(List<string> Roles);
 public record UpdateUsernameRequest(string Username);
 public record UpdateNameRequest(string? FirstName, string? LastName);
 public record UpdateContactRequest(string? CellNumber, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode);
+public record UpdateCatalogViewModeRequest(string ViewMode);
 
 /// <summary>
 /// Self-service profile (any logged-in user) + Band-scoped user
@@ -89,6 +90,7 @@ public class ProfileController(
             city = user.City,
             state = user.State,
             postalCode = user.PostalCode,
+            catalogViewMode = user.CatalogViewMode ?? "thumbnails",
             isSuperAdmin = user.IsSuperAdmin,
             activeBandRole,
             activeBandName,
@@ -98,6 +100,23 @@ public class ProfileController(
             // match what wwwroot/assets/profile.js already checks.
             isAdmin = user.IsSuperAdmin || activeBandRole == "BandAdmin"
         });
+    }
+
+    // Images and Flyers' "View:" dropdown (Thumbnails/Details) - saved
+    // server-side, not localStorage, so it follows the user across devices
+    // like every other self-service preference here.
+    [HttpPut("catalog-view-mode")]
+    [Authorize]
+    public async Task<IActionResult> UpdateCatalogViewMode([FromBody] UpdateCatalogViewModeRequest request)
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+        if (request.ViewMode is not ("thumbnails" or "details"))
+            return BadRequest(new { error = "viewMode must be \"thumbnails\" or \"details\"." });
+
+        user.CatalogViewMode = request.ViewMode;
+        await userManager.UpdateAsync(user);
+        return Ok(new { ok = true, catalogViewMode = user.CatalogViewMode });
     }
 
     // The account's UserName IS its email (required + validated at every

@@ -44,6 +44,12 @@ public class ApplicationUser : IdentityUser<Guid>
     public string? State { get; set; }
     public string? PostalCode { get; set; }
 
+    // "thumbnails" or "details" - which grid layout Images and Flyers
+    // opens to. Null (never chosen yet) is treated as "thumbnails" by the
+    // frontend, not defaulted here, matching CellNumber/etc.'s "nobody's
+    // forced to have an opinion yet" pattern.
+    public string? CatalogViewMode { get; set; }
+
     public ICollection<BandMembership> BandMemberships { get; set; } = new List<BandMembership>();
     public ICollection<Gear> Gear { get; set; } = new List<Gear>();
 }

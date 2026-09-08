@@ -62,7 +62,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<RecurringRehearsalRule> RecurringRehearsalRules => Set<RecurringRehearsalRule>();
     public DbSet<Availability> Availabilities => Set<Availability>();
 
-    public DbSet<FlyerTemplate> FlyerTemplates => Set<FlyerTemplate>();
     public DbSet<Flyer> Flyers => Set<Flyer>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -389,20 +388,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         // --- Flyer management ---
 
-        builder.Entity<FlyerTemplate>(b =>
-        {
-            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
-            b.HasOne(x => x.BackgroundCatalogItem).WithMany().HasForeignKey(x => x.BackgroundCatalogItemId).OnDelete(DeleteBehavior.Restrict);
-            b.Property(x => x.Fields)
-                .HasConversion(JsonValueConverter.ForRequired<List<FlyerFieldDef>>(), JsonValueConverter.ComparerRequired<List<FlyerFieldDef>>())
-                .IsRequired();
-        });
-
         builder.Entity<Flyer>(b =>
         {
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.GeneratedCatalogItem).WithMany().HasForeignKey(x => x.GeneratedCatalogItemId).OnDelete(DeleteBehavior.Cascade);
-            b.HasOne(x => x.FlyerTemplate).WithMany().HasForeignKey(x => x.FlyerTemplateId).OnDelete(DeleteBehavior.SetNull);
+            // SetNull, not Restrict - deleting a source image the user was
+            // warned about is allowed to proceed (see CatalogController);
+            // the flyer just loses its editable background afterward.
+            b.HasOne(x => x.SourceCatalogItem).WithMany().HasForeignKey(x => x.SourceCatalogItemId).OnDelete(DeleteBehavior.SetNull);
             b.Property(x => x.Fields)
                 .HasConversion(JsonValueConverter.ForRequired<List<FlyerFieldDef>>(), JsonValueConverter.ComparerRequired<List<FlyerFieldDef>>())
                 .IsRequired();

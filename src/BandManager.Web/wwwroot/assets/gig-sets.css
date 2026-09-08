@@ -135,20 +135,6 @@
 }
 .import-gig-details { flex-basis: 100%; margin-top: 8px; }
 
-.template-picker-row {
-    display: block;
-    width: 100%;
-    text-align: left;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid #444;
-    border-radius: 6px;
-    padding: 10px 12px;
-    margin-bottom: 6px;
-    color: #ddd;
-    cursor: pointer;
-}
-.template-picker-row:hover { background: rgba(255, 255, 255, 0.07); }
-
 #gig-artifact-panel { margin-top: 20px; border-top: 1px solid #333; padding-top: 14px; }
 #gig-artifact-panel h3 { margin: 0 0 10px; font-size: 0.95rem; }
 #gig-artifact-panel h4 { margin: 14px 0 6px; font-size: 0.85rem; color: #999; }

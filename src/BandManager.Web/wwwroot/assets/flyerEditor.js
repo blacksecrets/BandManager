@@ -1,8 +1,12 @@
-// Shared Flyer Editor modal - used from Catalog (a template's "Create
-// Flyer from This Template" button) and from Gig Management ("Create/Edit
-// Flyer" on a selected gig). Self-injecting like bandSwitcher.js/
-// songReview.js, so no per-page markup duplication - only flyerEditor.css
-// needs to be linked by the host page.
+// Shared Flyer Editor modal - used from Catalog (a General image's "Create
+// Flyer" button) and from Gig Management ("Create/Edit Flyer" on a
+// selected gig). Self-injecting like bandSwitcher.js/songReview.js, so no
+// per-page markup duplication - only flyerEditor.css needs to be linked by
+// the host page.
+//
+// There is no "Flyer Template" - any Catalog image (catalogItemId) can be
+// the background directly, seeded with the app's known-fields default
+// layout (GET /api/flyers/known-fields) rather than a saved template row.
 (function () {
     function escapeHtml(str) {
         const div = document.createElement('div');
@@ -41,12 +45,11 @@
     }
 
     // Builds the working field list for this flyer: starts from the
-    // template's default layout, prepopulating Value from known gig data
+    // known-fields default layout, prepopulating Value from known gig data
     // where a mapping exists, and expanding with-0..with-N to match
-    // however many With-acts this gig actually has (a flyer's With list
-    // can differ from what the template originally defined for).
-    function buildInitialFields(template, gig) {
-        const fields = template.fields.map((f) => ({ ...f, included: f.defaultVisible }));
+    // however many With-acts this gig actually has.
+    function buildInitialFields(knownFields, gig) {
+        const fields = knownFields.map((f) => ({ ...f, included: f.defaultVisible }));
         const valueFor = (key) => {
             switch (key) {
                 case 'title': return gig.title || '';
@@ -68,7 +71,7 @@
             result.push({ ...f, value: valueFor(f.key) });
         }
         withActs.forEach((act, i) => {
-            const base = withTemplateField || { label: 'With', type: 'Text', x: 0.06, y: 0.5, fontSize: 0.05, fontFamily: 'oswald-bold', color: '#ffffff', included: true };
+            const base = withTemplateField || { label: 'With', type: 'Text', x: 0.06, y: 0.5, fontSize: 0.05, fontFamily: 'oswald-bold', color: '#ffffff', included: true, rotation: 0 };
             result.push({ ...base, key: `with-${i}`, label: `With ${i + 1}`, value: act.name || '', included: base.included !== false });
         });
         if (withActs.length === 0 && withTemplateField) {
@@ -77,34 +80,35 @@
         return result;
     }
 
-    window.openFlyerEditor = function openFlyerEditor({ templateId, gigRef }) {
+    window.openFlyerEditor = function openFlyerEditor({ catalogItemId, gigRef }) {
         return new Promise(async (resolve) => {
             resolvePromise = resolve;
             const body = document.getElementById('flyer-editor-body');
             body.innerHTML = '<p class="save-note">Loading...</p>';
             backdrop.hidden = false;
 
-            const [templateRes, gigRes, fontsRes] = await Promise.all([
-                fetch(`/api/flyer-templates/${templateId}`),
+            const [imageRes, gigRes, fontsRes, knownFieldsRes] = await Promise.all([
+                fetch(`/api/catalog/${catalogItemId}`),
                 fetch(`/api/gigs/${encodeURIComponent(gigRef)}`),
-                fetch('/api/flyer-templates/fonts')
+                fetch('/api/flyers/fonts'),
+                fetch('/api/flyers/known-fields')
             ]);
-            if (!templateRes.ok || !gigRes.ok) {
-                body.innerHTML = '<p class="save-note">Could not load the template or gig.</p>';
+            if (!imageRes.ok || !gigRes.ok || !knownFieldsRes.ok) {
+                body.innerHTML = '<p class="save-note">Could not load the image or gig.</p>';
                 return;
             }
-            const template = await templateRes.json();
+            const image = await imageRes.json();
             const gig = await gigRes.json();
             const fonts = fontsRes.ok ? await fontsRes.json() : [];
+            const knownFields = await knownFieldsRes.json();
 
-            let fields = buildInitialFields(template, gig);
-            let bgWidth = 0, bgHeight = 0;
+            let fields = buildInitialFields(knownFields, gig);
 
             body.innerHTML = `
                 <h2>Create Flyer: ${escapeHtml(gig.title)}</h2>
                 <div class="flyer-editor-layout">
                     <div class="flyer-preview-wrap">
-                        <img id="flyer-preview-bg" src="${catalogFileUrl(template.backgroundFilePath)}" alt="Flyer background">
+                        <img id="flyer-preview-bg" src="${catalogFileUrl(image.file_path)}" alt="Flyer background">
                         <div id="flyer-preview-fields"></div>
                     </div>
                     <div class="flyer-field-list" id="flyer-field-list"></div>
@@ -136,6 +140,7 @@
                                 <label class="checkbox-label" title="Italic"><input type="checkbox" data-italic ${field.italic ? 'checked' : ''}> I</label>
                                 <label class="checkbox-label" title="Underline"><input type="checkbox" data-underline ${field.underline ? 'checked' : ''}> U</label>
                             </span>` : ''}
+                        <span class="flyer-field-hint">drag to move &middot; drag &#8690; to resize &middot; drag &#8635; to rotate</span>
                     `;
                     row.querySelector('[data-included]').addEventListener('change', (e) => { field.included = e.target.checked; renderPreview(); });
                     const valueInput = row.querySelector('[data-value]');
@@ -167,6 +172,7 @@
                     el.className = 'flyer-preview-field' + (field.type === 'Image' ? ' flyer-preview-field-image' : '');
                     el.style.left = `${field.x * bgImg.clientWidth}px`;
                     el.style.top = `${field.y * bgImg.clientHeight}px`;
+                    el.style.transform = `rotate(${field.rotation || 0}deg)`;
                     if (field.type === 'Text') {
                         el.textContent = field.value || field.label;
                         el.style.color = field.color || '#ffffff';
@@ -181,12 +187,25 @@
                         el.style.height = `${(field.fontSize || 0.1) * bgImg.clientHeight}px`;
                     }
                     el.addEventListener('pointerdown', (e) => startFieldDrag(e, el, field));
+
+                    const resizeHandle = document.createElement('span');
+                    resizeHandle.className = 'flyer-field-resize-handle';
+                    resizeHandle.addEventListener('pointerdown', (e) => startFieldResize(e, el, field));
+                    el.appendChild(resizeHandle);
+
+                    const rotateHandle = document.createElement('span');
+                    rotateHandle.className = 'flyer-field-rotate-handle';
+                    rotateHandle.addEventListener('pointerdown', (e) => startFieldRotate(e, el, field));
+                    el.appendChild(rotateHandle);
+
                     previewFields.appendChild(el);
                 });
             }
 
             function startFieldDrag(e, el, field) {
+                if (e.target !== el) return; // let the resize/rotate handles' own listeners handle themselves
                 e.preventDefault();
+                e.stopPropagation();
                 const startX = e.clientX, startY = e.clientY;
                 const startLeft = el.offsetLeft, startTop = el.offsetTop;
                 function onMove(ev) {
@@ -203,7 +222,56 @@
                 document.addEventListener('pointerup', onUp);
             }
 
-            bgImg.addEventListener('load', () => { bgWidth = bgImg.naturalWidth; bgHeight = bgImg.naturalHeight; renderPreview(); });
+            // FontSize doubles as the "size" for both a Text field (literal
+            // font size) and an Image field (logo height, width follows its
+            // own aspect ratio) - see FlyerRenderer.cs - so resizing just
+            // scales that one number, proportional to vertical drag
+            // distance. No separate width/height concept needed.
+            function startFieldResize(e, el, field) {
+                e.preventDefault();
+                e.stopPropagation();
+                const startY = e.clientY;
+                const startSize = field.fontSize || (field.type === 'Image' ? 0.1 : 0.04);
+                function onMove(ev) {
+                    const deltaFraction = (ev.clientY - startY) / bgImg.clientHeight;
+                    field.fontSize = Math.max(0.01, startSize + deltaFraction);
+                    renderPreview();
+                }
+                function onUp() {
+                    document.removeEventListener('pointermove', onMove);
+                    document.removeEventListener('pointerup', onUp);
+                }
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+            }
+
+            // Rotates around the field's own anchor (its top-left X/Y,
+            // matching FlyerRenderer.cs's canvas.RotateDegrees pivot) -
+            // angle tracks the pointer's position relative to that anchor,
+            // so it feels like grabbing the rotate handle and swinging it.
+            function startFieldRotate(e, el, field) {
+                e.preventDefault();
+                e.stopPropagation();
+                function angleFor(ev) {
+                    const rect = el.getBoundingClientRect();
+                    const originX = rect.left, originY = rect.top;
+                    return Math.atan2(ev.clientY - originY, ev.clientX - originX) * (180 / Math.PI);
+                }
+                const startAngle = angleFor(e);
+                const startRotation = field.rotation || 0;
+                function onMove(ev) {
+                    field.rotation = Math.round(startRotation + (angleFor(ev) - startAngle));
+                    el.style.transform = `rotate(${field.rotation}deg)`;
+                }
+                function onUp() {
+                    document.removeEventListener('pointermove', onMove);
+                    document.removeEventListener('pointerup', onUp);
+                }
+                document.addEventListener('pointermove', onMove);
+                document.addEventListener('pointerup', onUp);
+            }
+
+            bgImg.addEventListener('load', renderPreview);
             new ResizeObserver(renderPreview).observe(bgImg);
 
             renderFieldList();
@@ -217,7 +285,8 @@
                     x: last ? last.x : 0.06, y: last ? last.y + 0.07 : 0.5,
                     fontSize: last ? last.fontSize : 0.05, fontFamily: last ? last.fontFamily : 'oswald-bold',
                     color: last ? last.color : '#ffffff', included: true, value: '',
-                    bold: last ? !!last.bold : false, italic: last ? !!last.italic : false, underline: last ? !!last.underline : false
+                    bold: last ? !!last.bold : false, italic: last ? !!last.italic : false, underline: last ? !!last.underline : false,
+                    rotation: last ? (last.rotation || 0) : 0
                 });
                 renderFieldList();
                 renderPreview();
@@ -227,13 +296,14 @@
                 const status = document.getElementById('flyer-editor-status');
                 status.textContent = 'Saving...';
                 const payload = {
-                    templateId,
+                    sourceCatalogItemId: catalogItemId,
                     gigRef,
                     fields: fields.map((f) => ({
                         key: f.key, label: f.label, type: f.type, x: f.x, y: f.y,
                         fontSize: f.fontSize, fontFamily: f.fontFamily, color: f.color,
                         included: f.included, value: f.value || null,
-                        bold: !!f.bold, italic: !!f.italic, underline: !!f.underline
+                        bold: !!f.bold, italic: !!f.italic, underline: !!f.underline,
+                        rotation: f.rotation || 0
                     }))
                 };
                 const res = await fetch('/api/flyers', {

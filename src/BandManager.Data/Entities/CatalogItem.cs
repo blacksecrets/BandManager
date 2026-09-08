@@ -5,10 +5,12 @@ public enum MediaType { Image, Video, Audio }
 public enum CatalogSource { Upload, Url, FrameCapture, Trim, Split, CoverPhoto }
 
 /// <summary>Only ever meaningful for MediaType.Image - video/audio items
-/// stay General. FlyerTemplate is a background image a FlyerTemplate row
-/// references; Flyer is a rendered output image a Flyer row references -
-/// see those entities.</summary>
-public enum CatalogCategory { General, FlyerTemplate, Flyer }
+/// stay General. Flyer is a rendered output image a Flyer row references
+/// via GeneratedCatalogItemId - see Flyer.cs. There is no separate
+/// "template" category: any General image can be used as a flyer
+/// background directly (Flyer.SourceCatalogItemId), without being
+/// reclassified first - see FlyersController.</summary>
+public enum CatalogCategory { General, Flyer }
 
 /// <summary>
 /// A persistent, browsable, per-Band library of every image/video/audio

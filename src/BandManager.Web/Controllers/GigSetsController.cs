@@ -82,7 +82,8 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
 
     // "Everything associated with this gig" for Gig Management's past-gig
     // viewer - every ScheduleItem+Artifacts tied to it, plus its most
-    // recent Flyer (and which FlyerTemplate built it, if any). A new,
+    // recent Flyer (and which source image built it, if that image still
+    // exists - SourceCatalogItem is nullable/SetNull, see Flyer.cs). A new,
     // dedicated endpoint rather than a ?gigRef= filter bolted onto
     // ScheduleItemsController's general-purpose GET /api/items, which
     // serves the Dashboard's own heavily-used query path - keeping this
@@ -102,7 +103,7 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             .ToListAsync();
 
         var flyer = await db.Flyers.AsNoTracking()
-            .Include(f => f.FlyerTemplate)
+            .Include(f => f.SourceCatalogItem)
             .Where(f => f.BandId == bandId && f.GigRef == gigRef)
             .OrderByDescending(f => f.CreatedAt)
             .FirstOrDefaultAsync();
@@ -122,8 +123,8 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             {
                 flyer.Id,
                 flyer.GeneratedCatalogItemId,
-                flyerTemplateId = flyer.FlyerTemplateId,
-                flyerTemplateName = flyer.FlyerTemplate?.Name
+                sourceCatalogItemId = flyer.SourceCatalogItemId,
+                sourceImageLabel = flyer.SourceCatalogItem?.Label ?? flyer.SourceCatalogItem?.OriginalFilename
             }
         });
     }

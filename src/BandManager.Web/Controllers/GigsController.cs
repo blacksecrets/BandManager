@@ -32,8 +32,8 @@ public record GigWithActInput(Guid? WithBandId, string? Name, string? Url);
 /// same as before this rewrite - it's a site-relative GitHub path with no
 /// independent local storage of its own yet. This doesn't regress
 /// anything (today's code already throws without a site for this), and a
-/// siteless band can still fully use the separate Flyer/FlyerTemplate
-/// system (CatalogStore-backed, already site-independent) instead.
+/// siteless band can still fully use the separate Flyer system
+/// (CatalogStore-backed, already site-independent) instead.
 /// </summary>
 [ApiController]
 [Route("/api/gigs")]

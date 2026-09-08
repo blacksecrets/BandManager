@@ -101,7 +101,7 @@ async function loadArtifactPanel() {
 function renderArtifactPanelHtml(data) {
     const flyerHtml = data.flyer
         ? `<div class="gig-flyer-block"><h4>Flyer</h4><img src="/flyer-cache/${encodeURIComponent(data.gig.flyerMain || '')}" alt="Flyer" class="gig-flyer-thumb">
-           ${data.flyer.flyerTemplateName ? `<p class="save-note">Built from template: ${escapeHtml(data.flyer.flyerTemplateName)}</p>` : '<p class="save-note">Not built from a saved template.</p>'}</div>`
+           ${data.flyer.sourceImageLabel ? `<p class="save-note">Built from: ${escapeHtml(data.flyer.sourceImageLabel)}</p>` : '<p class="save-note">Its source image has since been deleted - it can no longer be re-opened in the editor.</p>'}</div>`
         : '<p class="save-note">No flyer for this gig yet.</p>';
 
     const itemsHtml = data.items.length === 0
@@ -464,36 +464,13 @@ document.getElementById('gig-set-import-btn').addEventListener('click', () => {
     document.getElementById('import-gig-modal-backdrop').hidden = false;
 });
 
-// --- Create/Edit Flyer (pick a template, then hand off to the shared Flyer Editor) ---
-function closeTemplatePickerModal() { document.getElementById('template-picker-modal-backdrop').hidden = true; }
-document.getElementById('template-picker-modal-close').addEventListener('click', closeTemplatePickerModal);
-document.getElementById('template-picker-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'template-picker-modal-backdrop') closeTemplatePickerModal(); });
-
+// --- Create/Edit Flyer (pick any General image, then hand off to the
+// shared Flyer Editor - no separate "Flyer Template" step) ---
 document.getElementById('gig-set-flyer-btn').addEventListener('click', async () => {
-    const body = document.getElementById('template-picker-modal-body');
-    body.innerHTML = '<h2>Choose a Flyer Template</h2><p class="save-note">Loading...</p>';
-    document.getElementById('template-picker-modal-backdrop').hidden = false;
-
-    const res = await fetch('/api/flyer-templates');
-    if (!res.ok) { body.innerHTML = '<h2>Choose a Flyer Template</h2><p class="save-note">Could not load templates.</p>'; return; }
-    const templates = await res.json();
-    body.innerHTML = '<h2>Choose a Flyer Template</h2>';
-    if (templates.length === 0) {
-        body.innerHTML += '<p class="save-note">No Flyer Templates yet - create one from the Catalog\'s Flyers section first.</p>';
-        return;
-    }
-    for (const t of templates) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'template-picker-row';
-        btn.textContent = t.name;
-        btn.addEventListener('click', async () => {
-            closeTemplatePickerModal();
-            const result = await window.openFlyerEditor({ templateId: t.id, gigRef: selectedGigRef });
-            if (result) await loadArtifactPanel();
-        });
-        body.appendChild(btn);
-    }
+    const picked = await window.openCatalogPicker({ mediaType: 'image', category: 'general' });
+    if (!picked) return;
+    const result = await window.openFlyerEditor({ catalogItemId: picked.id, gigRef: selectedGigRef });
+    if (result) await loadArtifactPanel();
 });
 
 // --- Print setlist ---

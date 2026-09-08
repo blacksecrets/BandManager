@@ -1,15 +1,16 @@
+using BandManager.Data;
 using BandManager.Data.Entities;
 using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web.Controllers;
 
 public record CatalogFromUrlRequest(string Url);
 public record CatalogDeleteRequest(List<Guid> Ids);
 public record CatalogUpdateLabelRequest(string Label);
-public record CatalogReclassifyRequest(string Category);
 
 /// <summary>
 /// The Media Catalog's own CRUD - ported from the old app's
@@ -27,7 +28,7 @@ public record CatalogReclassifyRequest(string Category);
 [ApiController]
 [Route("/api/catalog")]
 [Authorize(Policy = "BandMember")]
-public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor activeBand) : ControllerBase
+public class CatalogController(ApplicationDbContext db, CatalogStore catalogStore, IActiveBandAccessor activeBand) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
     {
@@ -37,7 +38,43 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
         return null;
     }
 
-    private static object Serialize(CatalogItem item) => new
+    // Every image that's the source background of at least one Flyer, keyed
+    // by CatalogItem id - the winged-F badge, the delete warning, and the
+    // "Flyers:" dropdown on an image's modal are all driven from this same
+    // one query, run once per list/single-item request rather than N+1
+    // per item.
+    private async Task<Dictionary<Guid, List<object>>> LoadFlyerUsageAsync(Guid bandId, IEnumerable<Guid>? onlyForItemIds = null)
+    {
+        IQueryable<Flyer> query = db.Flyers.AsNoTracking()
+            .Where(f => f.BandId == bandId && f.SourceCatalogItemId != null)
+            .Include(f => f.GeneratedCatalogItem);
+        if (onlyForItemIds is not null) query = query.Where(f => onlyForItemIds.Contains(f.SourceCatalogItemId!.Value));
+
+        var flyers = await query.ToListAsync();
+        if (flyers.Count == 0) return [];
+
+        var gigRefs = flyers.Select(f => f.GigRef).Distinct().ToList();
+        var gigTitlesByRef = await db.Gigs.AsNoTracking()
+            .Where(g => g.BandId == bandId && gigRefs.Contains(g.Ref))
+            .ToDictionaryAsync(g => g.Ref, g => g.Title);
+
+        var byItem = new Dictionary<Guid, List<object>>();
+        foreach (var f in flyers)
+        {
+            var entry = new
+            {
+                flyerId = f.Id,
+                gigRef = f.GigRef,
+                gigTitle = gigTitlesByRef.GetValueOrDefault(f.GigRef, f.GigRef),
+                renderedFilePath = f.GeneratedCatalogItem.FilePath
+            };
+            if (!byItem.TryGetValue(f.SourceCatalogItemId!.Value, out var list)) byItem[f.SourceCatalogItemId!.Value] = list = [];
+            list.Add(entry);
+        }
+        return byItem;
+    }
+
+    private static object Serialize(CatalogItem item, List<object>? usedInFlyers) => new
     {
         id = item.Id,
         media_type = item.MediaType.ToString().ToLowerInvariant(),
@@ -53,13 +90,13 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
         source_url = item.SourceUrl,
         uploaded_by = item.UploadedBy,
         created_at = item.CreatedAt,
-        category = ToKebabCase(item.Category.ToString())
+        category = ToKebabCase(item.Category.ToString()),
+        used_in_flyers = usedInFlyers ?? []
     };
 
     private static CatalogCategory? ParseCategory(string? raw) => raw switch
     {
         "general" => CatalogCategory.General,
-        "flyer-template" => CatalogCategory.FlyerTemplate,
         "flyer" => CatalogCategory.Flyer,
         _ => null
     };
@@ -102,19 +139,18 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
             _ => null
         };
         var items = await catalogStore.ListCatalogItemsAsync(bandId, q, parsedType, ParseCategory(category));
-        return Ok(items.Select(Serialize));
+        var usage = await LoadFlyerUsageAsync(bandId);
+        return Ok(items.Select(i => Serialize(i, usage.GetValueOrDefault(i.Id))));
     }
 
-    [HttpPut("{id:guid}/reclassify")]
-    public async Task<IActionResult> Reclassify(Guid id, [FromBody] CatalogReclassifyRequest request)
+    [HttpGet("{id:guid}")]
+    public async Task<IActionResult> Get(Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
-        var category = ParseCategory(request.Category);
-        if (category is null) return BadRequest(new { error = "Invalid category." });
-
-        var (item, error) = await catalogStore.ReclassifyItemAsync(bandId, id, category.Value);
-        if (error is not null) return item is null && error == "Not found" ? NotFound(new { error }) : BadRequest(new { error });
-        return Ok(Serialize(item!));
+        var item = await db.CatalogItems.AsNoTracking().FirstOrDefaultAsync(c => c.Id == id && c.BandId == bandId);
+        if (item is null) return NotFound(new { error = "Not found" });
+        var usage = await LoadFlyerUsageAsync(bandId, [id]);
+        return Ok(Serialize(item, usage.GetValueOrDefault(id)));
     }
 
     [HttpPost("upload")]
@@ -139,7 +175,7 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
             var item = await catalogStore.RegisterCatalogItemAsync(
                 bandId, buffer, file.ContentType, file.FileName, source, sourceUrl: null,
                 uploadedBy: User.Identity?.Name);
-            return Ok(Serialize(item));
+            return Ok(Serialize(item, null));
         }
         catch (InvalidOperationException ex)
         {
@@ -160,7 +196,8 @@ public class CatalogController(CatalogStore catalogStore, IActiveBandAccessor ac
         if (RequireActiveBand(out var bandId) is { } err) return err;
         var item = await catalogStore.UpdateCatalogItemLabelAsync(bandId, id, request.Label);
         if (item is null) return NotFound(new { error = "Not found" });
-        return Ok(Serialize(item));
+        var usage = await LoadFlyerUsageAsync(bandId, [id]);
+        return Ok(Serialize(item, usage.GetValueOrDefault(id)));
     }
 
     [HttpPost("delete")]

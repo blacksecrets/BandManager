@@ -32,23 +32,107 @@
 
 .catalog-category-tabs { display: flex; gap: 8px; margin: 4px 0 16px; }
 
-.catalog-tile { position: relative; }
-.catalog-tile-drag-handle {
-    position: absolute;
-    top: 4px;
-    left: 4px;
-    background: rgba(0,0,0,0.6);
-    border-radius: 4px;
-    padding: 2px 5px;
+.catalog-view-controls { display: flex; gap: 18px; align-items: center; margin: 0 0 16px; flex-wrap: wrap; }
+.catalog-view-controls[hidden] { display: none; }
+.catalog-view-select-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem;
     color: #ccc;
-    cursor: grab;
-    font-size: 0.9rem;
 }
-.catalog-tile-drag-handle:active { cursor: grabbing; }
-.catalog-tile.dragging { opacity: 0.4; }
-#catalog-flyer-templates-grid.drag-over { outline: 2px dashed #4a6fa5; outline-offset: -2px; }
+.catalog-view-select-label[hidden] { display: none; }
+.catalog-view-select-label select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    font-size: 0.82rem;
+}
 
-#catalog-flyers-section h3 { margin: 20px 0 8px; font-size: 0.95rem; color: #ccc; }
+/* --- Details (table) view --- */
+.catalog-details { overflow-x: auto; }
+.catalog-details-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.catalog-details-table th {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #444;
+    color: #999;
+    font-weight: normal;
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+}
+.catalog-details-table th:hover { color: #ddd; }
+.catalog-details-table th.sorted { color: #eee; font-weight: bold; }
+.catalog-details-thumb-col { width: 52px; }
+.catalog-details-row { cursor: pointer; }
+.catalog-details-row:hover { background: rgba(255, 255, 255, 0.04); }
+.catalog-details-row td { padding: 6px 10px; border-bottom: 1px solid #2a2a2a; vertical-align: middle; }
+.catalog-details-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; display: block; }
+.catalog-details-thumb-placeholder { display: block; width: 40px; height: 40px; border-radius: 4px; background: #222; }
+
+.catalog-pagination { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+.catalog-pagination[hidden] { display: none; }
+.catalog-pagination button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+.catalog-pagination button:disabled { opacity: 0.35; cursor: default; }
+.catalog-pagination-status { color: #999; font-size: 0.82rem; }
+
+/* --- Winged-F "used as a flyer background" badge --- */
+.flyer-usage-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.flyer-usage-badge svg { width: 30px; height: 17px; overflow: visible; }
+.flyer-usage-badge svg path { fill: #c0392b; }
+.flyer-usage-badge svg text {
+    font-size: 11px;
+    font-weight: bold;
+    fill: #fff;
+    text-anchor: middle;
+    font-family: sans-serif;
+}
+.flyer-usage-badge-tile {
+    position: absolute;
+    bottom: 4px;
+    left: 4px;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
+}
+.flyer-usage-badge-modal {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.8));
+}
+.flyer-usage-badge-modal svg { width: 40px; height: 22px; }
+
+.catalog-viewer-image-wrap { position: relative; display: inline-block; }
+.catalog-viewer-flyers-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: #ccc;
+}
+.catalog-viewer-flyers-label select {
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+}
+
+.catalog-tile { position: relative; }
 
 .gig-picker-modal-body select, #gig-picker-select {
     width: 100%;
@@ -97,6 +181,7 @@
 }
 .catalog-add-panel[hidden] { display: none; }
 
+.catalog-grid[hidden] { display: none; }
 .catalog-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
