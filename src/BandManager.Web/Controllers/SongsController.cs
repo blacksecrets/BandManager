@@ -100,11 +100,16 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         var query = q?.Trim() ?? "";
         if (query.Length == 0) return Ok(new { youTube = Array.Empty<object>(), spotify = Array.Empty<object>() });
 
-        var youTubeTask = songSearch.SearchYouTubeAsync(query);
-        var spotifyTask = songSearch.SearchSpotifyAsync(query);
-        await Task.WhenAll(youTubeTask, spotifyTask);
+        // Sequential, not Task.WhenAll - both calls share this request's
+        // single scoped DbContext (via SongSearchService's GetCredentialAsync),
+        // and EF Core throws if two operations run concurrently on the same
+        // DbContext instance. Each call is already fast (one HTTP request
+        // plus a cheap credential lookup), so sequential costs nothing
+        // meaningful in practice.
+        var youTube = await songSearch.SearchYouTubeAsync(query);
+        var spotify = await songSearch.SearchSpotifyAsync(query);
 
-        return Ok(new { youTube = youTubeTask.Result, spotify = spotifyTask.Result });
+        return Ok(new { youTube, spotify });
     }
 
     [HttpGet("{id:guid}")]

@@ -37,7 +37,17 @@ public class SongSearchService(IHttpClientFactory httpClientFactory, Application
     {
         var setting = await db.PlatformSettings.AsNoTracking().FirstOrDefaultAsync(s => s.Key == key);
         if (setting?.Value is null) return null;
-        return JsonSerializer.Deserialize<Dictionary<string, string>>(cipher.Decrypt(setting.Value));
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(cipher.Decrypt(setting.Value));
+        }
+        catch
+        {
+            // A stored credential that no longer decrypts/parses shouldn't
+            // crash the caller - same "just returns no results" degrade as
+            // every other failure mode in this file.
+            return null;
+        }
     }
 
     public static async Task SetCredentialAsync(ApplicationDbContext db, ICredentialCipher cipher, string key, Dictionary<string, string> values)
