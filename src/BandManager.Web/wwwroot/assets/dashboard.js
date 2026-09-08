@@ -474,10 +474,11 @@ function renderPlatformSection(platform, itemsIn) {
     // for platforms whose content types are actual one-off posting tasks.
     // Website's registered content types are Calendar Listing/Media Item/
     // Gallery Image - living site entries, not tasks - so that form never
-    // belonged here: Media/Gallery already get their own proper forms
-    // below, and Calendar Listing has no creation path at all (a new gig
-    // is always added by hand directly in calendar.js; this dashboard only
-    // ever edits one that already exists, see siteEditor.js).
+    // belonged here: Media/Gallery/Calendar Listing each get their own
+    // proper forms below instead (renderAddMediaForm/renderAddGalleryForm/
+    // renderAddCalendarForm - the last of these posts to /api/gigs, same
+    // endpoint Gig Management's own "+ Add a Gig" button uses, which adds
+    // a venue-book picker on top of the same creation path).
     let adhocBtn = null;
     if (platform !== 'Website') {
         adhocBtn = document.createElement('button');
