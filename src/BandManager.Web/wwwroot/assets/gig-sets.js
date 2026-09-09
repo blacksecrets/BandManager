@@ -191,6 +191,15 @@ function renderSet() {
     const totalText = h > 0 ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
     totalRow.innerHTML = `<span>${currentSongs.length} song${currentSongs.length === 1 ? '' : 's'}</span><span>Total: ${totalText}${missing ? ` (${missing} missing length)` : ''}</span>`;
     list.after(totalRow);
+
+    // Same counts, mirrored onto the compact summary line that stays
+    // visible on the gig's card when the setlist modal is closed.
+    const summary = document.getElementById('gig-set-summary');
+    if (summary) {
+        summary.textContent = currentSongs.length === 0
+            ? 'No songs in this set yet.'
+            : `${currentSongs.length} song${currentSongs.length === 1 ? '' : 's'} - ${totalText} total${missing ? ` (${missing} missing length)` : ''}`;
+    }
 }
 
 // Drag-reorder within the setlist grid - manual pointer-events, same
@@ -424,6 +433,17 @@ function useWebResult(item, urlField) {
     form[urlField].value = item.url;
     details.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
+// --- View/Edit Setlist modal (the setlist builder itself is unchanged -
+// just relocated into a bigger modal, see setlist-modal-backdrop) ---
+function closeSetlistModal() { document.getElementById('setlist-modal-backdrop').hidden = true; }
+document.getElementById('setlist-modal-close').addEventListener('click', closeSetlistModal);
+document.getElementById('setlist-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'setlist-modal-backdrop') closeSetlistModal(); });
+document.getElementById('gig-set-view-edit-btn').addEventListener('click', () => {
+    const title = document.getElementById('gig-set-title').textContent;
+    document.getElementById('setlist-modal-title').textContent = `Set - ${title}`;
+    document.getElementById('setlist-modal-backdrop').hidden = false;
+});
 
 // --- Copy Setlist from Another Gig ---
 // Grid of every OTHER gig (past or future - a setlist is just as likely

@@ -197,3 +197,19 @@
     font-size: 0.78rem;
 }
 .archived-gig-unarchive-btn:hover { background: #3a72a8; }
+
+.gig-set-summary-row { display: flex; align-items: center; gap: 14px; margin: 4px 0 10px; }
+.gig-set-summary-row #gig-set-summary { margin: 0; }
+.gig-set-summary-row button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.82rem;
+}
+.gig-set-summary-row button:hover { background: #555; }
+
+#setlist-modal-backdrop .setlist-modal { max-width: 1000px; max-height: 88vh; overflow-y: auto; }
+#setlist-modal-backdrop .gig-set-builder { margin-top: 14px; }
