@@ -34,7 +34,11 @@ public record FlyerFieldDef(
     // Degrees, clockwise, around the field's own (X,Y) anchor. New - no
     // migration needed since Fields is a JSON column; FlyerRenderer applies
     // it via canvas.RotateDegrees around that same anchor.
-    double Rotation = 0);
+    double Rotation = 0,
+    // Image fields only - same fake-italic shear DrawTextField's Italic
+    // already applies to text, offered for a logo/photo instead since an
+    // Image field has no separate bold/underline concept of its own.
+    bool Skew = false);
 
 /// <summary>A generated flyer image, keyed to exactly one gig ("one each" -
 /// re-flyering a gig just adds a new row, old ones kept for history rather

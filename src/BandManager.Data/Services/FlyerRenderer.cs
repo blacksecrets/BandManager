@@ -109,6 +109,14 @@ public static class FlyerRenderer
 
         canvas.Save();
         if (field.Rotation != 0) canvas.RotateDegrees((float)field.Rotation, x, y);
+        if (field.Skew)
+        {
+            // Same fake-italic shear DrawTextField's Italic branch uses,
+            // around this field's own (X,Y) anchor.
+            canvas.Translate(x, y);
+            canvas.Skew(-0.25f, 0);
+            canvas.Translate(-x, -y);
+        }
         canvas.DrawBitmap(resizedLogo, x, y, new SKSamplingOptions());
         canvas.Restore();
     }

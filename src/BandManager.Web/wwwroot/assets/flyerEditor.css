@@ -168,9 +168,10 @@
     font-size: 0.78rem;
     cursor: pointer;
 }
-.flyer-style-toggles .checkbox-label:nth-child(1) { font-weight: bold; }
-.flyer-style-toggles .checkbox-label:nth-child(2) { font-style: italic; }
-.flyer-style-toggles .checkbox-label:nth-child(3) { text-decoration: underline; }
+.flyer-style-toggles:not(.flyer-style-toggles-image) .checkbox-label:nth-child(1) { font-weight: bold; }
+.flyer-style-toggles:not(.flyer-style-toggles-image) .checkbox-label:nth-child(2) { font-style: italic; }
+.flyer-style-toggles:not(.flyer-style-toggles-image) .checkbox-label:nth-child(3) { text-decoration: underline; }
+.flyer-style-toggles-image .checkbox-label { font-style: oblique 20deg; }
 
 #flyer-add-with-btn, #flyer-add-presented-by-btn {
     background: #444;

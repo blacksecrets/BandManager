@@ -200,6 +200,10 @@
                                     <label class="checkbox-label" title="Italic"><input type="checkbox" data-italic ${field.italic ? 'checked' : ''}> I</label>
                                     <label class="checkbox-label" title="Underline"><input type="checkbox" data-underline ${field.underline ? 'checked' : ''}> U</label>
                                 </span>` : ''}
+                            ${field.type === 'Image' ? `
+                                <span class="flyer-style-toggles flyer-style-toggles-image">
+                                    <label class="checkbox-label" title="Skew"><input type="checkbox" data-skew ${field.skew ? 'checked' : ''}> Skew</label>
+                                </span>` : ''}
                             <span class="flyer-field-hint">drag to move &middot; drag &#8690; to resize &middot; drag &#8635; to rotate</span>
                         </div>
                     `;
@@ -226,6 +230,8 @@
                     if (italicInput) italicInput.addEventListener('change', (e) => { field.italic = e.target.checked; renderPreview(); });
                     const underlineInput = row.querySelector('[data-underline]');
                     if (underlineInput) underlineInput.addEventListener('change', (e) => { field.underline = e.target.checked; renderPreview(); });
+                    const skewInput = row.querySelector('[data-skew]');
+                    if (skewInput) skewInput.addEventListener('change', (e) => { field.skew = e.target.checked; renderPreview(); });
                     fieldGrid.appendChild(row);
                 });
             }
@@ -238,7 +244,11 @@
                     el.className = 'flyer-preview-field' + (field.type === 'Image' ? ' flyer-preview-field-image' : '');
                     el.style.left = `${field.x * bgImg.clientWidth}px`;
                     el.style.top = `${field.y * bgImg.clientHeight}px`;
-                    el.style.transform = `rotate(${field.rotation || 0}deg)`;
+                    // -14.04deg matches FlyerRenderer's canvas.Skew(-0.25f, 0)
+                    // shear factor (atan(-0.25) in degrees) - kept in sync so
+                    // the live preview lines up with the final render.
+                    const skewTerm = field.type === 'Image' && field.skew ? ' skewX(-14.04deg)' : '';
+                    el.style.transform = `rotate(${field.rotation || 0}deg)${skewTerm}`;
                     if (field.type === 'Text') {
                         el.textContent = field.value || field.label;
                         el.style.color = field.color || '#ffffff';
@@ -394,7 +404,8 @@
                     key: `presentedBy-${nextIndex}-logo`, label: `Presented By ${nextIndex + 1} (logo)`, type: 'Image',
                     x: lastLogo ? lastLogo.x : 0.06, y: baseY + 0.1,
                     fontSize: lastLogo ? lastLogo.fontSize : 0.12, fontFamily: null, color: null, included: false, value: '',
-                    bold: false, italic: false, underline: false, rotation: lastLogo ? (lastLogo.rotation || 0) : 0
+                    bold: false, italic: false, underline: false, rotation: lastLogo ? (lastLogo.rotation || 0) : 0,
+                    skew: lastLogo ? !!lastLogo.skew : false
                 });
                 renderFieldList();
                 renderPreview();
@@ -411,7 +422,7 @@
                         fontSize: f.fontSize, fontFamily: f.fontFamily, color: f.color,
                         included: f.included, value: f.value || null,
                         bold: !!f.bold, italic: !!f.italic, underline: !!f.underline,
-                        rotation: f.rotation || 0
+                        rotation: f.rotation || 0, skew: !!f.skew
                     }))
                 };
                 const res = await fetch('/api/flyers', {

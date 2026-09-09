@@ -10,7 +10,7 @@ namespace BandManager.Web.Controllers;
 
 public record SaveFlyerFieldDto(
     string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool Included, string? Value,
-    bool Bold = false, bool Italic = false, bool Underline = false, double Rotation = 0);
+    bool Bold = false, bool Italic = false, bool Underline = false, double Rotation = 0, bool Skew = false);
 public record SaveFlyerRequest(Guid SourceCatalogItemId, string GigRef, List<SaveFlyerFieldDto> Fields);
 
 /// <summary>
@@ -124,7 +124,8 @@ public class FlyersController(
                 fontFamily = defaultFont,
                 color = "#ffffff",
                 defaultVisible = true,
-                rotation = 0
+                rotation = 0,
+                skew = false
             });
             y += type == FlyerFieldType.Image ? 0.14 : 0.07;
         }
@@ -168,7 +169,8 @@ public class FlyersController(
                 bold = f.Bold,
                 italic = f.Italic,
                 underline = f.Underline,
-                rotation = f.Rotation
+                rotation = f.Rotation,
+                skew = f.Skew
             })
         });
     }
@@ -192,7 +194,7 @@ public class FlyersController(
         var fields = request.Fields.Select(f => new FlyerFieldDef(
             f.Key, f.Label, Enum.Parse<FlyerFieldType>(f.Type, ignoreCase: true),
             f.X, f.Y, f.FontSize, f.FontFamily, f.Color, f.Included, f.Value,
-            f.Bold, f.Italic, f.Underline, f.Rotation)).ToList();
+            f.Bold, f.Italic, f.Underline, f.Rotation, f.Skew)).ToList();
 
         byte[]? LogoResolver(string catalogItemIdStr)
         {
