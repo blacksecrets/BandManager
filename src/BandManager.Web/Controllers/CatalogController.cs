@@ -40,14 +40,20 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
     // "Flyers:" dropdown on an image's modal are all driven from this same
     // one query, run once per list/single-item request rather than N+1
     // per item.
+    // Every image that's either the source background of a Flyer, OR one
+    // of its inserted Image fields (see flyerEditor.js's "+ Add an image") -
+    // both count as "used in a flyer" for the winged-F badge/delete-warning/
+    // "Flyers:" dropdown, unioned here rather than as two separate lookups
+    // since a viewer just wants one yes/no per Catalog item. Loads every
+    // non-archived Flyer for the band (not just ones with a matching
+    // SourceCatalogItemId, since Fields' Image values can't be filtered in
+    // SQL - it's a JSON column) - fine at this scale, one Band's Flyers.
     private async Task<Dictionary<Guid, List<object>>> LoadFlyerUsageAsync(Guid bandId, IEnumerable<Guid>? onlyForItemIds = null)
     {
-        IQueryable<Flyer> query = db.Flyers.AsNoTracking()
-            .Where(f => f.BandId == bandId && f.SourceCatalogItemId != null && !f.IsArchived)
-            .Include(f => f.GeneratedCatalogItem);
-        if (onlyForItemIds is not null) query = query.Where(f => onlyForItemIds.Contains(f.SourceCatalogItemId!.Value));
-
-        var flyers = await query.ToListAsync();
+        var flyers = await db.Flyers.AsNoTracking()
+            .Where(f => f.BandId == bandId && !f.IsArchived)
+            .Include(f => f.GeneratedCatalogItem)
+            .ToListAsync();
         if (flyers.Count == 0) return [];
 
         var gigRefs = flyers.Select(f => f.GigRef).Distinct().ToList();
@@ -56,8 +62,9 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
             .ToDictionaryAsync(g => g.Ref, g => g.Title);
 
         var byItem = new Dictionary<Guid, List<object>>();
-        foreach (var f in flyers)
+        void AddUsage(Guid catalogItemId, Flyer f)
         {
+            if (onlyForItemIds is not null && !onlyForItemIds.Contains(catalogItemId)) return;
             var entry = new
             {
                 flyerId = f.Id,
@@ -65,8 +72,18 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
                 gigTitle = gigTitlesByRef.GetValueOrDefault(f.GigRef, f.GigRef),
                 renderedFilePath = f.GeneratedCatalogItem.FilePath
             };
-            if (!byItem.TryGetValue(f.SourceCatalogItemId!.Value, out var list)) byItem[f.SourceCatalogItemId!.Value] = list = [];
+            if (!byItem.TryGetValue(catalogItemId, out var list)) byItem[catalogItemId] = list = [];
             list.Add(entry);
+        }
+
+        foreach (var f in flyers)
+        {
+            if (f.SourceCatalogItemId is { } sourceId) AddUsage(sourceId, f);
+            foreach (var field in f.Fields)
+            {
+                if (field.Type == FlyerFieldType.Image && Guid.TryParse(field.Value, out var imageId))
+                    AddUsage(imageId, f);
+            }
         }
         return byItem;
     }
