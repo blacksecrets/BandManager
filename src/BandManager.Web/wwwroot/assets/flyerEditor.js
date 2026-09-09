@@ -164,6 +164,7 @@
                 </div>
                 <button type="button" id="flyer-add-with-btn">+ Add another "With"</button>
                 <button type="button" id="flyer-add-presented-by-btn">+ Add another Presented By</button>
+                <button type="button" id="flyer-add-image-btn">+ Add an image</button>
                 <button type="button" id="flyer-save-btn">Save</button>
                 <p id="flyer-editor-status" class="save-note"></p>
             `;
@@ -191,7 +192,7 @@
                         </div>
                         <div class="flyer-field-row-body" data-body ${expanded ? '' : 'hidden'}>
                             ${field.type === 'Image'
-                                ? `<button type="button" data-pick-logo>${field.value ? 'Change image' : 'Choose image'}</button>`
+                                ? `<p class="flyer-field-image-status">${field.value ? 'Image chosen - pick another below to replace it.' : 'No image chosen yet.'}</p><div data-media-slot></div>`
                                 : `<input type="text" data-value placeholder="Text" value="${escapeHtml(field.value || '')}">`}
                             ${field.type === 'Text' ? `<select data-font>${fontOptions}</select><input type="color" data-color value="${field.color || '#ffffff'}">` : ''}
                             ${field.type === 'Text' ? `
@@ -215,11 +216,36 @@
                     row.querySelector('[data-included]').addEventListener('change', (e) => { field.included = e.target.checked; renderPreview(); });
                     const valueInput = row.querySelector('[data-value]');
                     if (valueInput) valueInput.addEventListener('input', (e) => { field.value = e.target.value; renderPreview(); });
-                    const pickBtn = row.querySelector('[data-pick-logo]');
-                    if (pickBtn) pickBtn.addEventListener('click', async () => {
-                        const picked = await window.openCatalogPicker({ mediaType: 'image' });
-                        if (picked) { field.value = picked.id; renderPreview(); }
-                    });
+                    const mediaSlot = row.querySelector('[data-media-slot]');
+                    if (mediaSlot) {
+                        mediaSlot.appendChild(buildMediaSlotControl({
+                            accept: 'image/*',
+                            onResolved: async (resolved) => {
+                                let catalogItemId;
+                                if (resolved.mode === 'catalogItemId') {
+                                    catalogItemId = resolved.id;
+                                } else if (resolved.mode === 'file') {
+                                    const form = new FormData();
+                                    form.append('file', resolved.file);
+                                    const res = await fetch('/api/catalog/upload', { method: 'POST', body: form });
+                                    const body = await res.json().catch(() => ({}));
+                                    if (!res.ok) { alert(body.error || 'Could not upload that image.'); return; }
+                                    catalogItemId = body.id;
+                                } else if (resolved.mode === 'url') {
+                                    const res = await fetch('/api/catalog/from-url', {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: resolved.url })
+                                    });
+                                    const body = await res.json().catch(() => ({}));
+                                    if (!res.ok) { alert(body.error || 'Could not fetch that URL.'); return; }
+                                    catalogItemId = body.id;
+                                }
+                                if (!catalogItemId) return;
+                                field.value = catalogItemId;
+                                renderFieldList();
+                                renderPreview();
+                            }
+                        }));
+                    }
                     const fontSelect = row.querySelector('[data-font]');
                     if (fontSelect) fontSelect.addEventListener('change', (e) => { field.fontFamily = e.target.value; renderPreview(); });
                     const colorInput = row.querySelector('[data-color]');
@@ -352,6 +378,24 @@
 
             renderFieldList();
             renderPreview();
+
+            // An arbitrary extra image, on top of the fixed known-fields
+            // logo slots (presentedBy-N-logo) - same insertion pattern as
+            // "+ Add another With", just a single Image field each time.
+            // Its picker (buildMediaSlotControl, wired in renderFieldList
+            // above) also registers whatever's picked into the Catalog,
+            // same as everywhere else in the app a new image is added.
+            document.getElementById('flyer-add-image-btn').addEventListener('click', () => {
+                const nextIndex = fields.filter((f) => f.key.startsWith('image-')).length;
+                fields.push({
+                    key: `image-${nextIndex}`, label: `Image ${nextIndex + 1}`, type: 'Image',
+                    x: 0.06, y: 0.06, fontSize: 0.12, fontFamily: null, color: null, included: true, value: '',
+                    bold: false, italic: false, underline: false, rotation: 0, skew: false
+                });
+                expandedKeys.add(`image-${nextIndex}`);
+                renderFieldList();
+                renderPreview();
+            });
 
             document.getElementById('flyer-add-with-btn').addEventListener('click', () => {
                 const last = [...fields].reverse().find((f) => f.key.startsWith('with-'));

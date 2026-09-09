@@ -101,6 +101,12 @@
     margin-top: 2px;
 }
 
+.flyer-field-image-status {
+    color: #999;
+    font-size: 0.78rem;
+    margin: 0 0 6px;
+}
+
 .flyer-field-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

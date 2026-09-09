@@ -16,14 +16,11 @@ public record CatalogUpdateLabelRequest(string Label);
 /// The Media Catalog's own CRUD - ported from the old app's
 /// routes/catalog.js, scoped to the active Band. Field names stay
 /// snake_case to match wwwroot/assets/catalog.js's existing expectations.
-///
-/// Not yet ported: paste-a-URL fetching (fetchUrlAsBuffer in the old
-/// app's catalogStore.js) and the general resolveMediaInput dispatcher
-/// that wires "pick from Catalog"/paste-a-URL into every OTHER upload
-/// spot in the app - registration, browse/list/update-label/delete, and
-/// direct file upload (including frame-capture/trim/split sources from
-/// the video viewer, which are just this same upload endpoint with a
-/// different `source` value) are what's here for now.
+/// Registration, browse/list/update-label/delete, direct file upload
+/// (including frame-capture/trim/split sources from the video viewer,
+/// which are just this same upload endpoint with a different `source`
+/// value), and paste-a-URL (FromUrl below, via CatalogStore's shared
+/// FetchUrlAsBufferAsync) all live here.
 /// </summary>
 [ApiController]
 [Route("/api/catalog")]
@@ -234,10 +231,22 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
     }
 
     [HttpPost("from-url")]
-    public IActionResult FromUrl([FromBody] CatalogFromUrlRequest request)
+    public async Task<IActionResult> FromUrl([FromBody] CatalogFromUrlRequest request)
     {
-        // Not ported yet - see class doc comment.
-        return StatusCode(501, new { error = "Adding a Catalog item from a URL isn't wired up yet - upload a file directly for now." });
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (string.IsNullOrWhiteSpace(request.Url)) return BadRequest(new { error = "Provide a URL" });
+
+        try
+        {
+            var (buffer, mimeType, originalFilename) = await catalogStore.FetchUrlAsBufferAsync(request.Url);
+            var item = await catalogStore.RegisterCatalogItemAsync(
+                bandId, buffer, mimeType, originalFilename ?? "from-url", CatalogSource.Url, request.Url, User.Identity?.Name);
+            return Ok(Serialize(item, null));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPut("{id:guid}")]

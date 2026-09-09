@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using BandManager.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
@@ -213,6 +215,34 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         return (deletedCount, errors);
     }
 
+    // Loopback/private/link-local ranges a "paste a URL" fetch should never
+    // reach - this server making a request on the caller's behalf to
+    // 127.0.0.1, an internal 10.x/192.168.x service, or a cloud metadata
+    // endpoint (usually 169.254.x.x) would be a classic SSRF hole. Checked
+    // by resolved IP, not the hostname string, so a DNS name that resolves
+    // to one of these is caught too.
+    private static bool IsDisallowedHost(IPAddress ip)
+    {
+        if (IPAddress.IsLoopback(ip)) return true;
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        if (ip.AddressFamily == AddressFamily.InterNetwork)
+        {
+            var b = ip.GetAddressBytes();
+            if (b[0] == 10) return true; // 10.0.0.0/8
+            if (b[0] == 172 && b[1] is >= 16 and <= 31) return true; // 172.16.0.0/12
+            if (b[0] == 192 && b[1] == 168) return true; // 192.168.0.0/16
+            if (b[0] == 169 && b[1] == 254) return true; // 169.254.0.0/16 (link-local, incl. cloud metadata)
+            if (b[0] == 0) return true; // 0.0.0.0/8
+        }
+        else if (ip.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            if (ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal) return true;
+            var b = ip.GetAddressBytes();
+            if ((b[0] & 0xfe) == 0xfc) return true; // fc00::/7 (unique local)
+        }
+        return false;
+    }
+
     /// <summary>Paste-a-URL mode: fetches, validates, and returns bytes -
     /// never touches the Catalog itself (the caller decides whether/how
     /// to register it).</summary>
@@ -223,6 +253,12 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         catch { throw new InvalidOperationException("That is not a valid URL."); }
         if (parsed.Scheme != Uri.UriSchemeHttp && parsed.Scheme != Uri.UriSchemeHttps)
             throw new InvalidOperationException("Only http/https URLs are supported.");
+
+        IPAddress[] resolved;
+        try { resolved = await Dns.GetHostAddressesAsync(parsed.Host); }
+        catch { throw new InvalidOperationException("Could not resolve that URL's host."); }
+        if (resolved.Length == 0 || resolved.Any(IsDisallowedHost))
+            throw new InvalidOperationException("That URL points to a location we can't fetch from.");
 
         HttpResponseMessage res;
         try { res = await http.GetAsync(parsed); }
