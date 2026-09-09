@@ -38,6 +38,23 @@ async function init() {
     await loadRepertoireForPicker();
     const membersRes = await fetch('/api/profile/band-members');
     bandMembers = membersRes.ok ? await membersRes.json() : [];
+
+    // Sticky "current gig" - auto-open whichever gig this member was last
+    // looking at (here, or in the Flyer Editor/Catalog), anywhere. A
+    // stale ref (archived/deleted since) just silently finds nothing and
+    // leaves the page on its normal unselected state.
+    if (me.lastSelectedGigRef) {
+        const sticky = gigs.find((g) => g.gigRef === me.lastSelectedGigRef);
+        if (sticky) await selectGig(sticky);
+    }
+}
+
+function writeLastSelectedGig(gigRef) {
+    fetch('/api/profile/last-selected-gig', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gigRef })
+    }).catch(() => {}); // best-effort - a personal convenience setting, never worth blocking on
 }
 
 document.getElementById('add-gig-btn').addEventListener('click', async () => {
@@ -78,6 +95,7 @@ function renderGigList(box, list) {
 
 async function selectGig(gig) {
     selectedGigRef = gig.gigRef;
+    writeLastSelectedGig(gig.gigRef);
     [...document.querySelectorAll('.gig-list-item')].forEach((el) => el.classList.remove('selected'));
     await loadGigs(); // re-render with the new selection highlighted
 

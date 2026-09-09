@@ -738,9 +738,23 @@ if (document.getElementById('catalog-grid')) {
             </select>
             <button type="button" id="gig-picker-confirm">Continue</button>
         `;
+
+        // Default to the sticky "current gig" (last selected anywhere -
+        // Gig Management, or a previously-opened Flyer Editor) if it's
+        // still a real gig - saves re-picking the same gig repeatedly.
+        const meRes = await fetch('/api/profile/me');
+        const me = meRes.ok ? await meRes.json() : {};
+        const select = document.getElementById('gig-picker-select');
+        if (me.lastSelectedGigRef && allGigs.some((g) => g.gigRef === me.lastSelectedGigRef)) {
+            select.value = me.lastSelectedGigRef;
+        }
+
         document.getElementById('gig-picker-confirm').addEventListener('click', async () => {
-            const gigRef = document.getElementById('gig-picker-select').value;
+            const gigRef = select.value;
             closeGigPicker();
+            fetch('/api/profile/last-selected-gig', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gigRef })
+            }).catch(() => {});
             const result = await window.openFlyerEditor({ catalogItemId, gigRef });
             if (result) reload();
         });

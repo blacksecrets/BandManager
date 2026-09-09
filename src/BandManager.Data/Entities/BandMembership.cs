@@ -16,5 +16,15 @@ public class BandMembership
 
     public BandRole Role { get; set; }
 
+    // Sticky "current gig" for this member, in this band - set whenever
+    // they select a gig on Gig Management, or open the Flyer Editor for
+    // one (either direction), then read to pre-populate a gig
+    // selector/context elsewhere (Catalog's gig picker, a fresh Flyer
+    // Editor open). Per-member, not band-wide, so one person's click
+    // never silently changes what a bandmate sees. A stale ref (the gig
+    // was since archived/deleted) is never an error - every reader just
+    // treats "not found" as "no sticky selection."
+    public string? LastSelectedGigRef { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

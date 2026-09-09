@@ -17,6 +17,7 @@ public record UpdateUsernameRequest(string Username);
 public record UpdateNameRequest(string? FirstName, string? LastName);
 public record UpdateContactRequest(string? CellNumber, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode);
 public record UpdateCatalogViewModeRequest(string ViewMode, string? Tab = null);
+public record UpdateLastSelectedGigRequest(string? GigRef);
 
 /// <summary>
 /// Self-service profile (any logged-in user) + Band-scoped user
@@ -55,6 +56,7 @@ public class ProfileController(
         var bandId = activeBand.GetActiveBandId();
         string? activeBandRole = null;
         string? activeBandName = null;
+        string? lastSelectedGigRef = null;
         // A band archived while it was someone's active selection (or one
         // whose id is otherwise stale) reports back exactly like "no band
         // selected" - matches BandAccessCheck's own deny, so the nav
@@ -69,6 +71,7 @@ public class ProfileController(
             {
                 activeBandRole = membership.Role.ToString();
                 activeBandName = band.Name;
+                lastSelectedGigRef = membership.LastSelectedGigRef;
             }
             else if (user.IsSuperAdmin)
             {
@@ -95,6 +98,7 @@ public class ProfileController(
             isSuperAdmin = user.IsSuperAdmin,
             activeBandRole,
             activeBandName,
+            lastSelectedGigRef,
             mustChangePassword = user.MustChangePassword,
             // isAdmin: true whenever the user can manage the active Band's
             // users - BandAdmin of it, or SuperAdmin regardless. Named to
@@ -119,6 +123,27 @@ public class ProfileController(
         else user.CatalogViewMode = request.ViewMode;
         await userManager.UpdateAsync(user);
         return Ok(new { ok = true, catalogViewMode = user.CatalogViewMode, catalogViewModeFlyers = user.CatalogViewModeFlyers });
+    }
+
+    // The sticky "current gig" for this member, in this band - see
+    // BandMembership.LastSelectedGigRef's doc comment. Any band member
+    // can set it (it's a personal convenience, not an admin action), and
+    // the ref is never validated against the current gig list - a stale
+    // value is harmless, every reader just falls back to "no selection."
+    [HttpPut("last-selected-gig")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> UpdateLastSelectedGig([FromBody] UpdateLastSelectedGigRequest request)
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var membership = await db.BandMemberships.FirstOrDefaultAsync(m => m.UserId == user.Id && m.BandId == bandId);
+        if (membership is null) return Ok(new { ok = true }); // SuperAdmin-without-membership browsing - nothing to persist, not an error
+
+        membership.LastSelectedGigRef = string.IsNullOrWhiteSpace(request.GigRef) ? null : request.GigRef.Trim();
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, lastSelectedGigRef = membership.LastSelectedGigRef });
     }
 
     // The account's UserName IS its email (required + validated at every

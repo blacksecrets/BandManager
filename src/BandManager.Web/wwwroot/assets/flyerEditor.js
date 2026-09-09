@@ -139,6 +139,14 @@
             }
             const image = await imageRes.json();
             const gig = await gigRes.json();
+
+            // Sticky "current gig" - opening the editor for a gig (fresh,
+            // or via editing an existing flyer) makes it the most
+            // recently referenced one everywhere else too.
+            fetch('/api/profile/last-selected-gig', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gigRef })
+            }).catch(() => {});
+
             const fonts = fontsRes.ok ? await fontsRes.json() : [];
             fonts.forEach(ensureCustomFontFace);
             const knownFields = await knownFieldsRes.json();
