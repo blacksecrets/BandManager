@@ -69,7 +69,7 @@ public partial class ScheduleItemsController(
 
         var items = await db.ScheduleItems
             .Include(i => i.Artifacts)
-            .Where(i => i.BandId == bandId)
+            .Where(i => i.BandId == bandId && !i.IsArchived)
             .OrderBy(i => i.DueDate == null)
             .ThenBy(i => i.DueDate)
             .ToListAsync();

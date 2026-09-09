@@ -36,7 +36,7 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
             .ToDictionaryAsync(p => (p.UserId, p.Kind));
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var gigs = await db.Gigs.Where(g => g.BandId == bandId && g.Date >= today).ToListAsync();
+        var gigs = await db.Gigs.Where(g => g.BandId == bandId && !g.IsArchived && g.Date >= today).ToListAsync();
         var upcomingGigs = gigs.Select(g => (Gig: g, Date: g.Date)).ToList();
 
         var rehearsals = await db.Rehearsals.Where(r => r.BandId == bandId).ToListAsync();

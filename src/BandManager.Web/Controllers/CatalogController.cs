@@ -46,7 +46,7 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
     private async Task<Dictionary<Guid, List<object>>> LoadFlyerUsageAsync(Guid bandId, IEnumerable<Guid>? onlyForItemIds = null)
     {
         IQueryable<Flyer> query = db.Flyers.AsNoTracking()
-            .Where(f => f.BandId == bandId && f.SourceCatalogItemId != null)
+            .Where(f => f.BandId == bandId && f.SourceCatalogItemId != null && !f.IsArchived)
             .Include(f => f.GeneratedCatalogItem);
         if (onlyForItemIds is not null) query = query.Where(f => onlyForItemIds.Contains(f.SourceCatalogItemId!.Value));
 
@@ -176,6 +176,17 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
             _ => null
         };
         var items = await catalogStore.ListCatalogItemsAsync(bandId, q, parsedType, ParseCategory(category));
+
+        // An archived gig's Flyers disappear from the Flyers tab too (see
+        // Gig.IsArchived's cascade in GigsController.Archive) - excluded
+        // here at the controller layer, same as every other archive
+        // filter, rather than inside CatalogStore.
+        var archivedFlyerCatalogItemIds = (await db.Flyers.AsNoTracking()
+            .Where(f => f.BandId == bandId && f.IsArchived)
+            .Select(f => f.GeneratedCatalogItemId)
+            .ToListAsync()).ToHashSet();
+        items = items.Where(i => !archivedFlyerCatalogItemIds.Contains(i.Id)).ToList();
+
         var usage = await LoadFlyerUsageAsync(bandId);
         var flyerInfo = await LoadFlyerInfoAsync(bandId);
         return Ok(items.Select(i => Serialize(i, usage.GetValueOrDefault(i.Id), flyerInfo.GetValueOrDefault(i.Id))));

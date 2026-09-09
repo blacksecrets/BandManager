@@ -55,5 +55,14 @@ public class ScheduleItem
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    // Set only via GigsController.Archive cascading from its owning Gig
+    // (see Gig.IsArchived) - a distinct flag from Status/Cancelled, which
+    // already means something else (this cadence occurrence was manually
+    // called off, independent of the gig it's tied to). An archived item
+    // is simply filtered out of the Dashboard board (ScheduleItemsController.List)
+    // and every other read path a live gig's items feed into.
+    public bool IsArchived { get; set; }
+    public DateTime? ArchivedAt { get; set; }
+
     public ICollection<Artifact> Artifacts { get; set; } = new List<Artifact>();
 }

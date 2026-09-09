@@ -62,6 +62,16 @@ public class Gig
     public Guid? SelectedFlyerId { get; set; }
     public Flyer? SelectedFlyer { get; set; }
 
+    // Soft-delete, mirroring Band.IsArchived exactly - archiving a gig
+    // hides it (and cascades to its ScheduleItems/Flyers, see
+    // GigsController.Archive) everywhere without touching a connected
+    // site's live listing (see the tranche plan's explicit non-goal: this
+    // is purely an in-app visibility toggle). GigSet/GigPrep need no flag
+    // of their own - neither has an independent listing page, so hiding
+    // the Gig already hides them.
+    public bool IsArchived { get; set; }
+    public DateTime? ArchivedAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

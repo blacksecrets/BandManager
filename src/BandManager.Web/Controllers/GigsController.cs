@@ -418,6 +418,83 @@ public class GigsController(
         }
     }
 
+    // What archiving this gig would take down with it - for the confirm
+    // modal's bulleted warning. No IsArchived filtering needed here: a gig
+    // that isn't archived yet by definition has nothing archived under it.
+    [HttpGet("{gigRef}/archive-preview")]
+    public async Task<IActionResult> ArchivePreview(string gigRef)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var gig = await db.Gigs.AsNoTracking().FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        var scheduleItemCount = await db.ScheduleItems.CountAsync(s => s.BandId == band.Id && s.GigRef == gigRef);
+        var flyerCount = await db.Flyers.CountAsync(f => f.BandId == band.Id && f.GigRef == gigRef);
+        var songCount = await db.GigSetSongs.CountAsync(s => s.GigSet.BandId == band.Id && s.GigSet.GigRef == gigRef);
+        var gigPrepCount = await db.GigPrepChecklistItems.CountAsync(i => i.GigId == gig.Id);
+
+        return Ok(new
+        {
+            scheduleItems = scheduleItemCount,
+            flyers = flyerCount,
+            setlistSongs = songCount,
+            gigPrepItems = gigPrepCount
+        });
+    }
+
+    // Idempotent, mirrors SuperAdminController.ArchiveBand exactly -
+    // cascades the same archive to every currently-non-archived
+    // ScheduleItem/Flyer sharing this GigRef. Never touches a connected
+    // site's live listing (see the tranche plan's explicit non-goal) -
+    // purely an in-app visibility toggle.
+    [HttpPost("{gigRef}/archive")]
+    public async Task<IActionResult> Archive(string gigRef)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        if (!gig.IsArchived)
+        {
+            var now = DateTime.UtcNow;
+            gig.IsArchived = true;
+            gig.ArchivedAt = now;
+            await db.ScheduleItems.Where(s => s.BandId == band.Id && s.GigRef == gigRef && !s.IsArchived)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsArchived, true).SetProperty(x => x.ArchivedAt, now));
+            await db.Flyers.Where(f => f.BandId == band.Id && f.GigRef == gigRef && !f.IsArchived)
+                .ExecuteUpdateAsync(f => f.SetProperty(x => x.IsArchived, true).SetProperty(x => x.ArchivedAt, now));
+            await db.SaveChangesAsync();
+        }
+        return Ok(new { ok = true });
+    }
+
+    // The precise reverse of Archive - clears Gig.IsArchived, and clears
+    // it only on ScheduleItem/Flyer rows for this GigRef that are
+    // currently archived (safe since nothing else can independently
+    // archive either today).
+    [HttpPost("{gigRef}/unarchive")]
+    public async Task<IActionResult> Unarchive(string gigRef)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        if (gig.IsArchived)
+        {
+            gig.IsArchived = false;
+            gig.ArchivedAt = null;
+            await db.ScheduleItems.Where(s => s.BandId == band.Id && s.GigRef == gigRef && s.IsArchived)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsArchived, false).SetProperty(x => x.ArchivedAt, (DateTime?)null));
+            await db.Flyers.Where(f => f.BandId == band.Id && f.GigRef == gigRef && f.IsArchived)
+                .ExecuteUpdateAsync(f => f.SetProperty(x => x.IsArchived, false).SetProperty(x => x.ArchivedAt, (DateTime?)null));
+            await db.SaveChangesAsync();
+        }
+        return Ok(new { ok = true });
+    }
+
     // Every Flyer row generated for this gig - for the "Select flyer"
     // modal (Gig Management) and the Web Presence tile flyer picker
     // (Dashboard). Read access is broader than the class-level BandAdmin
@@ -433,7 +510,7 @@ public class GigsController(
 
         var flyers = await db.Flyers.AsNoTracking()
             .Include(f => f.GeneratedCatalogItem)
-            .Where(f => f.BandId == band.Id && f.GigRef == gigRef)
+            .Where(f => f.BandId == band.Id && f.GigRef == gigRef && !f.IsArchived)
             .OrderByDescending(f => f.CreatedAt)
             .ToListAsync();
 
@@ -463,7 +540,7 @@ public class GigsController(
         var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
         if (gig is null) return NotFound(new { error = "Gig not found" });
 
-        var flyer = await db.Flyers.FirstOrDefaultAsync(f => f.Id == request.FlyerId && f.BandId == band.Id && f.GigRef == gigRef);
+        var flyer = await db.Flyers.FirstOrDefaultAsync(f => f.Id == request.FlyerId && f.BandId == band.Id && f.GigRef == gigRef && !f.IsArchived);
         if (flyer is null) return NotFound(new { error = "Flyer not found for this gig" });
 
         gig.SelectedFlyerId = flyer.Id;

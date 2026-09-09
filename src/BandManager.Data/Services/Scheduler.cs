@@ -482,7 +482,7 @@ public class Scheduler(
     /// generateAll.</summary>
     public async Task GenerateGigDrivenItemsAsync(Guid bandId, Band band)
     {
-        var gigs = await db.Gigs.Where(g => g.BandId == bandId)
+        var gigs = await db.Gigs.Where(g => g.BandId == bandId && !g.IsArchived)
             .Include(g => g.WithBands).ThenInclude(w => w.WithBand)
             .ToListAsync();
 

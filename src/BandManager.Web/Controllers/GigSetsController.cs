@@ -56,7 +56,7 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bandId);
         if (band is null) return NotFound();
 
-        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId).ToListAsync();
+        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && !g.IsArchived).ToListAsync();
         var setCounts = await db.GigSets.AsNoTracking()
             .Where(s => s.BandId == bandId)
             .Select(s => new { s.GigRef, Count = s.Songs.Count })
@@ -76,6 +76,35 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             time = g.Time,
             songCount = setCounts.GetValueOrDefault(g.Ref, 0),
             isPast = g.Date < today
+        });
+        return Ok(result);
+    }
+
+    // Same shape as ListGigs above, but archived gigs only - for the
+    // "View Archived Gigs" grid.
+    [HttpGet("gigs/archived")]
+    public async Task<IActionResult> ListArchivedGigs()
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bandId);
+        if (band is null) return NotFound();
+
+        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && g.IsArchived).ToListAsync();
+        var setCounts = await db.GigSets.AsNoTracking()
+            .Where(s => s.BandId == bandId)
+            .Select(s => new { s.GigRef, Count = s.Songs.Count })
+            .ToDictionaryAsync(x => x.GigRef, x => x.Count);
+
+        var result = gigs.Select(g => new
+        {
+            gigRef = g.Ref,
+            title = g.Title,
+            venue = g.Venue,
+            date = GigDateTimeFormatting.FormatDate(g.Date),
+            sortDate = g.Date.ToString("yyyy-MM-dd"),
+            time = g.Time,
+            songCount = setCounts.GetValueOrDefault(g.Ref, 0),
+            archivedAt = g.ArchivedAt
         });
         return Ok(result);
     }
@@ -107,11 +136,11 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         // preserving every gig's existing behavior from before that field
         // existed.
         var flyer = gig.SelectedFlyerId is { } selectedId
-            ? await db.Flyers.AsNoTracking().Include(f => f.SourceCatalogItem).FirstOrDefaultAsync(f => f.Id == selectedId && f.BandId == bandId)
+            ? await db.Flyers.AsNoTracking().Include(f => f.SourceCatalogItem).FirstOrDefaultAsync(f => f.Id == selectedId && f.BandId == bandId && !f.IsArchived)
             : null;
         flyer ??= await db.Flyers.AsNoTracking()
             .Include(f => f.SourceCatalogItem)
-            .Where(f => f.BandId == bandId && f.GigRef == gigRef)
+            .Where(f => f.BandId == bandId && f.GigRef == gigRef && !f.IsArchived)
             .OrderByDescending(f => f.CreatedAt)
             .FirstOrDefaultAsync();
 

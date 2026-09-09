@@ -58,7 +58,7 @@ public class CalendarFeedService(ApplicationDbContext db)
         sb.Append("METHOD:PUBLISH\r\n");
         sb.Append("X-WR-CALNAME:BandManager\r\n");
 
-        var gigs = await db.Gigs.AsNoTracking().Where(g => bandIds.Contains(g.BandId)).ToListAsync();
+        var gigs = await db.Gigs.AsNoTracking().Where(g => bandIds.Contains(g.BandId) && !g.IsArchived).ToListAsync();
         foreach (var gig in gigs) AppendGigEvent(sb, gig, gig.Date);
 
         var rehearsals = await db.Rehearsals.AsNoTracking().Where(r => bandIds.Contains(r.BandId)).ToListAsync();

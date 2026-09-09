@@ -64,4 +64,12 @@ public class Flyer
     public required List<FlyerFieldDef> Fields { get; set; } = [];
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    // Set only via GigsController.Archive cascading from its owning Gig
+    // (see Gig.IsArchived). Unlike GigSet, a Flyer's rendered image is
+    // independently browsable via Catalog's own "Flyers" tab, so it needs
+    // this flag of its own - otherwise an archived gig's flyers would keep
+    // showing up there.
+    public bool IsArchived { get; set; }
+    public DateTime? ArchivedAt { get; set; }
 }

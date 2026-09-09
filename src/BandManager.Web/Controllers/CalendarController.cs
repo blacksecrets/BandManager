@@ -88,7 +88,7 @@ public class CalendarController(ApplicationDbContext db, IActiveBandAccessor act
         if (RequireActiveBand(out var bandId) is { } err) return err;
         if (to < from) return BadRequest(new { error = "'to' must be on or after 'from'." });
 
-        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && g.Date >= from && g.Date <= to).ToListAsync();
+        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && !g.IsArchived && g.Date >= from && g.Date <= to).ToListAsync();
         var entries = new List<(DateOnly SortDate, object Entry)>();
 
         foreach (var gig in gigs)
