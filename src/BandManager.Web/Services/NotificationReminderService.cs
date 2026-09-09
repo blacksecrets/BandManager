@@ -25,9 +25,6 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
         [NotificationKind.AvailabilityReminder] = 3
     };
 
-    private static DateOnly? TryParseGigDate(string date) =>
-        DateTime.TryParse(date, out var d) ? DateOnly.FromDateTime(d) : null;
-
     public async Task GenerateDueRemindersAsync(Guid bandId)
     {
         var memberUserIds = await db.BandMemberships.Where(m => m.BandId == bandId).Select(m => m.UserId).ToListAsync();
@@ -39,12 +36,8 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
             .ToDictionaryAsync(p => (p.UserId, p.Kind));
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var gigs = await db.Gigs.Where(g => g.BandId == bandId).ToListAsync();
-        var upcomingGigs = gigs
-            .Select(g => (Gig: g, Date: TryParseGigDate(g.Date)))
-            .Where(x => x.Date is not null && x.Date >= today)
-            .Select(x => (x.Gig, Date: x.Date!.Value))
-            .ToList();
+        var gigs = await db.Gigs.Where(g => g.BandId == bandId && g.Date >= today).ToListAsync();
+        var upcomingGigs = gigs.Select(g => (Gig: g, Date: g.Date)).ToList();
 
         var rehearsals = await db.Rehearsals.Where(r => r.BandId == bandId).ToListAsync();
         var upcomingRehearsals = rehearsals
@@ -101,7 +94,7 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
             if (await db.Notifications.AnyAsync(n => n.UserId == userId && n.Kind == NotificationKind.GigReminder && n.GigId == gig.Id))
                 continue;
 
-            await NotifyAsync(user, NotificationKind.GigReminder, $"Upcoming gig: {gig.Title} on {gig.Date}.", p.Email, p.InApp, gigId: gig.Id);
+            await NotifyAsync(user, NotificationKind.GigReminder, $"Upcoming gig: {gig.Title} on {GigDateTimeFormatting.FormatDate(gig.Date)}.", p.Email, p.InApp, gigId: gig.Id);
         }
         await db.SaveChangesAsync();
     }
@@ -154,7 +147,7 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
             if (!relevantDates.Contains(date) || answeredSet.Contains(date)) continue;
             if (await db.Notifications.AnyAsync(n => n.UserId == userId && n.Kind == NotificationKind.AvailabilityReminder && n.GigId == gig.Id))
                 continue;
-            await NotifyAsync(user, NotificationKind.AvailabilityReminder, $"Set your availability for {gig.Title} on {gig.Date}.", p.Email, p.InApp, gigId: gig.Id);
+            await NotifyAsync(user, NotificationKind.AvailabilityReminder, $"Set your availability for {gig.Title} on {GigDateTimeFormatting.FormatDate(gig.Date)}.", p.Email, p.InApp, gigId: gig.Id);
         }
         foreach (var (rehearsal, date) in upcomingRehearsals)
         {

@@ -82,33 +82,24 @@ public class CalendarController(ApplicationDbContext db, IActiveBandAccessor act
         return null;
     }
 
-    // Gig.Date is a free-text display string ("Friday, October 3, 2026"),
-    // not a real date column - same parse-on-read approach
-    // Scheduler.TryParseGigDate already uses for the same reason (it's
-    // what the site's own calendar.js has always stored).
-    private static DateOnly? TryParseGigDate(string date) =>
-        DateTime.TryParse(date, out var d) ? DateOnly.FromDateTime(d) : null;
-
     [HttpGet]
     public async Task<IActionResult> Get([FromQuery] DateOnly from, [FromQuery] DateOnly to)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
         if (to < from) return BadRequest(new { error = "'to' must be on or after 'from'." });
 
-        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId).ToListAsync();
+        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && g.Date >= from && g.Date <= to).ToListAsync();
         var entries = new List<(DateOnly SortDate, object Entry)>();
 
         foreach (var gig in gigs)
         {
-            var parsed = TryParseGigDate(gig.Date);
-            if (parsed is not { } date || date < from || date > to) continue;
-            entries.Add((date, new
+            entries.Add((gig.Date, new
             {
                 kind = "gig",
                 id = gig.Ref,
                 title = gig.Title,
-                date = date.ToString("yyyy-MM-dd"),
-                displayDate = gig.Date,
+                date = gig.Date.ToString("yyyy-MM-dd"),
+                displayDate = GigDateTimeFormatting.FormatDate(gig.Date),
                 time = gig.Time,
                 venue = gig.Venue,
                 flyerMain = gig.FlyerMain

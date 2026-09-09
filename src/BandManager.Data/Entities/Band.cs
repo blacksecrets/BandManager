@@ -32,9 +32,10 @@ public class Band
 
     // IANA time zone id (e.g. "America/New_York") - .NET on Linux resolves
     // TimeZoneInfo by these ids natively, no separate Windows-id mapping
-    // needed. Nothing reads this yet (every date/time in the app today is
-    // free text - see Gig.Date/Time) - it's a real field with nowhere to
-    // apply itself until something needs to compute across time zones.
+    // needed. Nothing reads this yet - it's a real field with nowhere to
+    // apply itself until something needs to compute across time zones
+    // (Gig.Date/DoorsTime/OpenerTime/HeadlinerTime are real DateOnly/
+    // TimeOnly now, but always naive/timezone-less - see Gig.cs).
     public string? TimeZone { get; set; }
 
     // This Band's own branding (distinct from the platform-level

@@ -296,7 +296,7 @@ public class SpotifyController(
         var token = await GetAccessTokenAsync(bandId);
         if (token is null) return BadRequest(new { error = "Spotify isn't connected for this band yet." });
 
-        var namePart = string.Join(" - ", new[] { gig.Band.Name, gig.Title, gig.Date }.Where(s => !string.IsNullOrWhiteSpace(s)));
+        var namePart = string.Join(" - ", new[] { gig.Band.Name, gig.Title, GigDateTimeFormatting.FormatDate(gig.Date) }.Where(s => !string.IsNullOrWhiteSpace(s)));
         var http = httpClientFactory.CreateClient();
         http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 

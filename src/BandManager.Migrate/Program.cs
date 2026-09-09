@@ -116,12 +116,16 @@ if (args_.ContainsKey("backfill-site-content"))
                 Title = siteGig.Title,
                 Venue = siteGig.Venue,
                 VenueUrl = siteGig.VenueUrl,
-                Date = siteGig.Date,
+                // Best-effort - this one-time cutover tool's own source
+                // data (the old site's calendar.js) is free text with no
+                // guaranteed format; anything unparseable just falls back
+                // rather than blocking the backfill.
+                Date = DateTime.TryParse(siteGig.Date, out var parsedSiteDate) ? DateOnly.FromDateTime(parsedSiteDate) : DateOnly.FromDateTime(DateTime.UtcNow),
                 Time = siteGig.Time,
                 Address = siteGig.Address,
-                DoorsTime = siteGig.DoorsTime,
-                OpenerTime = siteGig.OpenerTime,
-                HeadlinerTime = siteGig.HeadlinerTime,
+                DoorsTime = GigDateTimeFormatting.ParseTimeOrNull(siteGig.DoorsTime),
+                OpenerTime = GigDateTimeFormatting.ParseTimeOrNull(siteGig.OpenerTime),
+                HeadlinerTime = GigDateTimeFormatting.ParseTimeOrNull(siteGig.HeadlinerTime),
                 TicketsUrl = siteGig.TicketsUrl,
                 FlyerMain = siteGig.FlyerMain,
                 FreeAdmission = siteGig.FreeAdmission,

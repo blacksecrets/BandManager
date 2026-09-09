@@ -16,9 +16,6 @@ public class CalendarFeedService(ApplicationDbContext db)
     private static string Escape(string s) =>
         s.Replace("\\", "\\\\").Replace(";", "\\;").Replace(",", "\\,").Replace("\r\n", "\\n").Replace("\n", "\\n");
 
-    private static DateOnly? TryParseGigDate(string date) =>
-        DateTime.TryParse(date, out var d) ? DateOnly.FromDateTime(d) : null;
-
     /// <summary>Gigs have only a free-text Time field (not a real time
     /// column - see Gig.cs), so a gig always renders as an all-day ICS
     /// event; the time, if any, is folded into the event summary instead
@@ -62,10 +59,7 @@ public class CalendarFeedService(ApplicationDbContext db)
         sb.Append("X-WR-CALNAME:BandManager\r\n");
 
         var gigs = await db.Gigs.AsNoTracking().Where(g => bandIds.Contains(g.BandId)).ToListAsync();
-        foreach (var gig in gigs)
-        {
-            if (TryParseGigDate(gig.Date) is { } date) AppendGigEvent(sb, gig, date);
-        }
+        foreach (var gig in gigs) AppendGigEvent(sb, gig, gig.Date);
 
         var rehearsals = await db.Rehearsals.AsNoTracking().Where(r => bandIds.Contains(r.BandId)).ToListAsync();
         foreach (var rehearsal in rehearsals) AppendRehearsalEvent(sb, rehearsal);

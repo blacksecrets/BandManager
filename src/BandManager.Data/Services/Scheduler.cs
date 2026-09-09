@@ -62,7 +62,11 @@ public class Scheduler(
         return new DateOnly(today.Year, today.Month, day);
     }
 
-    private static bool TryParseGigDate(Gig gig, out DateTime date) => DateTime.TryParse(gig.Date, out date);
+    private static bool TryParseGigDate(Gig gig, out DateTime date)
+    {
+        date = gig.Date.ToDateTime(TimeOnly.MinValue);
+        return true;
+    }
 
     private static string EffectiveWithNames(Gig gig) =>
         string.Join(", ", gig.WithBands.OrderBy(w => w.SortOrder).Select(w => w.WithBand.Name).Where(n => !string.IsNullOrEmpty(n)));

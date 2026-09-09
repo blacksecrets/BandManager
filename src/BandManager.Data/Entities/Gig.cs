@@ -30,13 +30,21 @@ public class Gig
     // but editable independently afterward.
     public Guid? VenueId { get; set; }
     public Venue? VenueEntity { get; set; }
-    public required string Date { get; set; }
+    public DateOnly Date { get; set; }
+
+    // Time stays free text, deliberately NOT DateOnly/TimeOnly - real data
+    // holds things like "Doors: 7PM - Show: 8PM" or "TBD", not a single
+    // clock time, and it's pushed verbatim to a connected site's public
+    // listing (GigsSiteEditor) - forcing it into a real time column would
+    // lose real, currently-displayed information. DoorsTime/OpenerTime/
+    // HeadlinerTime below are genuinely single-time fields (unused in
+    // production as of this conversion), so those did convert.
     public string? Time { get; set; }
     public string? Address { get; set; }
 
-    public string? DoorsTime { get; set; }
-    public string? OpenerTime { get; set; }
-    public string? HeadlinerTime { get; set; }
+    public TimeOnly? DoorsTime { get; set; }
+    public TimeOnly? OpenerTime { get; set; }
+    public TimeOnly? HeadlinerTime { get; set; }
 
     public string? TicketsUrl { get; set; }
     public string? FlyerMain { get; set; }

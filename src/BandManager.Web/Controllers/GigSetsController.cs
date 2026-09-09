@@ -62,20 +62,20 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             .Select(s => new { s.GigRef, Count = s.Songs.Count })
             .ToDictionaryAsync(x => x.GigRef, x => x.Count);
 
-        var today = DateTime.Today;
-        var result = gigs.Select(g =>
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var result = gigs.Select(g => new
         {
-            var isPast = DateTime.TryParse(g.Date, out var parsed) && parsed.Date < today;
-            return new
-            {
-                gigRef = g.Ref,
-                title = g.Title,
-                venue = g.Venue,
-                date = g.Date,
-                time = g.Time,
-                songCount = setCounts.GetValueOrDefault(g.Ref, 0),
-                isPast
-            };
+            gigRef = g.Ref,
+            title = g.Title,
+            venue = g.Venue,
+            date = GigDateTimeFormatting.FormatDate(g.Date),
+            // Real ISO date alongside the display string above - lets the
+            // Copy Setlist grid sort by date correctly without parsing
+            // the display text back apart client-side.
+            sortDate = g.Date.ToString("yyyy-MM-dd"),
+            time = g.Time,
+            songCount = setCounts.GetValueOrDefault(g.Ref, 0),
+            isPast = g.Date < today
         });
         return Ok(result);
     }
@@ -110,7 +110,7 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
 
         return Ok(new
         {
-            gig = new { title = gig.Title, venue = gig.Venue, date = gig.Date, flyerMain = gig.FlyerMain },
+            gig = new { title = gig.Title, venue = gig.Venue, date = GigDateTimeFormatting.FormatDate(gig.Date), flyerMain = gig.FlyerMain },
             items = items.Select(i => new
             {
                 i.Id,

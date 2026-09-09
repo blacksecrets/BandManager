@@ -53,6 +53,10 @@ public class GigsController(
 {
     private const long MaxFlyerBytes = 20 * 1024 * 1024;
 
+    private static string FormatDate(DateOnly d) => GigDateTimeFormatting.FormatDate(d);
+    private static string? FormatTime(TimeOnly? t) => GigDateTimeFormatting.FormatTime(t);
+    private static TimeOnly? ParseTimeOrNull(string? raw) => GigDateTimeFormatting.ParseTimeOrNull(raw);
+
     // Best-effort, same spirit as the site push above (TryPublishAsync) -
     // but never surfaced as a 502, since a Google/Outlook push only ever
     // affects members who've individually connected their own calendar
@@ -150,11 +154,11 @@ public class GigsController(
             title = gig.Title,
             venue = gig.Venue,
             venueUrl = gig.VenueUrl,
-            date = gig.Date,
+            date = FormatDate(gig.Date),
             time = gig.Time,
-            doorsTime = gig.DoorsTime,
-            openerTime = gig.OpenerTime,
-            headlinerTime = gig.HeadlinerTime,
+            doorsTime = FormatTime(gig.DoorsTime),
+            openerTime = FormatTime(gig.OpenerTime),
+            headlinerTime = FormatTime(gig.HeadlinerTime),
             address = gig.Address,
             with = withActs,
             ticketsUrl = gig.TicketsUrl,
@@ -202,14 +206,19 @@ public class GigsController(
                 apply((v.GetString() ?? "").Trim()[..Math.Min((v.GetString() ?? "").Trim().Length, 500)]);
         }
         SetIfPresent("venue", v => gig.Venue = v);
-        SetIfPresent("date", v => gig.Date = v);
+        if (S("date") is { Length: > 0 } dateRaw)
+        {
+            if (!DateTime.TryParse(dateRaw, out var parsedDate))
+                return BadRequest(new { error = "A valid date is required" });
+            gig.Date = DateOnly.FromDateTime(parsedDate);
+        }
         SetIfPresent("ticketsUrl", v => gig.TicketsUrl = v);
         SetIfPresent("customTicketsText", v => gig.CustomTicketsText = v);
         SetIfPresent("venueUrl", v => gig.VenueUrl = v);
         SetIfPresent("time", v => gig.Time = v);
-        SetIfPresent("doorsTime", v => gig.DoorsTime = v);
-        SetIfPresent("openerTime", v => gig.OpenerTime = v);
-        SetIfPresent("headlinerTime", v => gig.HeadlinerTime = v);
+        if (body.TryGetProperty("doorsTime", out var dtEl) && dtEl.ValueKind == JsonValueKind.String) gig.DoorsTime = ParseTimeOrNull(dtEl.GetString());
+        if (body.TryGetProperty("openerTime", out var otEl) && otEl.ValueKind == JsonValueKind.String) gig.OpenerTime = ParseTimeOrNull(otEl.GetString());
+        if (body.TryGetProperty("headlinerTime", out var htEl) && htEl.ValueKind == JsonValueKind.String) gig.HeadlinerTime = ParseTimeOrNull(htEl.GetString());
         var ticketMode = S("ticketMode");
         if (ticketMode is "url" or "free" or "custom") gig.TicketMode = ticketMode;
 
@@ -258,11 +267,7 @@ public class GigsController(
         if (address.Length == 0) return BadRequest(new { error = "Address is required" });
         if (!System.Text.RegularExpressions.Regex.IsMatch(dateRaw, @"^\d{4}-\d{2}-\d{2}$") || !DateTime.TryParse(dateRaw, out var parsedDate))
             return BadRequest(new { error = "A valid date is required" });
-
-        // Reformatted to the site's own human-readable convention
-        // ("Friday, October 3, 2026"), which is also what gig-driven
-        // scheduling elsewhere in the app expects to be able to re-parse.
-        var date = parsedDate.ToString("dddd, MMMM d, yyyy");
+        var date = DateOnly.FromDateTime(parsedDate);
 
         List<GigWithActInput> withInputs = [];
         if (F("with") is { Length: > 0 } withJson)
@@ -289,9 +294,9 @@ public class GigsController(
             Date = date,
             VenueUrl = F("venueUrl") is { Length: > 0 } vu ? vu : null,
             Time = F("time") is { Length: > 0 } ti ? ti : null,
-            DoorsTime = F("doorsTime") is { Length: > 0 } dt ? dt : null,
-            OpenerTime = F("openerTime") is { Length: > 0 } ot ? ot : null,
-            HeadlinerTime = F("headlinerTime") is { Length: > 0 } ht ? ht : null,
+            DoorsTime = ParseTimeOrNull(F("doorsTime")),
+            OpenerTime = ParseTimeOrNull(F("openerTime")),
+            HeadlinerTime = ParseTimeOrNull(F("headlinerTime")),
             TicketMode = F("ticketMode") is "url" or "free" or "custom" ? F("ticketMode") : null,
             TicketsUrl = F("ticketsUrl") is { Length: > 0 } tu ? tu : null,
             CustomTicketsText = F("customTicketsText") is { Length: > 0 } ctt ? ctt : null,

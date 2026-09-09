@@ -1,3 +1,4 @@
+using BandManager.Data;
 using BandManager.Data.Entities;
 using static BandManager.Data.Services.SiteTextEditing;
 
@@ -25,7 +26,7 @@ public class GigsSiteEditor(GitHubSiteClient gitHub)
 
     private static string BuildBlockText(Gig gig, List<WithAct> withActs)
     {
-        var lines = new List<string> { "    {", $"        id: \"{EscapeForQuotes(gig.Ref)}\",", $"        date: \"{EscapeForQuotes(gig.Date)}\"," };
+        var lines = new List<string> { "    {", $"        id: \"{EscapeForQuotes(gig.Ref)}\",", $"        date: \"{EscapeForQuotes(GigDateTimeFormatting.FormatDate(gig.Date))}\"," };
         if (!string.IsNullOrEmpty(gig.Time)) lines.Add($"        time: \"{EscapeForQuotes(gig.Time)}\",");
         lines.Add($"        title: \"{EscapeForQuotes(gig.Title)}\",");
         if (withActs.Count > 0)
@@ -34,9 +35,9 @@ public class GigsSiteEditor(GitHubSiteClient gitHub)
                 $"{{ name: \"{EscapeForQuotes(w.Name ?? "")}\", url: \"{EscapeForQuotes(w.Url ?? "")}\" }}")) + "]";
             lines.Add($"        with: {rawArray},");
         }
-        if (!string.IsNullOrEmpty(gig.DoorsTime)) lines.Add($"        doorsTime: \"{EscapeForQuotes(gig.DoorsTime)}\",");
-        if (!string.IsNullOrEmpty(gig.OpenerTime)) lines.Add($"        openerTime: \"{EscapeForQuotes(gig.OpenerTime)}\",");
-        if (!string.IsNullOrEmpty(gig.HeadlinerTime)) lines.Add($"        headlinerTime: \"{EscapeForQuotes(gig.HeadlinerTime)}\",");
+        if (GigDateTimeFormatting.FormatTime(gig.DoorsTime) is { } doorsTime) lines.Add($"        doorsTime: \"{EscapeForQuotes(doorsTime)}\",");
+        if (GigDateTimeFormatting.FormatTime(gig.OpenerTime) is { } openerTime) lines.Add($"        openerTime: \"{EscapeForQuotes(openerTime)}\",");
+        if (GigDateTimeFormatting.FormatTime(gig.HeadlinerTime) is { } headlinerTime) lines.Add($"        headlinerTime: \"{EscapeForQuotes(headlinerTime)}\",");
         lines.Add($"        venue: \"{EscapeForQuotes(gig.Venue ?? "")}\",");
         if (!string.IsNullOrEmpty(gig.VenueUrl)) lines.Add($"        venueUrl: \"{EscapeForQuotes(gig.VenueUrl)}\",");
         lines.Add($"        address: \"{EscapeForQuotes(gig.Address ?? "")}\"");

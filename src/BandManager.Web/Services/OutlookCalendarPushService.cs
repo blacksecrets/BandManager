@@ -126,13 +126,18 @@ public class OutlookCalendarPushService(ApplicationDbContext db, ICredentialCiph
     public async Task PushGigAsync(Gig gig)
     {
         var uid = $"gig{gig.Id:N}";
+        // Same fix as GoogleCalendarPushService: Microsoft Graph needs a
+        // real ISO 8601 date-time, not Gig.Date's free-text display
+        // string - now that Date is a real DateOnly this is correct for
+        // the first time.
+        var isoDate = gig.Date.ToString("yyyy-MM-dd");
         var fields = new
         {
             subject = gig.Title,
             location = new { displayName = gig.Venue ?? "" },
             isAllDay = true,
-            start = new { dateTime = $"{gig.Date}T00:00:00", timeZone = "UTC" },
-            end = new { dateTime = $"{gig.Date}T00:00:00", timeZone = "UTC" }
+            start = new { dateTime = $"{isoDate}T00:00:00", timeZone = "UTC" },
+            end = new { dateTime = $"{isoDate}T00:00:00", timeZone = "UTC" }
         };
         foreach (var connection in await ConnectedMembersAsync(gig.BandId))
             await UpsertEventAsync(connection, uid, fields);

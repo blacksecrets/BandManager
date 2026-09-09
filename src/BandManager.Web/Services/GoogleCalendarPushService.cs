@@ -116,13 +116,20 @@ public class GoogleCalendarPushService(ApplicationDbContext db, ICredentialCiphe
     public async Task PushGigAsync(Gig gig)
     {
         var uid = $"gig{gig.Id:N}";
+        // Google's all-day-event "date" field needs strict ISO 8601
+        // (yyyy-MM-dd) - previously this passed Gig.Date's free-text
+        // display string ("Friday, October 3, 2026") straight through,
+        // which Google's API would have rejected; now that Date is a real
+        // DateOnly, this is both the type-correct AND the first-time-
+        // actually-valid format.
+        var isoDate = gig.Date.ToString("yyyy-MM-dd");
         var body = new
         {
             id = uid,
             summary = gig.Title,
             location = gig.Venue,
-            start = new { date = gig.Date },
-            end = new { date = gig.Date }
+            start = new { date = isoDate },
+            end = new { date = isoDate }
         };
         foreach (var connection in await ConnectedMembersAsync(gig.BandId))
             await UpsertEventAsync(connection, uid, body);
