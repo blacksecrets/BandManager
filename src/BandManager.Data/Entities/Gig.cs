@@ -52,6 +52,16 @@ public class Gig
     public string? CustomTicketsText { get; set; }
     public string? TicketMode { get; set; }
 
+    // Explicit "this one" pick among this gig's (possibly several) Flyer
+    // rows - null means no pick has been made yet, so every reader falls
+    // back to the existing "most recent" resolution (GigSetsController.GetGigItems),
+    // preserving today's behavior for every gig that predates this field.
+    // SetNull (not Restrict) on the referenced Flyer's delete/archive, same
+    // reasoning as Flyer.SourceCatalogItemId - losing the pick just means
+    // falling back to most-recent again, never a hard error.
+    public Guid? SelectedFlyerId { get; set; }
+    public Flyer? SelectedFlyer { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 

@@ -589,6 +589,54 @@ document.getElementById('gig-set-flyer-btn').addEventListener('click', () => {
     location.href = `/catalog.html?gigRef=${encodeURIComponent(selectedGigRef)}`;
 });
 
+// --- Select Flyer (pick which of this gig's Flyers is "the" one -
+// wherever a gig's flyer is shown elsewhere, e.g. Web Presence tiles) ---
+function catalogFileUrlLocal(relPath) {
+    return '/' + String(relPath).replace(/\\/g, '/').replace(/^data\/catalog\//, 'catalog-files/');
+}
+
+function closeSelectFlyerModal() { document.getElementById('select-flyer-modal-backdrop').hidden = true; }
+document.getElementById('select-flyer-modal-close').addEventListener('click', closeSelectFlyerModal);
+document.getElementById('select-flyer-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'select-flyer-modal-backdrop') closeSelectFlyerModal(); });
+
+document.getElementById('gig-set-select-flyer-btn').addEventListener('click', async () => {
+    if (!selectedGigRef) return;
+    const grid = document.getElementById('select-flyer-grid');
+    grid.innerHTML = '<p class="save-note">Loading flyers...</p>';
+    document.getElementById('select-flyer-modal-backdrop').hidden = false;
+
+    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/flyers`);
+    const flyers = res.ok ? await res.json() : [];
+    if (flyers.length === 0) {
+        grid.innerHTML = '<p class="save-note">No flyers have been created for this gig yet - use "Create/Edit Flyer" first.</p>';
+        return;
+    }
+
+    grid.innerHTML = flyers.map((f) => `
+        <button type="button" class="select-flyer-tile${f.isSelected ? ' selected' : ''}" data-flyer-id="${f.id}">
+            <img src="${catalogFileUrlLocal(f.filePath)}" alt="Flyer">
+            <span>${new Date(f.createdAt).toLocaleDateString()}${f.isSelected ? ' · Current' : ''}</span>
+        </button>
+    `).join('');
+
+    grid.querySelectorAll('.select-flyer-tile').forEach((tile) => {
+        tile.addEventListener('click', async () => {
+            const res2 = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/selected-flyer`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ flyerId: tile.dataset.flyerId })
+            });
+            const body = await res2.json().catch(() => ({}));
+            if (res2.ok) {
+                closeSelectFlyerModal();
+                await loadArtifactPanel();
+            } else {
+                alert(body.error || 'Could not select that flyer.');
+            }
+        });
+    });
+});
+
 // --- Print setlist ---
 function closePrintSetlistModal() { document.getElementById('print-setlist-modal-backdrop').hidden = true; }
 document.getElementById('print-setlist-modal-close').addEventListener('click', closePrintSetlistModal);

@@ -20,9 +20,36 @@ namespace BandManager.Data.Services;
 /// never silently drift from the database now that the database is
 /// authoritative.
 /// </summary>
-public class GigsSiteEditor(GitHubSiteClient gitHub)
+public class GigsSiteEditor(GitHubSiteClient gitHub, FlyerCache flyerCache)
 {
     private const string FilePath = "js/calendar.js";
+
+    /// <summary>Best-effort pushes already-rendered flyer bytes to
+    /// gig.FlyerMain's path - creating it (as flyers/{gig.Ref}.png) on the
+    /// gig's first flyer push, else overwriting in place by sha. The exact
+    /// branch FlyersController.Create and GigsController's selected-flyer
+    /// endpoint both need, extracted here so neither duplicates the
+    /// GitHub-push/cache-write pair. Throws InvalidOperationException on a
+    /// push failure (propagated from GitHubSiteClient) - callers decide for
+    /// themselves what "already saved, but this could not push" means in
+    /// their own context, so this doesn't swallow it.</summary>
+    public async Task PushFlyerImageAsync(Band band, Gig gig, byte[] rendered, string commitMessage)
+    {
+        if (string.IsNullOrEmpty(gig.FlyerMain))
+        {
+            var newPath = $"flyers/{gig.Ref}.png";
+            await gitHub.PutBinaryFileAsync(band, newPath, rendered, commitMessage);
+            gig.FlyerMain = newPath;
+            await flyerCache.WriteDirectlyAsync(band, newPath, rendered);
+        }
+        else
+        {
+            var sha = await gitHub.GetFileShaAsync(band, gig.FlyerMain);
+            await gitHub.PutBinaryFileAsync(band, gig.FlyerMain, rendered, commitMessage, sha);
+            await flyerCache.WriteDirectlyAsync(band, gig.FlyerMain, rendered);
+        }
+        gig.UpdatedAt = DateTime.UtcNow;
+    }
 
     private static string BuildBlockText(Gig gig, List<WithAct> withActs)
     {

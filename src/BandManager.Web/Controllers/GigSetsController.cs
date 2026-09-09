@@ -102,7 +102,14 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             .Where(s => s.BandId == bandId && s.GigRef == gigRef)
             .ToListAsync();
 
-        var flyer = await db.Flyers.AsNoTracking()
+        // Gig.SelectedFlyerId (an explicit pick - see Gig.cs) wins when
+        // set; otherwise fall back to the most recently generated Flyer,
+        // preserving every gig's existing behavior from before that field
+        // existed.
+        var flyer = gig.SelectedFlyerId is { } selectedId
+            ? await db.Flyers.AsNoTracking().Include(f => f.SourceCatalogItem).FirstOrDefaultAsync(f => f.Id == selectedId && f.BandId == bandId)
+            : null;
+        flyer ??= await db.Flyers.AsNoTracking()
             .Include(f => f.SourceCatalogItem)
             .Where(f => f.BandId == bandId && f.GigRef == gigRef)
             .OrderByDescending(f => f.CreatedAt)

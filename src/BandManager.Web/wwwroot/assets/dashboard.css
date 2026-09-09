@@ -587,6 +587,17 @@ body {
 .detail-artifact-row.text-row { flex-direction: column; align-items: stretch; }
 .detail-artifact-row.text-row button { align-self: flex-start; }
 
+.detail-artifact-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.gig-flyer-picker { display: flex; align-items: center; gap: 6px; }
+.gig-flyer-picker select {
+    background: #1a1a1a;
+    color: #eee;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 4px 6px;
+    font-size: 0.78rem;
+}
+
 .photo-album-row { flex-direction: column; align-items: stretch; }
 .photo-album-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .photo-album-thumb { position: relative; width: 70px; height: 70px; border-radius: 6px; overflow: hidden; }

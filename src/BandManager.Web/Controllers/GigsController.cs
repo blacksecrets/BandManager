@@ -15,6 +15,7 @@ namespace BandManager.Web.Controllers;
 // a Name with no id, meaning "create a new stub Band for this" - see
 // Band.IsOnboarded. Never both; Id wins if somehow both are present.
 public record GigWithActInput(Guid? WithBandId, string? Name, string? Url);
+public record SetSelectedFlyerRequest(Guid FlyerId);
 
 /// <summary>
 /// Gigs are a real DB table now (see Entities.Gig) - the database is the
@@ -415,6 +416,78 @@ public class GigsController(
         {
             return StatusCode(502, new { error = ex.Message });
         }
+    }
+
+    // Every Flyer row generated for this gig - for the "Select flyer"
+    // modal (Gig Management) and the Web Presence tile flyer picker
+    // (Dashboard). Read access is broader than the class-level BandAdmin
+    // policy, same reasoning as Get above.
+    [HttpGet("{gigRef}/flyers")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> ListFlyers(string gigRef)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var gig = await db.Gigs.AsNoTracking().FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        var flyers = await db.Flyers.AsNoTracking()
+            .Include(f => f.GeneratedCatalogItem)
+            .Where(f => f.BandId == band.Id && f.GigRef == gigRef)
+            .OrderByDescending(f => f.CreatedAt)
+            .ToListAsync();
+
+        return Ok(flyers.Select(f => new
+        {
+            id = f.Id,
+            createdAt = f.CreatedAt,
+            filePath = f.GeneratedCatalogItem.FilePath,
+            catalogItemId = f.GeneratedCatalogItemId,
+            isSelected = f.Id == gig.SelectedFlyerId
+        }));
+    }
+
+    // Picks which of this gig's (possibly several) Flyers is "the" one -
+    // resolved by GigSetsController.GetGigItems wherever a gig's flyer is
+    // shown (Dashboard tiles, Web Presence). Best-effort re-pushes that
+    // flyer's already-rendered bytes to FlyerMain's path too, via the same
+    // shared helper FlyersController.Create uses, so a connected site's
+    // calendar listing picks up the change as well - a push failure still
+    // leaves the in-app selection saved (mirrors this controller's other
+    // "already saved even if pushing live failed" endpoints).
+    [HttpPost("{gigRef}/selected-flyer")]
+    public async Task<IActionResult> SetSelectedFlyer(string gigRef, [FromBody] SetSelectedFlyerRequest request)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        var flyer = await db.Flyers.FirstOrDefaultAsync(f => f.Id == request.FlyerId && f.BandId == band.Id && f.GigRef == gigRef);
+        if (flyer is null) return NotFound(new { error = "Flyer not found for this gig" });
+
+        gig.SelectedFlyerId = flyer.Id;
+
+        if (await HasSiteConfiguredAsync(band))
+        {
+            try
+            {
+                var rendered = await catalogStore.GetCatalogItemBufferAsync(band.Id, flyer.GeneratedCatalogItemId);
+                await gigsSiteEditor.PushFlyerImageAsync(band, gig, rendered, $"Update flyer for {gig.Title}");
+                await db.SaveChangesAsync();
+                var pushError = await TryPublishAsync(band, gig);
+                if (pushError is not null) return StatusCode(502, new { error = $"Flyer selected, but could not push to the site: {pushError}" });
+                return Ok(new { ok = true });
+            }
+            catch (InvalidOperationException ex)
+            {
+                await db.SaveChangesAsync();
+                return StatusCode(502, new { error = $"Flyer selected, but could not push it live: {ex.Message}" });
+            }
+        }
+
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
     }
 
     // Deletes the gig and every schedule item tied to it across every

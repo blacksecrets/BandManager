@@ -5,6 +5,7 @@ using BandManager.Data.Entities;
 using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using BandManager.Web.Publishers;
+using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -182,11 +183,10 @@ public partial class ScheduleItemsController(
 
     /// <summary>Upload a required artifact. For file artifacts (photo/
     /// video/flyer/audio), send multipart/form-data with fields
-    /// `artifactType` and `file`. For text artifacts (caption, event_url),
-    /// send JSON { artifactType, text }. Ported from the old app's
-    /// POST /items/:id/upload - Catalog integration (pick-from-catalog,
-    /// paste-a-URL) isn't ported yet, so this only supports a raw upload
-    /// or raw text, not those two extra input modes.</summary>
+    /// `artifactType` and one of `file` / `catalogItemId` / `url` (see
+    /// CatalogStore.ResolveMediaInputAsync - same three-mode contract as
+    /// every other upload route). For text artifacts (caption, event_url),
+    /// send JSON { artifactType, text }.</summary>
     [HttpPost("{id:guid}/upload")]
     [RequestSizeLimit(MaxUploadBytes)]
     public async Task<IActionResult> Upload(Guid id)
@@ -198,12 +198,16 @@ public partial class ScheduleItemsController(
         string? artifactType;
         string? text = null;
         IFormFile? file = null;
+        string? catalogItemId = null;
+        string? url = null;
 
         if (Request.HasFormContentType)
         {
             var form = await Request.ReadFormAsync();
             artifactType = form["artifactType"];
             file = form.Files.GetFile("file");
+            catalogItemId = form["catalogItemId"];
+            url = form["url"];
         }
         else
         {
@@ -232,21 +236,34 @@ public partial class ScheduleItemsController(
 
         if (MimePrefixForType.TryGetValue(artifactType, out var mimePrefix))
         {
-            if (file is null) return BadRequest(new { error = "Provide a file" });
-            if (!(file.ContentType ?? "").StartsWith(mimePrefix, StringComparison.OrdinalIgnoreCase))
-                return BadRequest(new { error = $"Expected a {mimePrefix.TrimEnd('/')} file for \"{artifactType}\", got {file.ContentType}" });
+            // Routes file/catalogItemId/url through the same shared,
+            // safe entry point every other upload path in the app uses
+            // (see CatalogStore.ResolveMediaInputAsync) - previously this
+            // only ever read "file", silently ignoring a "Pick from
+            // Catalog" or "Upload from URL" pick made via the shared
+            // buildMediaSlotControl widget every Dashboard tile already
+            // renders those two extra options for.
+            var expectedMediaType = mimePrefix switch { "image/" => MediaType.Image, "video/" => MediaType.Video, _ => MediaType.Audio };
+            ResolvedMedia? resolved;
+            try
+            {
+                resolved = await catalogStore.ResolveMediaInputAsync(
+                    bandId, await file.ToUploadedFilePayloadAsync(), catalogItemId, url, expectedMediaType, username, MaxUploadBytes);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            if (resolved is null) return BadRequest(new { error = "Provide a file, a Catalog pick, or a URL" });
 
-            var ext = Path.GetExtension(file.FileName).TrimStart('.');
+            var ext = resolved.Ext;
             if (string.IsNullOrEmpty(ext)) ext = mimePrefix switch { "image/" => "jpg", "video/" => "mp4", _ => "mp3" };
 
             var dir = Path.Combine(env.ContentRootPath, "data", "uploads", item.Id.ToString());
             Directory.CreateDirectory(dir);
             var fileName = $"{artifactType}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}.{ext}";
             var destPath = Path.Combine(dir, fileName);
-            await using (var stream = System.IO.File.Create(destPath))
-            {
-                await file.CopyToAsync(stream);
-            }
+            await System.IO.File.WriteAllBytesAsync(destPath, resolved.Buffer);
 
             if (!isAlbumPhoto) await ClearExistingArtifactAsync(item.Id, artifactType);
             db.Artifacts.Add(new Artifact

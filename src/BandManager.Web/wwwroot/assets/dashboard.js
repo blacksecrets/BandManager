@@ -1306,6 +1306,8 @@ function renderDetailArtifactRow(item, type, artifact) {
         }
         row.appendChild(info);
 
+        const actionsBox = document.createElement('div');
+        actionsBox.className = 'detail-artifact-actions';
         const control = buildMediaSlotControl({
             accept: ARTIFACT_ACCEPT[type],
             label: ARTIFACT_LABELS[type],
@@ -1322,10 +1324,65 @@ function renderDetailArtifactRow(item, type, artifact) {
                 loadItems();
             }
         });
-        row.appendChild(control);
+        actionsBox.appendChild(control);
+        row.appendChild(actionsBox);
+
+        // A gig-linked photo/flyer slot can just reuse one of the gig's
+        // own Flyers instead of picking/uploading a copy by hand - most
+        // of the time it's the exact same image anyway. Built async since
+        // it needs its own fetch; a no-op if the gig has no Flyers yet.
+        if ((type === 'photo' || type === 'flyer') && item.gig_ref) {
+            attachGigFlyerPicker(actionsBox, item, type);
+        }
     }
 
     return row;
+}
+
+async function attachGigFlyerPicker(actionsBox, item, type) {
+    const res = await fetch(`/api/gigs/${encodeURIComponent(item.gig_ref)}/flyers`);
+    if (!res.ok) return;
+    const flyers = await res.json();
+    if (flyers.length === 0) return;
+
+    const useFlyer = async (catalogItemId) => {
+        const form = new FormData();
+        form.append('artifactType', type);
+        form.append('catalogItemId', catalogItemId);
+        const uploadRes = await fetch(`/api/items/${item.id}/upload`, { method: 'POST', body: form });
+        const body = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok) { alert(body.error || 'Could not use that flyer.'); return; }
+        closeDetailModal();
+        loadItems();
+    };
+
+    const box = document.createElement('div');
+    box.className = 'gig-flyer-picker';
+
+    if (flyers.length === 1) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = "Use gig's flyer";
+        btn.addEventListener('click', () => useFlyer(flyers[0].catalogItemId));
+        box.appendChild(btn);
+    } else {
+        const select = document.createElement('select');
+        for (const f of flyers) {
+            const opt = document.createElement('option');
+            opt.value = f.catalogItemId;
+            opt.textContent = new Date(f.createdAt).toLocaleDateString() + (f.isSelected ? ' (current)' : '');
+            if (f.isSelected) opt.selected = true;
+            select.appendChild(opt);
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Use selected flyer';
+        btn.addEventListener('click', () => useFlyer(select.value));
+        box.appendChild(select);
+        box.appendChild(btn);
+    }
+
+    actionsBox.appendChild(box);
 }
 
 function openDetailModal(item) {

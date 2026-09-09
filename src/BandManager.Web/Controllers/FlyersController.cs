@@ -33,10 +33,8 @@ public class FlyersController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
     GigsSiteEditor gigsSiteEditor,
-    GitHubSiteClient gitHub,
     CatalogStore catalogStore,
     CredentialStore credentialStore,
-    FlyerCache flyerCache,
     IWebHostEnvironment env) : ControllerBase
 {
     // Resolved from the standard ASP.NET Core IWebHostEnvironment rather
@@ -240,20 +238,7 @@ public class FlyersController(
 
         try
         {
-            if (string.IsNullOrEmpty(gig.FlyerMain))
-            {
-                var newPath = $"flyers/{gigRef}.png";
-                await gitHub.PutBinaryFileAsync(band, newPath, rendered, $"Add flyer for {gig.Title}");
-                gig.FlyerMain = newPath;
-                await flyerCache.WriteDirectlyAsync(band, newPath, rendered);
-            }
-            else
-            {
-                var sha = await gitHub.GetFileShaAsync(band, gig.FlyerMain);
-                await gitHub.PutBinaryFileAsync(band, gig.FlyerMain, rendered, $"Update flyer for {gig.Title}", sha);
-                await flyerCache.WriteDirectlyAsync(band, gig.FlyerMain, rendered);
-            }
-            gig.UpdatedAt = DateTime.UtcNow;
+            await gigsSiteEditor.PushFlyerImageAsync(band, gig, rendered, string.IsNullOrEmpty(gig.FlyerMain) ? $"Add flyer for {gig.Title}" : $"Update flyer for {gig.Title}");
             await db.SaveChangesAsync();
 
             var withActs = await db.GigWithBands.Where(w => w.GigId == gig.Id).Include(w => w.WithBand)

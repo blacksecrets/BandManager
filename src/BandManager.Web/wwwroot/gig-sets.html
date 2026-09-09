@@ -47,6 +47,7 @@
                     <div class="gig-set-actions">
                         <button type="button" id="gig-set-import-btn">Copy Setlist from Another Gig</button>
                         <button type="button" id="gig-set-flyer-btn">Create/Edit Flyer</button>
+                        <button type="button" id="gig-set-select-flyer-btn">Select Flyer</button>
                         <button type="button" id="gig-set-print-btn">Print Setlist</button>
                         <button type="button" id="gig-set-spotify-btn">Save as Spotify Playlist</button>
                         <button type="button" id="gig-set-prep-btn">Gig Prep</button>
@@ -97,6 +98,15 @@
         <div class="detail-modal">
             <button type="button" class="detail-modal-close" id="import-gig-modal-close">&times;</button>
             <div id="import-gig-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="select-flyer-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="select-flyer-modal-close">&times;</button>
+            <h2>Select Flyer</h2>
+            <p class="save-note">Pick which flyer is used wherever this gig's flyer is shown (the Dashboard, Web Presence tiles, the connected site).</p>
+            <div id="select-flyer-grid" class="select-flyer-grid"></div>
         </div>
     </div>
 
