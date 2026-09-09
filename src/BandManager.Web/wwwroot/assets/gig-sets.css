@@ -122,6 +122,17 @@
 .import-gig-row { cursor: pointer; }
 .import-gig-row:hover { background: #262626; }
 .import-gig-row.selected { background: #3a2a10; }
+.unassigned-badge {
+    background: #2a3a4a;
+    color: #8fb4d9;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 3px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+}
 .import-gig-pagination {
     display: flex;
     align-items: center;

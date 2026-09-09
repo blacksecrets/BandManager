@@ -151,19 +151,23 @@ document.getElementById('gig-set-view-edit-btn').addEventListener('click', () =>
     });
 });
 
-// --- Copy Setlist from Another Gig ---
-// Grid of every OTHER gig (past or future - a setlist is just as likely
-// to come from an upcoming gig, e.g. same tour/week, as from a past
-// one), sortable/paginated same as Catalog's Details view. Clicking a
-// row previews that gig's setlist below, in its own grid; Confirm
-// actually copies (same POST /import-from this always used) and closes
-// the modal, Nope just clears the preview so another row can be tried,
-// Cancel closes with no action taken.
+// --- Copy or Assign a Setlist ---
+// Grid of every OTHER gig's setlist (past or future - a setlist is just
+// as likely to come from an upcoming gig, e.g. same tour/week, as from a
+// past one) *and* every floating setlist (one not tied to any gig - see
+// GigSet.IsFloating), sortable/paginated same as Catalog's Details view.
+// Clicking a row previews its songs below; Confirm behavior depends on
+// the row: a gig row copies its songs into this gig's set (same
+// POST /import-from this always used, additive - nothing is replaced);
+// a floating row hands the whole setlist over outright (POST
+// /assign-floating - "no longer floating" afterward). Nope just clears
+// the preview so another row can be tried, Cancel closes with no action.
 const IMPORT_GIG_PAGE_SIZE = 10;
 let importGigSortKey = 'date';
 let importGigSortDir = 'asc';
 let importGigPage = 1;
 let importGigPreviewRef = null;
+let floatingSetlists = [];
 
 function closeImportGigModal() { document.getElementById('import-gig-modal-backdrop').hidden = true; }
 document.getElementById('import-gig-modal-close').addEventListener('click', closeImportGigModal);
@@ -171,9 +175,15 @@ document.getElementById('import-gig-modal-backdrop').addEventListener('click', (
 
 function importGigCandidates() {
     const dir = importGigSortDir === 'asc' ? 1 : -1;
-    return gigs.filter((g) => g.gigRef !== selectedGigRef).sort((a, b) => {
+    const gigRows = gigs.filter((g) => g.gigRef !== selectedGigRef).map((g) => ({ ...g, isFloating: false }));
+    const floatingRows = floatingSetlists.map((f) => ({
+        gigRef: f.gigRef, title: null, name: f.name, venue: null, date: null, sortDate: '',
+        durationSeconds: f.durationSeconds, duration: f.duration, isFloating: true
+    }));
+    return [...gigRows, ...floatingRows].sort((a, b) => {
         if (importGigSortKey === 'venue') return dir * (a.venue || '').localeCompare(b.venue || '');
-        if (importGigSortKey === 'title') return dir * (a.title || '').localeCompare(b.title || '');
+        if (importGigSortKey === 'title') return dir * (a.title || a.name || '').localeCompare(b.title || b.name || '');
+        if (importGigSortKey === 'duration') return dir * ((a.durationSeconds || 0) - (b.durationSeconds || 0));
         return dir * (a.sortDate || '').localeCompare(b.sortDate || '');
     });
 }
@@ -191,22 +201,24 @@ function renderImportGigModal() {
     const pageItems = all.slice((importGigPage - 1) * IMPORT_GIG_PAGE_SIZE, importGigPage * IMPORT_GIG_PAGE_SIZE);
 
     body.innerHTML = `
-        <h2>Copy Setlist from Another Gig</h2>
-        ${all.length === 0 ? '<p class="save-note">There are no other gigs yet.</p>' : `
+        <h2>Copy or Assign a Setlist</h2>
+        ${all.length === 0 ? '<p class="save-note">There are no other setlists yet.</p>' : `
             <table class="user-table import-gig-table">
                 <thead>
                     <tr>
                         <th data-sort-key="title" class="sortable">Name${importGigSortArrow('title')}</th>
                         <th data-sort-key="venue" class="sortable">Venue Name${importGigSortArrow('venue')}</th>
                         <th data-sort-key="date" class="sortable">Date${importGigSortArrow('date')}</th>
+                        <th data-sort-key="duration" class="sortable">Duration${importGigSortArrow('duration')}</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${pageItems.map((g) => `
                         <tr class="import-gig-row${g.gigRef === importGigPreviewRef ? ' selected' : ''}" data-gig-ref="${escapeHtml(g.gigRef)}">
-                            <td>${escapeHtml(g.title)}</td>
+                            <td>${g.isFloating ? `<strong>${escapeHtml(g.name)}</strong> <span class="unassigned-badge">Unassigned</span>` : escapeHtml(g.title)}</td>
                             <td>${escapeHtml(g.venue || '')}</td>
                             <td>${escapeHtml(g.date || '')}</td>
+                            <td>${g.duration || '0:00'}</td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -228,7 +240,7 @@ function renderImportGigModal() {
             th.addEventListener('click', () => {
                 const key = th.dataset.sortKey;
                 if (importGigSortKey === key) importGigSortDir = importGigSortDir === 'asc' ? 'desc' : 'asc';
-                else { importGigSortKey = key; importGigSortDir = 'asc'; }
+                else { importGigSortKey = key; importGigSortDir = key === 'duration' ? 'desc' : 'asc'; }
                 importGigPage = 1;
                 renderImportGigModal();
             });
@@ -252,14 +264,15 @@ async function renderImportGigPreview() {
     if (!box) return;
     if (!importGigPreviewRef) { box.innerHTML = ''; return; }
 
-    const gig = gigs.find((g) => g.gigRef === importGigPreviewRef);
+    const row = importGigCandidates().find((r) => r.gigRef === importGigPreviewRef);
+    const isFloating = !!(row && row.isFloating);
     box.innerHTML = '<p class="save-note">Loading setlist...</p>';
     const res = await fetch(`/api/gig-sets/${encodeURIComponent(importGigPreviewRef)}`);
     const data = res.ok ? await res.json() : { songs: [] };
     const songs = data.songs || [];
 
     box.innerHTML = `
-        <h3>${escapeHtml(gig ? gig.title : 'Setlist')}</h3>
+        <h3>${escapeHtml(row ? (row.title || row.name) : 'Setlist')}</h3>
         <table class="user-table import-gig-setlist-table">
             <thead><tr><th>Title</th><th>Artist</th><th>Key</th><th>Length</th></tr></thead>
             <tbody>
@@ -273,10 +286,10 @@ async function renderImportGigPreview() {
                 `).join('')}
             </tbody>
         </table>
-        ${songs.length === 0 ? '<p class="save-note">This gig has no setlist.</p>' : ''}
+        ${songs.length === 0 ? `<p class="save-note">${isFloating ? 'This setlist has no songs yet.' : 'This gig has no setlist.'}</p>` : ''}
         <div class="cred-form-buttons">
             <button type="button" id="import-gig-nope-btn">Nope</button>
-            <button type="button" id="import-gig-confirm-btn" ${songs.length === 0 ? 'disabled' : ''}>Confirm</button>
+            <button type="button" id="import-gig-confirm-btn" ${!isFloating && songs.length === 0 ? 'disabled' : ''}>${isFloating ? 'Assign to This Gig' : 'Confirm'}</button>
         </div>
     `;
 
@@ -285,23 +298,28 @@ async function renderImportGigPreview() {
         renderImportGigModal();
     });
     box.querySelector('#import-gig-confirm-btn').addEventListener('click', async () => {
-        const res2 = await fetch(`/api/gig-sets/${encodeURIComponent(selectedGigRef)}/import-from/${encodeURIComponent(importGigPreviewRef)}`, { method: 'POST' });
+        const url = isFloating
+            ? `/api/gig-sets/${encodeURIComponent(selectedGigRef)}/assign-floating/${encodeURIComponent(importGigPreviewRef)}`
+            : `/api/gig-sets/${encodeURIComponent(selectedGigRef)}/import-from/${encodeURIComponent(importGigPreviewRef)}`;
+        const res2 = await fetch(url, { method: 'POST' });
         const resBody = await res2.json();
         if (res2.ok) {
             closeImportGigModal();
             await loadGigs();
             updateSetSummary();
         } else {
-            alert(resBody.error || 'Could not copy that setlist.');
+            alert(resBody.error || (isFloating ? 'Could not assign that setlist.' : 'Could not copy that setlist.'));
         }
     });
 }
 
-document.getElementById('gig-set-import-btn').addEventListener('click', () => {
+document.getElementById('gig-set-import-btn').addEventListener('click', async () => {
     importGigSortKey = 'date';
     importGigSortDir = 'asc';
     importGigPage = 1;
     importGigPreviewRef = null;
+    const res = await fetch('/api/gig-sets/floating');
+    floatingSetlists = res.ok ? await res.json() : [];
     renderImportGigModal();
     document.getElementById('import-gig-modal-backdrop').hidden = false;
 });
