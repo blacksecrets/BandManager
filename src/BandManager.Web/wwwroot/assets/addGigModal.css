@@ -6,7 +6,7 @@
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.88rem;
-    margin-bottom: 16px;
+    margin: 0 10px 16px 0;
 }
 .add-gig-top-btn:hover { background: #555; }
 

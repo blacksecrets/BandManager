@@ -28,6 +28,7 @@
             <p class="intro">Every gig on this band's site, and the setlist built for it. Pick a gig to build or edit its set from the repertoire, view everything associated with a past gig, or import a past gig's set into this one.</p>
 
             <button type="button" id="add-gig-btn" class="add-gig-top-btn">+ Add a Gig</button>
+            <button type="button" id="view-archived-gigs-btn" class="add-gig-top-btn">View Archived Gigs</button>
 
             <div class="gig-sets-layout">
                 <section class="platform-card gig-list-card">
@@ -51,6 +52,7 @@
                         <button type="button" id="gig-set-print-btn">Print Setlist</button>
                         <button type="button" id="gig-set-spotify-btn">Save as Spotify Playlist</button>
                         <button type="button" id="gig-set-prep-btn">Gig Prep</button>
+                        <button type="button" id="gig-set-archive-btn" class="gig-set-archive-btn">Archive</button>
                     </div>
 
                     <div class="gig-set-builder">
@@ -98,6 +100,26 @@
         <div class="detail-modal">
             <button type="button" class="detail-modal-close" id="import-gig-modal-close">&times;</button>
             <div id="import-gig-modal-body"></div>
+        </div>
+    </div>
+
+    <div id="archive-gig-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="archive-gig-modal-close">&times;</button>
+            <h2>Archive This Gig?</h2>
+            <p class="save-note">This also archives everything tied to it - it'll all come back together if you unarchive later.</p>
+            <ul id="archive-gig-preview-list"></ul>
+            <div class="cred-form-buttons">
+                <button type="button" id="archive-gig-cancel-btn">Cancel</button>
+                <button type="button" id="archive-gig-ok-btn">Ok</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="archived-gigs-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="archived-gigs-modal-close">&times;</button>
+            <div id="archived-gigs-modal-body"></div>
         </div>
     </div>
 

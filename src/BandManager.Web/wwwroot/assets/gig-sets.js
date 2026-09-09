@@ -637,6 +637,138 @@ document.getElementById('gig-set-select-flyer-btn').addEventListener('click', as
     });
 });
 
+// --- Archive / Unarchive ---
+function closeArchiveGigModal() { document.getElementById('archive-gig-modal-backdrop').hidden = true; }
+document.getElementById('archive-gig-modal-close').addEventListener('click', closeArchiveGigModal);
+document.getElementById('archive-gig-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'archive-gig-modal-backdrop') closeArchiveGigModal(); });
+document.getElementById('archive-gig-cancel-btn').addEventListener('click', closeArchiveGigModal);
+
+async function doArchiveGig() {
+    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/archive`, { method: 'POST' });
+    if (!res.ok) { alert('Could not archive this gig.'); return; }
+    closeArchiveGigModal();
+    document.getElementById('gig-set-detail').hidden = true;
+    selectedGigRef = null;
+    await loadGigs();
+}
+
+document.getElementById('gig-set-archive-btn').addEventListener('click', async () => {
+    if (!selectedGigRef) return;
+    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/archive-preview`);
+    const preview = res.ok ? await res.json() : { scheduleItems: 0, flyers: 0, setlistSongs: 0, gigPrepItems: 0 };
+
+    const bullets = [];
+    if (preview.scheduleItems > 0) bullets.push(`${preview.scheduleItems} scheduled post${preview.scheduleItems === 1 ? '' : 's'} (Web Presence)`);
+    if (preview.flyers > 0) bullets.push(`${preview.flyers} flyer${preview.flyers === 1 ? '' : 's'}`);
+    if (preview.setlistSongs > 0) bullets.push(`${preview.setlistSongs} song${preview.setlistSongs === 1 ? '' : 's'} in the setlist`);
+    if (preview.gigPrepItems > 0) bullets.push(`${preview.gigPrepItems} gig prep item${preview.gigPrepItems === 1 ? '' : 's'}`);
+
+    if (bullets.length === 0) { await doArchiveGig(); return; }
+
+    document.getElementById('archive-gig-preview-list').innerHTML = bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join('');
+    document.getElementById('archive-gig-modal-backdrop').hidden = false;
+});
+
+document.getElementById('archive-gig-ok-btn').addEventListener('click', doArchiveGig);
+
+// "View Archived Gigs" - same sortable/paginated grid pattern as Copy
+// Setlist, but each row is a direct Unarchive action, not a preview-then-
+// confirm flow (there's nothing to preview before restoring a gig).
+const ARCHIVED_GIGS_PAGE_SIZE = 10;
+let archivedGigs = [];
+let archivedGigSortKey = 'date';
+let archivedGigSortDir = 'desc';
+let archivedGigPage = 1;
+
+function closeArchivedGigsModal() { document.getElementById('archived-gigs-modal-backdrop').hidden = true; }
+document.getElementById('archived-gigs-modal-close').addEventListener('click', closeArchivedGigsModal);
+document.getElementById('archived-gigs-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'archived-gigs-modal-backdrop') closeArchivedGigsModal(); });
+
+function archivedGigsSorted() {
+    const dir = archivedGigSortDir === 'asc' ? 1 : -1;
+    return [...archivedGigs].sort((a, b) => {
+        if (archivedGigSortKey === 'venue') return dir * (a.venue || '').localeCompare(b.venue || '');
+        if (archivedGigSortKey === 'title') return dir * (a.title || '').localeCompare(b.title || '');
+        return dir * (a.sortDate || '').localeCompare(b.sortDate || '');
+    });
+}
+
+function archivedGigSortArrow(key) {
+    if (archivedGigSortKey !== key) return '';
+    return archivedGigSortDir === 'asc' ? ' &#9650;' : ' &#9660;';
+}
+
+function renderArchivedGigsModal() {
+    const body = document.getElementById('archived-gigs-modal-body');
+    const all = archivedGigsSorted();
+    const totalPages = Math.max(1, Math.ceil(all.length / ARCHIVED_GIGS_PAGE_SIZE));
+    archivedGigPage = Math.min(Math.max(1, archivedGigPage), totalPages);
+    const pageItems = all.slice((archivedGigPage - 1) * ARCHIVED_GIGS_PAGE_SIZE, archivedGigPage * ARCHIVED_GIGS_PAGE_SIZE);
+
+    body.innerHTML = `
+        <h2>Archived Gigs</h2>
+        ${all.length === 0 ? '<p class="save-note">No archived gigs.</p>' : `
+            <table class="user-table import-gig-table">
+                <thead>
+                    <tr>
+                        <th data-sort-key="title" class="sortable">Name${archivedGigSortArrow('title')}</th>
+                        <th data-sort-key="venue" class="sortable">Venue Name${archivedGigSortArrow('venue')}</th>
+                        <th data-sort-key="date" class="sortable">Date${archivedGigSortArrow('date')}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${pageItems.map((g) => `
+                        <tr>
+                            <td>${escapeHtml(g.title)}</td>
+                            <td>${escapeHtml(g.venue || '')}</td>
+                            <td>${escapeHtml(g.date || '')}</td>
+                            <td><button type="button" class="archived-gig-unarchive-btn" data-gig-ref="${escapeHtml(g.gigRef)}" title="Bring this gig and all of its stuff back!">Unarchive</button></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <div class="import-gig-pagination">
+                <button type="button" id="archived-gigs-page-prev" ${archivedGigPage <= 1 ? 'disabled' : ''}>&laquo; Prev</button>
+                <span>Page ${archivedGigPage} of ${totalPages}</span>
+                <button type="button" id="archived-gigs-page-next" ${archivedGigPage >= totalPages ? 'disabled' : ''}>Next &raquo;</button>
+            </div>
+        `}
+    `;
+
+    if (all.length > 0) {
+        body.querySelectorAll('th[data-sort-key]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sortKey;
+                if (archivedGigSortKey === key) archivedGigSortDir = archivedGigSortDir === 'asc' ? 'desc' : 'asc';
+                else { archivedGigSortKey = key; archivedGigSortDir = 'asc'; }
+                archivedGigPage = 1;
+                renderArchivedGigsModal();
+            });
+        });
+        body.querySelector('#archived-gigs-page-prev').addEventListener('click', () => { archivedGigPage--; renderArchivedGigsModal(); });
+        body.querySelector('#archived-gigs-page-next').addEventListener('click', () => { archivedGigPage++; renderArchivedGigsModal(); });
+        body.querySelectorAll('.archived-gig-unarchive-btn').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+                const res = await fetch(`/api/gigs/${encodeURIComponent(btn.dataset.gigRef)}/unarchive`, { method: 'POST' });
+                if (!res.ok) { alert('Could not unarchive that gig.'); return; }
+                archivedGigs = archivedGigs.filter((g) => g.gigRef !== btn.dataset.gigRef);
+                renderArchivedGigsModal();
+                await loadGigs();
+            });
+        });
+    }
+}
+
+document.getElementById('view-archived-gigs-btn').addEventListener('click', async () => {
+    document.getElementById('archived-gigs-modal-backdrop').hidden = false;
+    document.getElementById('archived-gigs-modal-body').innerHTML = '<p class="save-note">Loading...</p>';
+    const res = await fetch('/api/gig-sets/gigs/archived');
+    archivedGigs = res.ok ? await res.json() : [];
+    archivedGigPage = 1;
+    renderArchivedGigsModal();
+});
+
 // --- Print setlist ---
 function closePrintSetlistModal() { document.getElementById('print-setlist-modal-backdrop').hidden = true; }
 document.getElementById('print-setlist-modal-close').addEventListener('click', closePrintSetlistModal);
