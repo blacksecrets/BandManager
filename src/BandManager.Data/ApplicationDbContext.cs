@@ -271,6 +271,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasIndex(x => new { x.BandId, x.Ref }).IsUnique();
             b.HasOne(x => x.VenueEntity).WithMany().HasForeignKey(x => x.VenueId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne(x => x.SelectedFlyer).WithMany().HasForeignKey(x => x.SelectedFlyerId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(x => x.ActEntity).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.Restrict);
         });
 
         // --- Venue outreach ---

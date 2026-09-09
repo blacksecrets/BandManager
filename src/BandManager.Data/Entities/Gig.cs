@@ -30,6 +30,14 @@ public class Gig
     // but editable independently afterward.
     public Guid? VenueId { get; set; }
     public Venue? VenueEntity { get; set; }
+
+    // Which of the band's Acts is playing this gig - nullable only so the
+    // backfill migration can set it band-wide in one pass; every gig from
+    // here on always gets one (falls back to the band's IsDefault Act at
+    // creation if none is picked - see ActController.Delete's "don't
+    // orphan" check on the other side of this reference).
+    public Guid? ActId { get; set; }
+    public Act? ActEntity { get; set; }
     public DateOnly Date { get; set; }
 
     // Time stays free text, deliberately NOT DateOnly/TimeOnly - real data

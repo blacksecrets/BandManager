@@ -105,9 +105,9 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
 
     // The one Act every Band is created with (see SuperAdminController.CreateBand)
     // is undeletable, guaranteeing a Band is never left with zero Acts.
-    // Every other Act is deletable - once Gig.ActId exists (next commit),
-    // this also rejects deletion while any Gig still points at it, rather
-    // than silently orphaning them.
+    // Every other Act is deletable, unless a Gig still points at it -
+    // reassign those first rather than silently orphaning them (the DB's
+    // own Restrict FK on Gig.ActId backs this up either way).
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -115,6 +115,10 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
         var act = await db.Acts.FirstOrDefaultAsync(a => a.Id == id && a.BandId == bandId);
         if (act is null) return Ok(new { ok = true });
         if (act.IsDefault) return BadRequest(new { error = "This band's default Act can't be deleted." });
+
+        var gigCount = await db.Gigs.CountAsync(g => g.BandId == bandId && g.ActId == id);
+        if (gigCount > 0)
+            return BadRequest(new { error = $"This Act is still assigned to {gigCount} gig{(gigCount == 1 ? "" : "s")} - reassign those first." });
 
         db.Acts.Remove(act);
         await db.SaveChangesAsync();

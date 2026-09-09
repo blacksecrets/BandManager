@@ -13,6 +13,7 @@
     let backdrop = null;
     let venueModalBackdrop = null;
     let venues = [];
+    let acts = [];
     let selectedVenue = null; // { id, name, addressLine1, city, state, postalCode, ... } | null
     let resolvePromise = null;
 
@@ -94,12 +95,13 @@
                     </div>
 
                     <label>Venue link (optional) <input type="text" name="venueUrl" placeholder="https://" maxlength="500"></label>
+                    <label id="add-gig-act-label" hidden>Act <select name="actId" id="add-gig-act-select"></select></label>
                     <label>Date <input type="date" name="date" required></label>
                     <label>Time (optional) <input type="text" name="time" placeholder="e.g. Doors: 7PM - Show: 8PM" maxlength="100"></label>
                     <label>Doors time (optional) <input type="text" name="doorsTime" placeholder="e.g. 7:00 PM" maxlength="60"></label>
                     <label>Opener start time (optional) <input type="text" name="openerTime" placeholder="e.g. 8:00 PM" maxlength="60"></label>
                     <label>Headliner start time (optional) <input type="text" name="headlinerTime" placeholder="e.g. 9:00 PM" maxlength="60"></label>
-                    <label>With (optional - supporting acts)</label>
+                    <label>With / Openers (optional)</label>
                     <div class="with-acts-list" data-with-list></div>
                     <button type="button" class="add-with-btn">+ Add another "With"</button>
                     <fieldset class="ticket-mode-fieldset">
@@ -177,6 +179,19 @@
             venues = res.ok ? await res.json() : [];
         } catch { venues = []; }
         renderVenueList(box);
+    }
+
+    // Stays out of the way for the common single-Act band - the picker
+    // only appears once there's an actual choice to make.
+    async function loadActs() {
+        try {
+            const res = await fetch('/api/acts');
+            acts = res.ok ? await res.json() : [];
+        } catch { acts = []; }
+        const label = document.getElementById('add-gig-act-label');
+        const select = document.getElementById('add-gig-act-select');
+        label.hidden = acts.length <= 1;
+        select.innerHTML = acts.map((a) => `<option value="${a.id}" ${a.isDefault ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('');
     }
 
     function renderVenueList(box) {
@@ -369,6 +384,7 @@
         resetForm();
         backdrop.hidden = false;
         loadVenues();
+        loadActs();
         if (options && options.prefillVenue) showSelectedVenue(options.prefillVenue);
         return new Promise((resolve) => { resolvePromise = resolve; });
     };

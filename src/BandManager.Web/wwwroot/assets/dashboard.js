@@ -675,13 +675,14 @@ function renderAddCalendarForm(open) {
         <label>Title <input type="text" name="title" maxlength="200" required></label>
         <label>Venue <input type="text" name="venue" maxlength="200" required></label>
         <label>Venue link (optional) <input type="text" name="venueUrl" placeholder="https://" maxlength="500"></label>
+        <label class="add-calendar-act-label" hidden>Act <select name="actId" class="add-calendar-act-select"></select></label>
         <label>Address <input type="text" name="address" placeholder="e.g. 119 North Loudoun Street, Winchester, VA" maxlength="300" required></label>
         <label>Date <input type="date" name="date" required></label>
         <label>Time (optional) <input type="text" name="time" placeholder="e.g. Doors: 7PM - Show: 8PM" maxlength="100"></label>
         <label>Doors time (optional) <input type="text" name="doorsTime" placeholder="e.g. 7:00 PM" maxlength="60"></label>
         <label>Opener start time (optional) <input type="text" name="openerTime" placeholder="e.g. 8:00 PM" maxlength="60"></label>
         <label>Headliner start time (optional) <input type="text" name="headlinerTime" placeholder="e.g. 9:00 PM" maxlength="60"></label>
-        <label>With (optional - supporting acts)</label>
+        <label>With / Openers (optional)</label>
         <div class="with-acts-list" data-with-list></div>
         <button type="button" class="add-with-btn">+ Add another "With"</button>
         <fieldset class="ticket-mode-fieldset">
@@ -703,6 +704,13 @@ function renderAddCalendarForm(open) {
     form.querySelector('[data-media-field="flyer"]').appendChild(buildMediaFieldControl({ fieldName: 'flyer', accept: 'image/*' }));
     const withCtl = buildWithActsControl(form.querySelector('[data-with-list]'), []);
     form.querySelector('.add-with-btn').addEventListener('click', () => withCtl.addRow());
+
+    // Stays out of the way for the common single-Act band.
+    fetch('/api/acts').then((r) => r.ok ? r.json() : []).then((acts) => {
+        form.querySelector('.add-calendar-act-label').hidden = acts.length <= 1;
+        form.querySelector('.add-calendar-act-select').innerHTML =
+            acts.map((a) => `<option value="${a.id}" ${a.isDefault ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('');
+    }).catch(() => {});
 
     function updateTicketModeUI() {
         const mode = form.ticketMode.value;
@@ -1518,11 +1526,19 @@ function renderPhotoAlbumRow(item) {
     return row;
 }
 
-function openWebsiteEditForm(item) {
+async function openWebsiteEditForm(item) {
     const backdrop = document.getElementById('detail-modal-backdrop');
     const body = document.getElementById('detail-modal-body');
     body.innerHTML = '';
     const gig = item.gig || {};
+
+    // Stays out of the way for the common single-Act band - the picker
+    // only appears once there's an actual choice to make.
+    let acts = [];
+    try {
+        const actsRes = await fetch('/api/acts');
+        acts = actsRes.ok ? await actsRes.json() : [];
+    } catch { acts = []; }
 
     const title = document.createElement('h2');
     title.textContent = `Edit calendar listing — ${gig.title || item.gig_title || ''}`;
@@ -1548,13 +1564,14 @@ function openWebsiteEditForm(item) {
         <label>Title <input type="text" name="title" value="${escapeHtml(gig.title || '')}" maxlength="200" required></label>
         <label>Venue <input type="text" name="venue" value="${escapeHtml(gig.venue || '')}" maxlength="200"></label>
         <label>Venue link (optional) <input type="text" name="venueUrl" value="${escapeHtml(gig.venueUrl || '')}" maxlength="500" placeholder="https:// - the venue name links here on the site"></label>
+        ${acts.length > 1 ? `<label>Act <select name="actId">${acts.map((a) => `<option value="${a.id}" ${a.id === gig.actId ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('')}</select></label>` : ''}
         <label>Address <input type="text" name="address" value="${escapeHtml(gig.address || '')}" maxlength="300" placeholder="e.g. 119 North Loudoun Street, Winchester, VA" required></label>
         <label>Date <input type="text" name="date" value="${escapeHtml(gig.date || '')}" maxlength="100" placeholder="e.g. Friday, October 3, 2026"></label>
         <label>Time (optional) <input type="text" name="time" value="${escapeHtml(gig.time || '')}" maxlength="100" placeholder="e.g. Doors: 7PM - Show: 8PM"></label>
         <label>Doors time (optional) <input type="text" name="doorsTime" value="${escapeHtml(gig.doorsTime || '')}" maxlength="60" placeholder="e.g. 7:00 PM"></label>
         <label>Opener start time (optional) <input type="text" name="openerTime" value="${escapeHtml(gig.openerTime || '')}" maxlength="60" placeholder="e.g. 8:00 PM"></label>
         <label>Headliner start time (optional) <input type="text" name="headlinerTime" value="${escapeHtml(gig.headlinerTime || '')}" maxlength="60" placeholder="e.g. 9:00 PM"></label>
-        <label>With (optional - supporting acts)</label>
+        <label>With / Openers (optional)</label>
         <div class="with-acts-list" data-with-list></div>
         <button type="button" class="add-with-btn">+ Add another "With"</button>
         <fieldset class="ticket-mode-fieldset">
@@ -1650,6 +1667,8 @@ function openWebsiteEditForm(item) {
 
         const customText = form.customTicketsText.value.trim();
         if (customText !== (gig.customTicketsText || '')) fields.customTicketsText = customText;
+
+        if (form.actId && form.actId.value !== (gig.actId || '')) fields.actId = form.actId.value;
 
         // Always sent, not diffed against the original like the scalar
         // fields above - comparing two With-act lists for "did anything

@@ -90,6 +90,17 @@ public class GigsController(
         return (band, null);
     }
 
+    // Resolves the gig's Act: the picked one if it's a real Act on this
+    // band, otherwise the band's IsDefault Act - every gig always ends up
+    // with one, matching Gig.ActId's doc comment.
+    private async Task<Guid?> ResolveActIdAsync(Guid bandId, Guid? requested)
+    {
+        if (requested is { } id && await db.Acts.AnyAsync(a => a.Id == id && a.BandId == bandId))
+            return id;
+        var defaultAct = await db.Acts.FirstOrDefaultAsync(a => a.BandId == bandId && a.IsDefault);
+        return defaultAct?.Id;
+    }
+
     private async Task<bool> HasSiteConfiguredAsync(Band band) =>
         !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
         && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
@@ -153,6 +164,7 @@ public class GigsController(
         {
             id = gig.Ref,
             title = gig.Title,
+            actId = gig.ActId,
             venue = gig.Venue,
             venueUrl = gig.VenueUrl,
             date = FormatDate(gig.Date),
@@ -223,6 +235,10 @@ public class GigsController(
         var ticketMode = S("ticketMode");
         if (ticketMode is "url" or "free" or "custom") gig.TicketMode = ticketMode;
 
+        if (body.TryGetProperty("actId", out var actIdEl) && actIdEl.ValueKind == JsonValueKind.String
+            && Guid.TryParse(actIdEl.GetString(), out var requestedActId))
+            gig.ActId = await ResolveActIdAsync(band.Id, requestedActId);
+
         if (body.TryGetProperty("with", out var withEl) && withEl.ValueKind == JsonValueKind.String)
         {
             List<GigWithActInput>? inputs;
@@ -284,11 +300,15 @@ public class GigsController(
         if (Guid.TryParse(F("venueId"), out var parsedVenueId) && await db.Venues.AnyAsync(v => v.Id == parsedVenueId && v.BandId == band.Id))
             venueId = parsedVenueId;
 
+        Guid? requestedActId = Guid.TryParse(F("actId"), out var parsedActId) ? parsedActId : null;
+        var actId = await ResolveActIdAsync(band.Id, requestedActId);
+
         var gig = new Gig
         {
             BandId = band.Id,
             Ref = Guid.NewGuid().ToString(),
             Title = title,
+            ActId = actId,
             Venue = venue,
             VenueId = venueId,
             Address = address,
