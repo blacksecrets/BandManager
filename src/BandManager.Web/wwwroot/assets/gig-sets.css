@@ -115,25 +115,34 @@
 }
 .gig-set-actions button:hover { background: #555; }
 
-.import-gig-row {
+#import-gig-modal-backdrop .detail-modal { max-width: 720px; }
+.import-gig-table, .import-gig-setlist-table { width: 100%; margin: 10px 0; }
+.import-gig-table th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+.import-gig-table th.sortable:hover { color: #fff; }
+.import-gig-row { cursor: pointer; }
+.import-gig-row:hover { background: #262626; }
+.import-gig-row.selected { background: #3a2a10; }
+.import-gig-pagination {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px solid #333;
-    flex-wrap: wrap;
-}
-.import-gig-row span { flex: 1; color: #ddd; font-size: 0.85rem; }
-.import-gig-row button {
-    background: none;
-    border: 1px solid #444;
+    justify-content: center;
+    margin: 6px 0 14px;
+    font-size: 0.85rem;
     color: #ccc;
+}
+.import-gig-pagination button {
+    background: #333;
+    color: #eee;
+    border: 1px solid #555;
     padding: 4px 10px;
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.8rem;
 }
-.import-gig-details { flex-basis: 100%; margin-top: 8px; }
+.import-gig-pagination button:disabled { opacity: 0.4; cursor: default; }
+#import-gig-preview { border-top: 1px solid #333; padding-top: 14px; margin-top: 6px; }
+#import-gig-preview h3 { margin: 0 0 8px; font-size: 0.95rem; }
 
 #gig-artifact-panel { margin-top: 20px; border-top: 1px solid #333; padding-top: 14px; }
 #gig-artifact-panel h3 { margin: 0 0 10px; font-size: 0.95rem; }

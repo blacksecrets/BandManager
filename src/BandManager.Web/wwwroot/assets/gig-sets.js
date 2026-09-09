@@ -407,60 +407,158 @@ function useWebResult(item, urlField) {
     details.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// --- Import from Past Gig ---
+// --- Copy Setlist from Another Gig ---
+// Grid of every OTHER gig (past or future - a setlist is just as likely
+// to come from an upcoming gig, e.g. same tour/week, as from a past
+// one), sortable/paginated same as Catalog's Details view. Clicking a
+// row previews that gig's setlist below, in its own grid; Confirm
+// actually copies (same POST /import-from this always used) and closes
+// the modal, Nope just clears the preview so another row can be tried,
+// Cancel closes with no action taken.
+const IMPORT_GIG_PAGE_SIZE = 10;
+let importGigSortKey = 'date';
+let importGigSortDir = 'asc';
+let importGigPage = 1;
+let importGigPreviewRef = null;
+
 function closeImportGigModal() { document.getElementById('import-gig-modal-backdrop').hidden = true; }
 document.getElementById('import-gig-modal-close').addEventListener('click', closeImportGigModal);
 document.getElementById('import-gig-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'import-gig-modal-backdrop') closeImportGigModal(); });
 
-document.getElementById('gig-set-import-btn').addEventListener('click', () => {
+function importGigCandidates() {
+    const dir = importGigSortDir === 'asc' ? 1 : -1;
+    return gigs.filter((g) => g.gigRef !== selectedGigRef).sort((a, b) => {
+        if (importGigSortKey === 'venue') return dir * (a.venue || '').localeCompare(b.venue || '');
+        if (importGigSortKey === 'title') return dir * (a.title || '').localeCompare(b.title || '');
+        return dir * (a.sortDate || '').localeCompare(b.sortDate || '');
+    });
+}
+
+function importGigSortArrow(key) {
+    if (importGigSortKey !== key) return '';
+    return importGigSortDir === 'asc' ? ' &#9650;' : ' &#9660;';
+}
+
+function renderImportGigModal() {
     const body = document.getElementById('import-gig-modal-body');
-    const past = gigs.filter((g) => g.isPast && g.gigRef !== selectedGigRef);
-    body.innerHTML = '<h2>Import from Past Gig</h2>';
-    if (past.length === 0) {
-        body.innerHTML += '<p class="save-note">No past gigs to import from.</p>';
-    } else {
-        const list = document.createElement('div');
-        for (const gig of past) {
-            const row = document.createElement('div');
-            row.className = 'import-gig-row';
-            row.innerHTML = `<span>${escapeHtml(gig.title)} - ${escapeHtml(gig.date || '')} (${gig.songCount} song${gig.songCount === 1 ? '' : 's'})</span>`;
-            const viewBtn = document.createElement('button');
-            viewBtn.type = 'button';
-            viewBtn.textContent = 'View';
-            const details = document.createElement('div');
-            details.className = 'import-gig-details';
-            details.hidden = true;
-            viewBtn.addEventListener('click', async () => {
-                const opening = details.hidden;
-                details.hidden = !opening;
-                if (opening && !details.dataset.loaded) {
-                    const res = await fetch(`/api/gig-sets/${encodeURIComponent(gig.gigRef)}/items`);
-                    details.innerHTML = res.ok ? renderArtifactPanelHtml(await res.json()) : '<p class="save-note">Could not load.</p>';
-                    details.dataset.loaded = '1';
-                }
+    const all = importGigCandidates();
+    const totalPages = Math.max(1, Math.ceil(all.length / IMPORT_GIG_PAGE_SIZE));
+    importGigPage = Math.min(Math.max(1, importGigPage), totalPages);
+    const pageItems = all.slice((importGigPage - 1) * IMPORT_GIG_PAGE_SIZE, importGigPage * IMPORT_GIG_PAGE_SIZE);
+
+    body.innerHTML = `
+        <h2>Copy Setlist from Another Gig</h2>
+        ${all.length === 0 ? '<p class="save-note">There are no other gigs yet.</p>' : `
+            <table class="user-table import-gig-table">
+                <thead>
+                    <tr>
+                        <th data-sort-key="title" class="sortable">Name${importGigSortArrow('title')}</th>
+                        <th data-sort-key="venue" class="sortable">Venue Name${importGigSortArrow('venue')}</th>
+                        <th data-sort-key="date" class="sortable">Date${importGigSortArrow('date')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${pageItems.map((g) => `
+                        <tr class="import-gig-row${g.gigRef === importGigPreviewRef ? ' selected' : ''}" data-gig-ref="${escapeHtml(g.gigRef)}">
+                            <td>${escapeHtml(g.title)}</td>
+                            <td>${escapeHtml(g.venue || '')}</td>
+                            <td>${escapeHtml(g.date || '')}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+            <div class="import-gig-pagination">
+                <button type="button" id="import-gig-page-prev" ${importGigPage <= 1 ? 'disabled' : ''}>&laquo; Prev</button>
+                <span>Page ${importGigPage} of ${totalPages}</span>
+                <button type="button" id="import-gig-page-next" ${importGigPage >= totalPages ? 'disabled' : ''}>Next &raquo;</button>
+            </div>
+            <div id="import-gig-preview"></div>
+        `}
+        <div class="cred-form-buttons">
+            <button type="button" id="import-gig-cancel-btn">Cancel</button>
+        </div>
+    `;
+
+    if (all.length > 0) {
+        body.querySelectorAll('th[data-sort-key]').forEach((th) => {
+            th.addEventListener('click', () => {
+                const key = th.dataset.sortKey;
+                if (importGigSortKey === key) importGigSortDir = importGigSortDir === 'asc' ? 'desc' : 'asc';
+                else { importGigSortKey = key; importGigSortDir = 'asc'; }
+                importGigPage = 1;
+                renderImportGigModal();
             });
-            const importBtn = document.createElement('button');
-            importBtn.type = 'button';
-            importBtn.textContent = 'Import this set';
-            importBtn.disabled = gig.songCount === 0;
-            importBtn.addEventListener('click', async () => {
-                const res = await fetch(`/api/gig-sets/${encodeURIComponent(selectedGigRef)}/import-from/${encodeURIComponent(gig.gigRef)}`, { method: 'POST' });
-                const resBody = await res.json();
-                if (res.ok) {
-                    closeImportGigModal();
-                    await loadSet();
-                    await loadGigs();
-                } else {
-                    alert(resBody.error || 'Could not import that set.');
-                }
+        });
+        body.querySelector('#import-gig-page-prev').addEventListener('click', () => { importGigPage--; renderImportGigModal(); });
+        body.querySelector('#import-gig-page-next').addEventListener('click', () => { importGigPage++; renderImportGigModal(); });
+        body.querySelectorAll('.import-gig-row').forEach((row) => {
+            row.addEventListener('click', () => {
+                importGigPreviewRef = row.dataset.gigRef;
+                renderImportGigModal();
             });
-            row.appendChild(viewBtn);
-            row.appendChild(importBtn);
-            row.appendChild(details);
-            list.appendChild(row);
-        }
-        body.appendChild(list);
+        });
+        renderImportGigPreview();
     }
+
+    body.querySelector('#import-gig-cancel-btn').addEventListener('click', closeImportGigModal);
+}
+
+async function renderImportGigPreview() {
+    const box = document.getElementById('import-gig-preview');
+    if (!box) return;
+    if (!importGigPreviewRef) { box.innerHTML = ''; return; }
+
+    const gig = gigs.find((g) => g.gigRef === importGigPreviewRef);
+    box.innerHTML = '<p class="save-note">Loading setlist...</p>';
+    const res = await fetch(`/api/gig-sets/${encodeURIComponent(importGigPreviewRef)}`);
+    const data = res.ok ? await res.json() : { songs: [] };
+    const songs = data.songs || [];
+
+    box.innerHTML = `
+        <h3>${escapeHtml(gig ? gig.title : 'Setlist')}</h3>
+        <table class="user-table import-gig-setlist-table">
+            <thead><tr><th>Title</th><th>Artist</th><th>Key</th><th>Length</th></tr></thead>
+            <tbody>
+                ${songs.map((s) => `
+                    <tr>
+                        <td>${escapeHtml(s.title)}${s.isManual ? ' <em>(manual)</em>' : ''}</td>
+                        <td>${escapeHtml(s.originalArtist || '')}</td>
+                        <td>${escapeHtml(s.key || '')}</td>
+                        <td>${s.lengthSeconds != null ? formatLength(s.lengthSeconds) : ''}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+        ${songs.length === 0 ? '<p class="save-note">This gig has no setlist.</p>' : ''}
+        <div class="cred-form-buttons">
+            <button type="button" id="import-gig-nope-btn">Nope</button>
+            <button type="button" id="import-gig-confirm-btn" ${songs.length === 0 ? 'disabled' : ''}>Confirm</button>
+        </div>
+    `;
+
+    box.querySelector('#import-gig-nope-btn').addEventListener('click', () => {
+        importGigPreviewRef = null;
+        renderImportGigModal();
+    });
+    box.querySelector('#import-gig-confirm-btn').addEventListener('click', async () => {
+        const res2 = await fetch(`/api/gig-sets/${encodeURIComponent(selectedGigRef)}/import-from/${encodeURIComponent(importGigPreviewRef)}`, { method: 'POST' });
+        const resBody = await res2.json();
+        if (res2.ok) {
+            closeImportGigModal();
+            await loadSet();
+            await loadGigs();
+        } else {
+            alert(resBody.error || 'Could not copy that setlist.');
+        }
+    });
+}
+
+document.getElementById('gig-set-import-btn').addEventListener('click', () => {
+    importGigSortKey = 'date';
+    importGigSortDir = 'asc';
+    importGigPage = 1;
+    importGigPreviewRef = null;
+    renderImportGigModal();
     document.getElementById('import-gig-modal-backdrop').hidden = false;
 });
 
