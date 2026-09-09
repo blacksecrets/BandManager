@@ -25,6 +25,22 @@ public class Rehearsal
     public Guid? RecurringRehearsalRuleId { get; set; }
     public RecurringRehearsalRule? RecurringRehearsalRule { get; set; }
 
+    // What this rehearsal is for - at most one of these two, enforced by
+    // RehearsalController (not the DB): a real Gig.Ref (practicing that
+    // gig's own setlist), or a floating GigSet's own GigRef (a setlist
+    // with no gig yet - see GigSet.IsFloating). Plain unvalidated strings,
+    // same convention Flyer.GigRef/ScheduleItem.GigRef/GigSet.GigRef
+    // already use - never both set, and either may go stale (gig deleted,
+    // setlist reassigned elsewhere) with no cascade, same soft-failure
+    // style as everywhere else a GigRef is kept.
+    public string? GigRef { get; set; }
+    public string? FloatingSetlistRef { get; set; }
+
+    // BandAdmin-only to set (see RehearsalController.Create/Update) -
+    // everything else on a Rehearsal stays open to any Band Member.
+    public string? Agenda { get; set; }
+    public string? Notes { get; set; }
+
     public Guid CreatedByUserId { get; set; }
     public ApplicationUser CreatedByUser { get; set; } = null!;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

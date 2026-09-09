@@ -11,6 +11,7 @@ namespace BandManager.Web.Controllers;
 public record AddGigSetSongRequest(Guid SongId);
 public record AddManualGigSetSongRequest(string Title, string? Artist, int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl);
 public record ReorderGigSetRequest(List<Guid> Ids);
+public record CreateFloatingGigSetRequest(string Name);
 
 /// <summary>
 /// Gig setlists. Gigs are real DB rows now (see Entities.Gig) - "the gig
@@ -33,6 +34,21 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         bandId = id.Value;
         return null;
     }
+
+    // Mirrors gig-sets.js's renderSet() h/m/s formatting - the one place
+    // this app already computes a setlist duration, just client-side and
+    // per-page. Grids that list several setlists at once (which may not
+    // have loaded any one of them yet) need the number server-side.
+    private static string FormatDuration(int totalSeconds)
+    {
+        var h = totalSeconds / 3600;
+        var m = totalSeconds % 3600 / 60;
+        var s = totalSeconds % 60;
+        return h > 0 ? $"{h}:{m:D2}:{s:D2}" : $"{m}:{s:D2}";
+    }
+
+    private static int SetDurationSeconds(GigSet set) =>
+        set.Songs.Sum(s => s.Song?.LengthSeconds ?? s.ManualLengthSeconds ?? 0);
 
     private static object Serialize(GigSetSong gs) => new
     {
@@ -57,10 +73,11 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         if (band is null) return NotFound();
 
         var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && !g.IsArchived).ToListAsync();
-        var setCounts = await db.GigSets.AsNoTracking()
-            .Where(s => s.BandId == bandId)
-            .Select(s => new { s.GigRef, Count = s.Songs.Count })
-            .ToDictionaryAsync(x => x.GigRef, x => x.Count);
+        var sets = await db.GigSets.AsNoTracking().Include(s => s.Songs).ThenInclude(gs => gs.Song)
+            .Where(s => s.BandId == bandId && !s.IsFloating)
+            .ToListAsync();
+        var setCounts = sets.ToDictionary(s => s.GigRef, s => s.Songs.Count);
+        var setDurations = sets.ToDictionary(s => s.GigRef, SetDurationSeconds);
 
         var today = DateOnly.FromDateTime(DateTime.Today);
         var result = gigs.Select(g => new
@@ -75,6 +92,8 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             sortDate = g.Date.ToString("yyyy-MM-dd"),
             time = g.Time,
             songCount = setCounts.GetValueOrDefault(g.Ref, 0),
+            durationSeconds = setDurations.GetValueOrDefault(g.Ref, 0),
+            duration = FormatDuration(setDurations.GetValueOrDefault(g.Ref, 0)),
             isPast = g.Date < today
         });
         return Ok(result);
@@ -107,6 +126,86 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             archivedAt = g.ArchivedAt
         });
         return Ok(result);
+    }
+
+    // Every floating setlist for this band - a real GigSet not tied to a
+    // gig (see GigSet.IsFloating) - for Gig Management's Copy/Assign
+    // Setlist grid and the Rehearsal modal's setlist picker.
+    [HttpGet("floating")]
+    public async Task<IActionResult> ListFloating()
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var sets = await db.GigSets.AsNoTracking().Include(s => s.Songs).ThenInclude(gs => gs.Song)
+            .Where(s => s.BandId == bandId && s.IsFloating)
+            .OrderByDescending(s => s.CreatedAt)
+            .ToListAsync();
+
+        return Ok(sets.Select(s => new
+        {
+            gigRef = s.GigRef,
+            id = s.Id,
+            name = s.Name ?? "Untitled setlist",
+            songCount = s.Songs.Count,
+            durationSeconds = SetDurationSeconds(s),
+            duration = FormatDuration(SetDurationSeconds(s))
+        }));
+    }
+
+    // Starts a new floating setlist, empty - the caller (Rehearsal modal,
+    // or eventually anywhere else) opens the shared setlist editor on the
+    // returned gigRef right after, same as building a fresh gig's set.
+    [HttpPost("floating")]
+    public async Task<IActionResult> CreateFloating([FromBody] CreateFloatingGigSetRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var name = request.Name?.Trim();
+        if (string.IsNullOrEmpty(name)) return BadRequest(new { error = "A name is required." });
+
+        var set = new GigSet
+        {
+            BandId = bandId,
+            GigRef = $"floating-{Guid.NewGuid()}",
+            IsFloating = true,
+            Name = name[..Math.Min(name.Length, 200)]
+        };
+        db.GigSets.Add(set);
+        await db.SaveChangesAsync();
+        return Ok(new { gigRef = set.GigRef, id = set.Id, name = set.Name, songCount = 0, durationSeconds = 0, duration = FormatDuration(0) });
+    }
+
+    // Hands a floating setlist over to a gig outright - "no longer
+    // floating." If the gig already has its own GigSet, that one is
+    // renamed to a fresh synthetic ref and flipped to floating itself
+    // (auto-named after the gig) rather than being overwritten or
+    // deleted - nothing is ever lost, it just goes back into the floating
+    // pool. Two SaveChanges calls, in this order, so the unique
+    // (BandId, GigRef) index is never hit mid-operation: the old set's
+    // GigRef is freed before the floating one claims it.
+    [HttpPost("{gigRef}/assign-floating/{floatingRef}")]
+    public async Task<IActionResult> AssignFloating(string gigRef, string floatingRef)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+
+        var floating = await db.GigSets.FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == floatingRef && s.IsFloating);
+        if (floating is null) return NotFound(new { error = "Floating setlist not found." });
+
+        var existing = await db.GigSets.FirstOrDefaultAsync(s => s.BandId == bandId && s.GigRef == gigRef);
+        if (existing is not null)
+        {
+            var gig = await db.Gigs.AsNoTracking().FirstOrDefaultAsync(g => g.BandId == bandId && g.Ref == gigRef);
+            existing.GigRef = $"floating-{Guid.NewGuid()}";
+            existing.IsFloating = true;
+            existing.Name = gig is not null ? $"{gig.Title} setlist" : "Unassigned setlist";
+            await db.SaveChangesAsync();
+        }
+
+        floating.GigRef = gigRef;
+        floating.IsFloating = false;
+        floating.Name = null;
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
     }
 
     // "Everything associated with this gig" for Gig Management's past-gig

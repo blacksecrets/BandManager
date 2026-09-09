@@ -111,6 +111,21 @@ public class CalendarController(ApplicationDbContext db, IActiveBandAccessor act
         var rehearsals = await db.Rehearsals.AsNoTracking()
             .Where(r => r.BandId == bandId && r.StartsAt.Date >= fromUtc && r.StartsAt.Date <= toUtc)
             .ToListAsync();
+
+        // Same batch-resolve RehearsalController.ResolveRefNamesAsync does -
+        // duplicated here rather than shared, since this controller has no
+        // other reason to depend on RehearsalController and the lookup
+        // itself is only a few lines.
+        var gigRefs = rehearsals.Where(r => r.GigRef != null).Select(r => r.GigRef!).Distinct().ToList();
+        var floatingRefs = rehearsals.Where(r => r.FloatingSetlistRef != null).Select(r => r.FloatingSetlistRef!).Distinct().ToList();
+        var gigTitles = gigRefs.Count == 0
+            ? new Dictionary<string, string>()
+            : await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && gigRefs.Contains(g.Ref)).ToDictionaryAsync(g => g.Ref, g => g.Title);
+        var floatingNames = floatingRefs.Count == 0
+            ? new Dictionary<string, string>()
+            : await db.GigSets.AsNoTracking().Where(s => s.BandId == bandId && floatingRefs.Contains(s.GigRef) && s.IsFloating)
+                .ToDictionaryAsync(s => s.GigRef, s => s.Name ?? "Untitled setlist");
+
         foreach (var r in rehearsals)
         {
             entries.Add((DateOnly.FromDateTime(r.StartsAt), new
@@ -121,7 +136,9 @@ public class CalendarController(ApplicationDbContext db, IActiveBandAccessor act
                 date = r.StartsAt.ToString("yyyy-MM-dd"),
                 startsAt = r.StartsAt,
                 endsAt = r.EndsAt,
-                location = r.Location
+                location = r.Location,
+                gigTitle = r.GigRef is { } gr ? gigTitles.GetValueOrDefault(gr) : null,
+                floatingSetlistName = r.FloatingSetlistRef is { } fr ? floatingNames.GetValueOrDefault(fr) : null
             }));
         }
 

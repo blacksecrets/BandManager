@@ -16,6 +16,18 @@ public class GigSet
     public required string GigRef { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    // A "floating" setlist - GigRef is a synthetic value ("floating-" +
+    // a new Guid), not a real Gig.Ref, so this row is otherwise
+    // completely ordinary to every existing song-editing endpoint
+    // (GetSet/AddSong/AddManualSong/Reorder/RemoveSong are all keyed
+    // purely by GigRef string already, with no check that it resolves to
+    // a real Gig). Name is this row's own identifying label, shown
+    // wherever a real gig's Title would otherwise appear - null once
+    // GigsController.AssignFloatingSetlist repoints GigRef to a real gig
+    // and flips IsFloating back off.
+    public bool IsFloating { get; set; }
+    public string? Name { get; set; }
+
     public ICollection<GigSetSong> Songs { get; set; } = new List<GigSetSong>();
 }
 
