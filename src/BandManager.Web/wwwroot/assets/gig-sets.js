@@ -582,11 +582,11 @@ document.getElementById('gig-set-import-btn').addEventListener('click', () => {
 
 // --- Create/Edit Flyer (pick any General image, then hand off to the
 // shared Flyer Editor - no separate "Flyer Template" step) ---
-document.getElementById('gig-set-flyer-btn').addEventListener('click', async () => {
-    const picked = await window.openCatalogPicker({ mediaType: 'image', category: 'general' });
-    if (!picked) return;
-    const result = await window.openFlyerEditor({ catalogItemId: picked.id, gigRef: selectedGigRef });
-    if (result) await loadArtifactPanel();
+document.getElementById('gig-set-flyer-btn').addEventListener('click', () => {
+    writeLastSelectedGig(selectedGigRef);
+    // General, not Flyers - "Create Flyer" buttons live on General images,
+    // this is where the actual flyer work starts.
+    location.href = `/catalog.html?gigRef=${encodeURIComponent(selectedGigRef)}`;
 });
 
 // --- Print setlist ---

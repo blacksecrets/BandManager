@@ -387,6 +387,28 @@ if (document.getElementById('catalog-grid')) {
         categoryTabsBox.querySelectorAll('.catalog-tab').forEach((t) => t.classList.toggle('active', t.dataset.category === 'flyers'));
     }
 
+    // Arrived here via Gig Management's "Create/Edit Flyer" (?gigRef=) -
+    // land on General (where "Create Flyer" buttons live), make this the
+    // sticky current gig immediately (belt-and-suspenders with the write
+    // gig-sets.js already did, so there's no lag if this page loads
+    // before that request lands), and show a banner naming the gig plus
+    // a way back.
+    const incomingGigRef = new URLSearchParams(location.search).get('gigRef');
+    if (incomingGigRef) {
+        fetch('/api/profile/last-selected-gig', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gigRef: incomingGigRef })
+        }).catch(() => {});
+
+        const banner = document.getElementById('catalog-gig-banner');
+        banner.hidden = false;
+        banner.textContent = 'Loading gig...';
+        fetch(`/api/gigs/${encodeURIComponent(incomingGigRef)}`).then((r) => r.ok ? r.json() : null).then((gig) => {
+            banner.innerHTML = gig
+                ? `Creating a flyer for <strong>${escapeHtmlCatalog(gig.title)}</strong> - pick an image below, or <a href="/gig-sets.html">&larr; Back to Gig Management</a>.`
+                : `<a href="/gig-sets.html">&larr; Back to Gig Management</a>`;
+        }).catch(() => { banner.hidden = true; });
+    }
+
     let searchTimer = null;
     searchInput.addEventListener('input', () => {
         clearTimeout(searchTimer);
