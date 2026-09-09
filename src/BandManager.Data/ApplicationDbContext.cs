@@ -14,6 +14,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BandMemberRole> BandMemberRoles => Set<BandMemberRole>();
     public DbSet<Gear> Gear => Set<Gear>();
     public DbSet<GearSetting> GearSettings => Set<GearSetting>();
+    public DbSet<BandGearItem> BandGearItems => Set<BandGearItem>();
 
     public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
     public DbSet<Platform> Platforms => Set<Platform>();
@@ -110,6 +111,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<GearSetting>(b =>
         {
             b.HasOne(x => x.Gear).WithMany(g => g.Settings).HasForeignKey(x => x.GearId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<BandGearItem>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            // SetNull, not Restrict/Cascade - if the owning member is ever
+            // removed, the item just becomes an ownerless "Band Asset"
+            // rather than disappearing or blocking the user's deletion.
+            b.HasOne(x => x.OwnerUser).WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // --- Global reference data (identical for every Band) ---

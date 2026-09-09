@@ -159,6 +159,56 @@
             </div>
         </div>
 
+        <section class="platform-card" id="band-gear-section" hidden>
+            <h2>Gear Catalog</h2>
+            <p>The band's full gear list - Band Admin picks from this list
+               when building each Act's own Gear List and Stage Plot.
+               A "Band Asset" is jointly owned; anything else belongs to
+               one member (copy it in from their own personal gear list,
+               or add it fresh here).</p>
+
+            <table class="user-table">
+                <thead><tr><th>Type</th><th>Make / Model</th><th>Owner</th><th></th></tr></thead>
+                <tbody id="band-gear-table-body"></tbody>
+            </table>
+            <div class="cred-form-buttons">
+                <button type="button" id="add-band-gear-btn" class="upload-btn">+ New Band Asset</button>
+                <button type="button" id="copy-band-gear-btn" class="upload-btn">+ Copy from a Member's Gear</button>
+            </div>
+        </section>
+
+        <div id="band-gear-modal-backdrop" class="detail-modal-backdrop" hidden>
+            <div class="detail-modal">
+                <button type="button" class="detail-modal-close" id="band-gear-modal-close">&times;</button>
+                <h2 id="band-gear-modal-title">New Band Asset</h2>
+                <form id="band-gear-form" class="cred-form">
+                    <label>Type <select name="type" id="band-gear-type-select" required></select></label>
+                    <label>Make <input type="text" name="make" maxlength="200"></label>
+                    <label>Model <input type="text" name="model" maxlength="200"></label>
+                    <label>Length (in) <input type="number" step="0.1" name="lengthInches"></label>
+                    <label>Width (in) <input type="number" step="0.1" name="widthInches"></label>
+                    <label>Depth (in) <input type="number" step="0.1" name="depthInches"></label>
+                    <label>Weight (lb) <input type="number" step="0.1" name="weightPounds"></label>
+                    <label>Owner <select name="ownerUserId" id="band-gear-owner-select"><option value="">Band Asset (jointly owned)</option></select></label>
+                    <div class="cred-form-buttons">
+                        <button type="submit">Save</button>
+                        <button type="button" id="band-gear-delete-btn" hidden>Delete</button>
+                    </div>
+                    <p id="band-gear-form-status" class="save-note"></p>
+                </form>
+            </div>
+        </div>
+
+        <div id="copy-gear-modal-backdrop" class="detail-modal-backdrop" hidden>
+            <div class="detail-modal">
+                <button type="button" class="detail-modal-close" id="copy-gear-modal-close">&times;</button>
+                <h2>Copy from a Member's Gear</h2>
+                <label>Member <select id="copy-gear-member-select"><option value="">Choose a member...</option></select></label>
+                <div id="copy-gear-member-items"></div>
+                <p id="copy-gear-status" class="save-note"></p>
+            </div>
+        </div>
+
         <div id="edit-roles-modal-backdrop" class="detail-modal-backdrop" hidden>
             <div class="detail-modal">
                 <button type="button" class="detail-modal-close" id="edit-roles-modal-close">&times;</button>

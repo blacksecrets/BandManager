@@ -17,6 +17,7 @@ async function loadBandAdmin() {
     document.getElementById('band-users-section').hidden = !hasBand;
     document.getElementById('band-roles-section').hidden = !hasBand;
     document.getElementById('band-acts-section').hidden = !hasBand;
+    document.getElementById('band-gear-section').hidden = !hasBand;
     if (!hasBand) return;
 
     loadBandInfo();
@@ -24,6 +25,7 @@ async function loadBandAdmin() {
     loadBandRoleOptions().then(loadUsers);
     loadBandRolesMembers();
     loadActs();
+    loadBandGear();
 }
 
 // --- Band Information (name/phone/mailing address) ---
@@ -491,6 +493,157 @@ document.getElementById('act-form').addEventListener('submit', async (e) => {
     const resBody = await res.json().catch(() => ({}));
     if (res.ok) { closeActModal(); await loadActs(); }
     else { status.textContent = resBody.error || 'Could not save this act.'; }
+});
+
+// --- Gear Catalog (a band's admin-maintained gear list - see BandGearItem.cs) ---
+let bandGearItems = [];
+let bandMembers = [];
+let gearTypes = [];
+let editingBandGearId = null;
+
+async function loadBandGear() {
+    const [gearRes, typesRes, membersRes] = await Promise.all([
+        fetch('/api/band-gear'),
+        fetch('/api/gear/types'),
+        fetch('/api/profile/band-members')
+    ]);
+    bandGearItems = gearRes.ok ? await gearRes.json() : [];
+    gearTypes = typesRes.ok ? (await typesRes.json()).types : [];
+    bandMembers = membersRes.ok ? await membersRes.json() : [];
+    renderBandGearList();
+}
+
+function renderBandGearList() {
+    const body = document.getElementById('band-gear-table-body');
+    body.innerHTML = bandGearItems.map((g) => `
+        <tr>
+            <td>${escapeHtml(g.type)}</td>
+            <td>${escapeHtml([g.make, g.model].filter(Boolean).join(' ')) || '<span class="save-note">-</span>'}</td>
+            <td>${g.ownerName ? escapeHtml(g.ownerName) : '<span class="save-note">Band Asset</span>'}</td>
+            <td><button type="button" class="band-gear-edit-btn" data-id="${g.id}">Edit</button></td>
+        </tr>
+    `).join('') || '<tr><td colspan="4" class="save-note">No gear in the catalog yet.</td></tr>';
+
+    body.querySelectorAll('.band-gear-edit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => openBandGearModal(bandGearItems.find((g) => g.id === btn.dataset.id)));
+    });
+}
+
+function populateBandGearSelects() {
+    const typeSelect = document.getElementById('band-gear-type-select');
+    typeSelect.innerHTML = gearTypes.map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
+    const ownerSelect = document.getElementById('band-gear-owner-select');
+    ownerSelect.innerHTML = '<option value="">Band Asset (jointly owned)</option>' +
+        bandMembers.map((m) => `<option value="${m.id}">${escapeHtml(m.firstName)}</option>`).join('');
+}
+
+function closeBandGearModal() { document.getElementById('band-gear-modal-backdrop').hidden = true; }
+document.getElementById('band-gear-modal-close').addEventListener('click', closeBandGearModal);
+document.getElementById('band-gear-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'band-gear-modal-backdrop') closeBandGearModal(); });
+
+function openBandGearModal(item) {
+    editingBandGearId = item ? item.id : null;
+    populateBandGearSelects();
+    document.getElementById('band-gear-modal-title').textContent = item ? 'Edit Gear' : 'New Band Asset';
+    document.getElementById('band-gear-form-status').textContent = '';
+    const form = document.getElementById('band-gear-form');
+    form.type.value = item?.type || gearTypes[0] || '';
+    form.make.value = item?.make || '';
+    form.model.value = item?.model || '';
+    form.lengthInches.value = item?.lengthInches ?? '';
+    form.widthInches.value = item?.widthInches ?? '';
+    form.depthInches.value = item?.depthInches ?? '';
+    form.weightPounds.value = item?.weightPounds ?? '';
+    form.ownerUserId.value = item?.ownerUserId || '';
+
+    const deleteBtn = document.getElementById('band-gear-delete-btn');
+    deleteBtn.hidden = !item;
+    deleteBtn.onclick = async () => {
+        if (!editingBandGearId) return;
+        if (!confirm(`Remove this item from the Gear Catalog? This can't be undone.`)) return;
+        const res = await fetch(`/api/band-gear/${editingBandGearId}`, { method: 'DELETE' });
+        if (res.ok) { closeBandGearModal(); await loadBandGear(); }
+    };
+
+    document.getElementById('band-gear-modal-backdrop').hidden = false;
+}
+
+document.getElementById('add-band-gear-btn').addEventListener('click', () => openBandGearModal(null));
+
+document.getElementById('band-gear-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('band-gear-form-status');
+    const num = (v) => v.trim() === '' ? null : Number(v);
+    const body = JSON.stringify({
+        type: form.type.value,
+        make: form.make.value.trim() || null,
+        model: form.model.value.trim() || null,
+        lengthInches: num(form.lengthInches.value),
+        widthInches: num(form.widthInches.value),
+        depthInches: num(form.depthInches.value),
+        weightPounds: num(form.weightPounds.value),
+        ownerUserId: form.ownerUserId.value || null
+    });
+    const url = editingBandGearId ? `/api/band-gear/${editingBandGearId}` : '/api/band-gear';
+    const method = editingBandGearId ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+    const resBody = await res.json().catch(() => ({}));
+    if (res.ok) { closeBandGearModal(); await loadBandGear(); }
+    else { status.textContent = resBody.error || 'Could not save this item.'; }
+});
+
+// --- Copy from a Member's Gear (two-step: pick member, then pick item) ---
+function closeCopyGearModal() {
+    document.getElementById('copy-gear-modal-backdrop').hidden = true;
+    document.getElementById('copy-gear-member-select').value = '';
+    document.getElementById('copy-gear-member-items').innerHTML = '';
+    document.getElementById('copy-gear-status').textContent = '';
+}
+document.getElementById('copy-gear-modal-close').addEventListener('click', closeCopyGearModal);
+document.getElementById('copy-gear-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'copy-gear-modal-backdrop') closeCopyGearModal(); });
+
+document.getElementById('copy-band-gear-btn').addEventListener('click', () => {
+    const select = document.getElementById('copy-gear-member-select');
+    select.innerHTML = '<option value="">Choose a member...</option>' +
+        bandMembers.map((m) => `<option value="${m.id}">${escapeHtml(m.firstName)}</option>`).join('');
+    document.getElementById('copy-gear-member-items').innerHTML = '';
+    document.getElementById('copy-gear-status').textContent = '';
+    document.getElementById('copy-gear-modal-backdrop').hidden = false;
+});
+
+document.getElementById('copy-gear-member-select').addEventListener('change', async (e) => {
+    const itemsEl = document.getElementById('copy-gear-member-items');
+    const status = document.getElementById('copy-gear-status');
+    itemsEl.innerHTML = '';
+    status.textContent = '';
+    if (!e.target.value) return;
+
+    status.textContent = 'Loading their gear...';
+    const res = await fetch(`/api/band-gear/member-gear/${e.target.value}`);
+    const items = res.ok ? await res.json() : [];
+    status.textContent = '';
+
+    if (items.length === 0) {
+        itemsEl.innerHTML = '<p class="save-note">This member has no personal gear listed yet.</p>';
+        return;
+    }
+    itemsEl.innerHTML = `<div class="band-checkbox-list">` + items.map((g) => `
+        <div>
+            ${escapeHtml(g.type)}${g.make || g.model ? ' - ' + escapeHtml([g.make, g.model].filter(Boolean).join(' ')) : ''}
+            <button type="button" class="copy-gear-item-btn" data-id="${g.id}">Copy in</button>
+        </div>
+    `).join('') + `</div>`;
+    itemsEl.querySelectorAll('.copy-gear-item-btn').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            status.textContent = 'Copying...';
+            const copyRes = await fetch(`/api/band-gear/from-member/${btn.dataset.id}`, { method: 'POST' });
+            const body = await copyRes.json().catch(() => ({}));
+            if (copyRes.ok) { closeCopyGearModal(); await loadBandGear(); }
+            else { status.textContent = body.error || 'Could not copy this item.'; }
+        });
+    });
 });
 
 loadBandAdmin();
