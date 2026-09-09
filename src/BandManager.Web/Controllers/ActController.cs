@@ -11,6 +11,8 @@ public record SaveActRequest(
     string Name, string? IntroText, string? VideoNotes, string? GeneralNotes,
     string? TechContactName, string? TechContactPhone, string? TechContactEmail);
 
+public record SetActGearRequest(List<Guid> BandGearItemIds);
+
 /// <summary>
 /// A band's performance configurations - see Act.cs's doc comment. Read
 /// access is broad (BandMember - the Gig create/edit form's Act picker
@@ -121,6 +123,60 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
             return BadRequest(new { error = $"This Act is still assigned to {gigCount} gig{(gigCount == 1 ? "" : "s")} - reassign those first." });
 
         db.Acts.Remove(act);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    private static object SerializeGearItem(BandGearItem g) => new
+    {
+        id = g.Id,
+        type = g.Type,
+        make = g.Make,
+        model = g.Model,
+        lengthInches = g.LengthInches,
+        widthInches = g.WidthInches,
+        depthInches = g.DepthInches,
+        weightPounds = g.WeightPounds,
+        ownerUserId = g.OwnerUserId,
+        ownerName = g.OwnerUser == null ? null : (g.OwnerUser.FirstName ?? g.OwnerUser.UserName!.Split('@')[0])
+    };
+
+    // This Act's Gear List - a selection from the band's full Gear
+    // Catalog (BandGearController), in the order they were assigned.
+    [HttpGet("{actId:guid}/gear")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> GetGear(Guid actId)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+
+        var items = await db.ActGearItems.AsNoTracking().Include(x => x.BandGearItem).ThenInclude(g => g.OwnerUser)
+            .Where(x => x.ActId == actId)
+            .OrderBy(x => x.SortOrder)
+            .Select(x => x.BandGearItem)
+            .ToListAsync();
+        return Ok(items.Select(SerializeGearItem));
+    }
+
+    // Replace-the-set save, like a checklist - Band Admin picks from the
+    // full Gear Catalog and this becomes the Act's Gear List exactly as
+    // submitted (order preserved), same "just rewrite it" approach as
+    // this session's other checklist-shaped saves.
+    [HttpPut("{actId:guid}/gear")]
+    public async Task<IActionResult> SetGear(Guid actId, [FromBody] SetActGearRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var act = await db.Acts.FirstOrDefaultAsync(a => a.Id == actId && a.BandId == bandId);
+        if (act is null) return NotFound(new { error = "Act not found" });
+
+        var validIds = await db.BandGearItems.Where(g => g.BandId == bandId && request.BandGearItemIds.Contains(g.Id))
+            .Select(g => g.Id).ToListAsync();
+
+        db.ActGearItems.RemoveRange(db.ActGearItems.Where(x => x.ActId == actId));
+        var sort = 0;
+        foreach (var gearId in request.BandGearItemIds.Where(validIds.Contains))
+            db.ActGearItems.Add(new ActGearItem { ActId = actId, BandGearItemId = gearId, SortOrder = sort++ });
+
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }

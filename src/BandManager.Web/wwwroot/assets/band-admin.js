@@ -469,8 +469,54 @@ function openActModal(act) {
         else { document.getElementById('act-form-status').textContent = resBody.error || 'Could not delete this act.'; }
     };
 
+    // Only makes sense once the Act has an id to attach a Gear List to -
+    // stays hidden for a brand-new, not-yet-saved Act.
+    const gearSection = document.getElementById('act-gear-section');
+    gearSection.hidden = !act;
+    if (act) loadActGearChecklist(act.id);
+
     document.getElementById('act-modal-backdrop').hidden = false;
 }
+
+async function loadActGearChecklist(actId) {
+    const status = document.getElementById('act-gear-status');
+    const checklist = document.getElementById('act-gear-checklist');
+    status.textContent = '';
+    checklist.innerHTML = '<p class="save-note">Loading...</p>';
+
+    const [catalogRes, assignedRes] = await Promise.all([
+        fetch('/api/band-gear'),
+        fetch(`/api/acts/${actId}/gear`)
+    ]);
+    const catalog = catalogRes.ok ? await catalogRes.json() : [];
+    const assigned = assignedRes.ok ? await assignedRes.json() : [];
+    const assignedIds = new Set(assigned.map((g) => g.id));
+
+    if (catalog.length === 0) {
+        checklist.innerHTML = '<p class="save-note">The Gear Catalog is empty - add items to it first.</p>';
+        return;
+    }
+    checklist.innerHTML = catalog.map((g) => `
+        <label>
+            <input type="checkbox" value="${g.id}" ${assignedIds.has(g.id) ? 'checked' : ''}>
+            ${escapeHtml(g.type)}${g.make || g.model ? ' - ' + escapeHtml([g.make, g.model].filter(Boolean).join(' ')) : ''}
+            <span class="save-note">${g.ownerName ? escapeHtml(g.ownerName) : 'Band Asset'}</span>
+        </label>
+    `).join('');
+}
+
+document.getElementById('act-gear-save-btn').addEventListener('click', async () => {
+    if (!editingActId) return;
+    const status = document.getElementById('act-gear-status');
+    const ids = Array.from(document.querySelectorAll('#act-gear-checklist input:checked')).map((i) => i.value);
+    status.textContent = 'Saving...';
+    const res = await fetch(`/api/acts/${editingActId}/gear`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bandGearItemIds: ids })
+    });
+    status.textContent = res.ok ? 'Gear List saved.' : 'Could not save the Gear List.';
+});
 
 document.getElementById('add-act-btn').addEventListener('click', () => openActModal(null));
 

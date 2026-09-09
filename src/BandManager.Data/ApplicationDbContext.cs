@@ -15,6 +15,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Gear> Gear => Set<Gear>();
     public DbSet<GearSetting> GearSettings => Set<GearSetting>();
     public DbSet<BandGearItem> BandGearItems => Set<BandGearItem>();
+    public DbSet<ActGearItem> ActGearItems => Set<ActGearItem>();
 
     public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
     public DbSet<Platform> Platforms => Set<Platform>();
@@ -120,6 +121,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             // removed, the item just becomes an ownerless "Band Asset"
             // rather than disappearing or blocking the user's deletion.
             b.HasOne(x => x.OwnerUser).WithMany().HasForeignKey(x => x.OwnerUserId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<ActGearItem>(b =>
+        {
+            b.HasOne(x => x.Act).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.BandGearItem).WithMany().HasForeignKey(x => x.BandGearItemId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.ActId, x.BandGearItemId }).IsUnique();
         });
 
         // --- Global reference data (identical for every Band) ---
