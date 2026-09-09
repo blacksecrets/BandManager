@@ -115,6 +115,7 @@
     color: #ccc;
 }
 #calendar-rehearsal-form input,
+#calendar-rehearsal-form select,
 #calendar-recurring-form input,
 #calendar-recurring-form select {
     background: #222;
@@ -133,6 +134,46 @@
     cursor: pointer;
 }
 .calendar-modal-actions button#calendar-rehearsal-delete { background: #555; }
+
+#calendar-rehearsal-setlist-section { margin-bottom: 10px; }
+#calendar-rehearsal-new-setlist-btn {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    margin-top: 4px;
+}
+.calendar-new-setlist-form { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+.calendar-new-setlist-form input {
+    background: #222;
+    color: #eee;
+    border: 1px solid #555;
+    border-radius: 4px;
+    padding: 6px 8px;
+    flex: 1;
+}
+.calendar-new-setlist-form button {
+    background: #444;
+    color: #eee;
+    border: 1px solid #666;
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+#calendar-rehearsal-view-setlist-btn {
+    background: #2e8b3d;
+    color: #fff;
+    border: none;
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin-bottom: 10px;
+}
 
 .calendar-roster { margin-top: 18px; border-top: 1px solid #333; padding-top: 12px; }
 .calendar-roster h3 { margin: 0 0 8px; font-size: 0.95rem; color: #ccc; }

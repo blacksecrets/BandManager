@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="/assets/dashboard.css">
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/calendar.css">
+<!-- Styles the shared setlist-editor modal (assets/setlistEditor.js) -
+     same cross-page load Gig Management uses, see gig-sets.html. -->
+<link rel="stylesheet" href="/assets/gig-sets.css">
 </head>
 <body>
     <header class="topbar">
@@ -95,11 +98,78 @@
                 <label>Location <input type="text" id="calendar-rehearsal-location"></label>
                 <label>Start time <input type="time" id="calendar-rehearsal-start" required></label>
                 <label>End time <input type="time" id="calendar-rehearsal-end" required></label>
+
+                <label>Gig <span class="save-note">(what this rehearsal is for, if anything)</span>
+                    <select id="calendar-rehearsal-gig">
+                        <option value="">— None —</option>
+                    </select>
+                </label>
+
+                <div id="calendar-rehearsal-setlist-section" hidden>
+                    <label>Setlist <span class="save-note">(not tied to a gig yet)</span>
+                        <select id="calendar-rehearsal-setlist">
+                            <option value="">— None —</option>
+                        </select>
+                    </label>
+                    <button type="button" id="calendar-rehearsal-new-setlist-btn">+ New floating setlist</button>
+                    <div id="calendar-rehearsal-new-setlist-form" class="calendar-new-setlist-form" hidden>
+                        <input type="text" id="calendar-rehearsal-new-setlist-name" placeholder="Setlist name" maxlength="200">
+                        <button type="button" id="calendar-rehearsal-new-setlist-create-btn">Create</button>
+                        <button type="button" id="calendar-rehearsal-new-setlist-cancel-btn">Cancel</button>
+                    </div>
+                </div>
+
+                <button type="button" id="calendar-rehearsal-view-setlist-btn" hidden>View/Edit Setlist</button>
+
                 <div class="calendar-modal-actions">
                     <button type="submit">Save</button>
                     <button type="button" id="calendar-rehearsal-delete" hidden>Delete</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Shared with Gig Management (assets/setlistEditor.js) - opens on
+         whichever gig or floating setlist this rehearsal is linked to. -->
+    <div id="setlist-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal setlist-modal">
+            <button type="button" class="detail-modal-close" id="setlist-modal-close">&times;</button>
+            <h2 id="setlist-modal-title">Set</h2>
+
+            <div class="gig-set-builder">
+                <div class="gig-set-repertoire-panel">
+                    <h3>Repertoire <span class="save-note">(drag into the set)</span></h3>
+                    <div id="gig-set-repertoire-list" class="gig-set-repertoire-list"></div>
+
+                    <details class="manual-fallback">
+                        <summary>Add manually</summary>
+                        <form id="gig-set-manual-form" class="cred-form">
+                            <label>Title <input type="text" name="title" required maxlength="300"></label>
+                            <label>Artist <input type="text" name="artist" maxlength="300"></label>
+                            <label>Length (mm:ss) <input type="text" name="length" placeholder="4:32"></label>
+                            <input type="hidden" name="youTubeUrl">
+                            <input type="hidden" name="spotifyUrl">
+                            <button type="submit">Add to set</button>
+                            <p id="gig-set-manual-status" class="save-note"></p>
+                        </form>
+                    </details>
+
+                    <details class="manual-fallback">
+                        <summary>Add from web search</summary>
+                        <form id="gig-set-web-search-form" class="cred-form">
+                            <label>Search YouTube &amp; Spotify <input type="search" name="q" placeholder="Song title or artist..."></label>
+                            <button type="submit">Search</button>
+                        </form>
+                        <div id="gig-set-web-results"></div>
+                    </details>
+                </div>
+
+                <div class="gig-set-list-panel">
+                    <h3>Set</h3>
+                    <ol class="gig-set-song-list" id="gig-set-song-list"></ol>
+                    <p id="gig-set-status" class="save-note"></p>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -126,6 +196,7 @@
         </div>
     </div>
 
+    <script src="/assets/setlistEditor.js"></script>
     <script src="/assets/calendar.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>

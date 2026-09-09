@@ -379,10 +379,88 @@ document.getElementById('calendar-rehearsal-modal-backdrop').addEventListener('c
 
 function toTimeInput(d) { return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`; }
 
-function openRehearsalModal(dateStr, entry) {
+// --- What this rehearsal is for: a gig (its own setlist), or a floating
+// setlist (one with no gig yet) - mutually exclusive, same as the server
+// enforces (RehearsalController.ApplyGigAndSetlistRefs). Both selects are
+// (re)fetched fresh every time the modal opens, same "no caching, just
+// ask again" choice Gig Management's own Copy/Assign Setlist modal makes.
+function updateViewSetlistButton() {
+    const gigSelect = document.getElementById('calendar-rehearsal-gig');
+    const setlistSelect = document.getElementById('calendar-rehearsal-setlist');
+    const btn = document.getElementById('calendar-rehearsal-view-setlist-btn');
+    const ref = gigSelect.value || setlistSelect.value;
+    btn.hidden = !ref;
+    if (ref) {
+        const label = gigSelect.value
+            ? gigSelect.options[gigSelect.selectedIndex].dataset.title
+            : setlistSelect.options[setlistSelect.selectedIndex].textContent;
+        btn.onclick = () => window.openSetlistEditor(ref, { title: `Set - ${label}` });
+    }
+}
+
+async function populateGigAndSetlistSelects(entry) {
+    const gigSelect = document.getElementById('calendar-rehearsal-gig');
+    const setlistSelect = document.getElementById('calendar-rehearsal-setlist');
+    const setlistSection = document.getElementById('calendar-rehearsal-setlist-section');
+
+    const [gigsRes, floatingRes] = await Promise.all([fetch('/api/gig-sets/gigs'), fetch('/api/gig-sets/floating')]);
+    const gigs = gigsRes.ok ? await gigsRes.json() : [];
+    const floatingSetlists = floatingRes.ok ? await floatingRes.json() : [];
+
+    gigSelect.innerHTML = '<option value="">— None —</option>' +
+        gigs.map((g) => `<option value="${escapeHtml(g.gigRef)}" data-title="${escapeHtml(g.title)}">${escapeHtml(g.title)} - ${escapeHtml(g.date || '')}</option>`).join('');
+    setlistSelect.innerHTML = '<option value="">— None —</option>' +
+        floatingSetlists.map((f) => `<option value="${escapeHtml(f.gigRef)}">${escapeHtml(f.name)}</option>`).join('');
+
+    gigSelect.value = entry?.gigRef || '';
+    setlistSelect.value = entry?.floatingSetlistRef || '';
+    setlistSection.hidden = !!gigSelect.value;
+    updateViewSetlistButton();
+}
+
+document.getElementById('calendar-rehearsal-gig').addEventListener('change', (e) => {
+    document.getElementById('calendar-rehearsal-setlist-section').hidden = !!e.target.value;
+    if (e.target.value) document.getElementById('calendar-rehearsal-setlist').value = '';
+    updateViewSetlistButton();
+});
+document.getElementById('calendar-rehearsal-setlist').addEventListener('change', updateViewSetlistButton);
+
+document.getElementById('calendar-rehearsal-new-setlist-btn').addEventListener('click', () => {
+    document.getElementById('calendar-rehearsal-new-setlist-form').hidden = false;
+    document.getElementById('calendar-rehearsal-new-setlist-name').focus();
+});
+document.getElementById('calendar-rehearsal-new-setlist-cancel-btn').addEventListener('click', () => {
+    document.getElementById('calendar-rehearsal-new-setlist-form').hidden = true;
+    document.getElementById('calendar-rehearsal-new-setlist-name').value = '';
+});
+document.getElementById('calendar-rehearsal-new-setlist-create-btn').addEventListener('click', async () => {
+    const nameInput = document.getElementById('calendar-rehearsal-new-setlist-name');
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); return; }
+    const res = await fetch('/api/gig-sets/floating', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(body.error || 'Could not create that setlist.'); return; }
+
+    const setlistSelect = document.getElementById('calendar-rehearsal-setlist');
+    const option = document.createElement('option');
+    option.value = body.gigRef;
+    option.textContent = body.name;
+    setlistSelect.appendChild(option);
+    setlistSelect.value = body.gigRef;
+    nameInput.value = '';
+    document.getElementById('calendar-rehearsal-new-setlist-form').hidden = true;
+    updateViewSetlistButton();
+});
+
+async function openRehearsalModal(dateStr, entry) {
     document.getElementById('calendar-rehearsal-modal-title').textContent = entry ? 'Edit Rehearsal' : 'Add Rehearsal';
     document.getElementById('calendar-rehearsal-title').value = entry?.title || '';
     document.getElementById('calendar-rehearsal-location').value = entry?.location || '';
+    document.getElementById('calendar-rehearsal-new-setlist-form').hidden = true;
+    document.getElementById('calendar-rehearsal-new-setlist-name').value = '';
+    await populateGigAndSetlistSelects(entry);
 
     if (entry) {
         const start = new Date(entry.startsAt);
@@ -415,7 +493,9 @@ function openRehearsalModal(dateStr, entry) {
             title: document.getElementById('calendar-rehearsal-title').value.trim() || null,
             location: document.getElementById('calendar-rehearsal-location').value.trim() || null,
             startsAt: startsAt.toISOString(),
-            endsAt: endsAt.toISOString()
+            endsAt: endsAt.toISOString(),
+            gigRef: document.getElementById('calendar-rehearsal-gig').value || null,
+            floatingSetlistRef: document.getElementById('calendar-rehearsal-setlist').value || null
         });
         const url = entry ? `/api/rehearsals/${entry.id}` : '/api/rehearsals';
         const method = entry ? 'PUT' : 'POST';
