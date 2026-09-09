@@ -116,6 +116,7 @@
 }
 #calendar-rehearsal-form input,
 #calendar-rehearsal-form select,
+#calendar-rehearsal-form textarea,
 #calendar-recurring-form input,
 #calendar-recurring-form select {
     background: #222;
@@ -200,6 +201,15 @@
     border-radius: 10px;
     background: #333;
     color: #ccc;
+}
+.calendar-entry-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: #2a3a4a;
+    color: #8fb4d9;
+    margin-top: 2px;
 }
 .calendar-sync-panel {
     margin-top: 20px;

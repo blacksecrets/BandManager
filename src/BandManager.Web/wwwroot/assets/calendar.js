@@ -268,6 +268,17 @@ async function renderWeekView() {
 // Unlike Month/Week (which drill into a day via the modal), Day view
 // renders that same entry-list-plus-roster content directly on the page -
 // reusing openDayModal's own markup/classes, just not inside a modal.
+// What a rehearsal is for, if anything - shown on Day view/Day modal rows
+// only (the Month/Week chips are a single plain-text line each, shared by
+// two near-duplicate render functions - no room to add a second line
+// there without hurting more than it helps). gigTitle/floatingSetlistName
+// come pre-resolved from CalendarController.Get.
+function rehearsalLinkBadge(entry) {
+    if (entry.gigTitle) return `<span class="calendar-entry-badge">for ${escapeHtml(entry.gigTitle)}</span>`;
+    if (entry.floatingSetlistName) return `<span class="calendar-entry-badge">setlist: ${escapeHtml(entry.floatingSetlistName)}</span>`;
+    return '';
+}
+
 async function renderDayView() {
     document.getElementById('calendar-grid').hidden = true;
     const dayView = document.getElementById('calendar-day-view');
@@ -305,6 +316,7 @@ async function renderDayView() {
                 row.innerHTML = `
                     <strong>${escapeHtml(entry.title || 'Rehearsal')}</strong>
                     <span class="save-note">${timeRange}${entry.location ? ' · ' + escapeHtml(entry.location) : ''}</span>
+                ${rehearsalLinkBadge(entry)}
                 `;
                 row.style.cursor = 'pointer';
                 row.addEventListener('click', () => openRehearsalModal(dateStr, entry));
@@ -351,6 +363,7 @@ function openDayModal(dateStr, dateObj, entries) {
             row.innerHTML = `
                 <strong>${escapeHtml(entry.title || 'Rehearsal')}</strong>
                 <span class="save-note">${timeRange}${entry.location ? ' · ' + escapeHtml(entry.location) : ''}</span>
+                ${rehearsalLinkBadge(entry)}
             `;
             row.style.cursor = 'pointer';
             row.addEventListener('click', () => openRehearsalModal(dateStr, entry));
@@ -462,6 +475,12 @@ async function openRehearsalModal(dateStr, entry) {
     document.getElementById('calendar-rehearsal-new-setlist-name').value = '';
     await populateGigAndSetlistSelects(entry);
 
+    // Agenda/Notes are BandAdmin-only (see RehearsalController) - a
+    // regular member never even sees the fields, let alone submits them.
+    document.getElementById('calendar-rehearsal-admin-fields').hidden = !me.isAdmin;
+    document.getElementById('calendar-rehearsal-agenda').value = entry?.agenda || '';
+    document.getElementById('calendar-rehearsal-notes').value = entry?.notes || '';
+
     if (entry) {
         const start = new Date(entry.startsAt);
         const end = new Date(entry.endsAt);
@@ -495,7 +514,9 @@ async function openRehearsalModal(dateStr, entry) {
             startsAt: startsAt.toISOString(),
             endsAt: endsAt.toISOString(),
             gigRef: document.getElementById('calendar-rehearsal-gig').value || null,
-            floatingSetlistRef: document.getElementById('calendar-rehearsal-setlist').value || null
+            floatingSetlistRef: document.getElementById('calendar-rehearsal-setlist').value || null,
+            agenda: document.getElementById('calendar-rehearsal-agenda').value.trim() || null,
+            notes: document.getElementById('calendar-rehearsal-notes').value.trim() || null
         });
         const url = entry ? `/api/rehearsals/${entry.id}` : '/api/rehearsals';
         const method = entry ? 'PUT' : 'POST';
