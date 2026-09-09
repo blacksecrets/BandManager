@@ -16,12 +16,14 @@ async function loadBandAdmin() {
     document.getElementById('band-branding-section').hidden = !hasBand;
     document.getElementById('band-users-section').hidden = !hasBand;
     document.getElementById('band-roles-section').hidden = !hasBand;
+    document.getElementById('band-acts-section').hidden = !hasBand;
     if (!hasBand) return;
 
     loadBandInfo();
     loadBandBranding();
     loadBandRoleOptions().then(loadUsers);
     loadBandRolesMembers();
+    loadActs();
 }
 
 // --- Band Information (name/phone/mailing address) ---
@@ -410,6 +412,85 @@ document.getElementById('band-roles-form').addEventListener('submit', async (e) 
     const body = await res.json();
     status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save roles.');
     if (res.ok) loadUsers();
+});
+
+// --- Acts (a band's performance configurations - see Act.cs) ---
+let acts = [];
+let editingActId = null;
+
+async function loadActs() {
+    const res = await fetch('/api/acts');
+    acts = res.ok ? await res.json() : [];
+    renderActsList();
+}
+
+function renderActsList() {
+    const body = document.getElementById('acts-table-body');
+    body.innerHTML = acts.map((a) => `
+        <tr>
+            <td>${escapeHtml(a.name)}${a.isDefault ? ' <span class="save-note">(default)</span>' : ''}</td>
+            <td><button type="button" class="act-edit-btn" data-id="${a.id}">Edit</button></td>
+            <td></td>
+        </tr>
+    `).join('') || '<tr><td colspan="3" class="save-note">No acts yet.</td></tr>';
+
+    body.querySelectorAll('.act-edit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => openActModal(acts.find((a) => a.id === btn.dataset.id)));
+    });
+}
+
+function closeActModal() { document.getElementById('act-modal-backdrop').hidden = true; }
+document.getElementById('act-modal-close').addEventListener('click', closeActModal);
+document.getElementById('act-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'act-modal-backdrop') closeActModal(); });
+
+function openActModal(act) {
+    editingActId = act ? act.id : null;
+    document.getElementById('act-modal-title').textContent = act ? 'Edit Act' : 'Add an Act';
+    document.getElementById('act-form-status').textContent = '';
+    const form = document.getElementById('act-form');
+    form.name.value = act?.name || '';
+    form.introText.value = act?.introText || '';
+    form.videoNotes.value = act?.videoNotes || '';
+    form.generalNotes.value = act?.generalNotes || '';
+    form.techContactName.value = act?.techContactName || '';
+    form.techContactPhone.value = act?.techContactPhone || '';
+    form.techContactEmail.value = act?.techContactEmail || '';
+
+    const deleteBtn = document.getElementById('act-delete-btn');
+    deleteBtn.hidden = !act || act.isDefault;
+    deleteBtn.onclick = async () => {
+        if (!editingActId) return;
+        if (!confirm(`Delete "${act.name}"? This can't be undone.`)) return;
+        const res = await fetch(`/api/acts/${editingActId}`, { method: 'DELETE' });
+        const resBody = await res.json().catch(() => ({}));
+        if (res.ok) { closeActModal(); await loadActs(); }
+        else { document.getElementById('act-form-status').textContent = resBody.error || 'Could not delete this act.'; }
+    };
+
+    document.getElementById('act-modal-backdrop').hidden = false;
+}
+
+document.getElementById('add-act-btn').addEventListener('click', () => openActModal(null));
+
+document.getElementById('act-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('act-form-status');
+    const body = JSON.stringify({
+        name: form.name.value.trim(),
+        introText: form.introText.value.trim() || null,
+        videoNotes: form.videoNotes.value.trim() || null,
+        generalNotes: form.generalNotes.value.trim() || null,
+        techContactName: form.techContactName.value.trim() || null,
+        techContactPhone: form.techContactPhone.value.trim() || null,
+        techContactEmail: form.techContactEmail.value.trim() || null
+    });
+    const url = editingActId ? `/api/acts/${editingActId}` : '/api/acts';
+    const method = editingActId ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+    const resBody = await res.json().catch(() => ({}));
+    if (res.ok) { closeActModal(); await loadActs(); }
+    else { status.textContent = resBody.error || 'Could not save this act.'; }
 });
 
 loadBandAdmin();

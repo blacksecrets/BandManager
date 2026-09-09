@@ -9,6 +9,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Band> Bands => Set<Band>();
+    public DbSet<Act> Acts => Set<Act>();
     public DbSet<BandMembership> BandMemberships => Set<BandMembership>();
     public DbSet<BandMemberRole> BandMemberRoles => Set<BandMemberRole>();
     public DbSet<Gear> Gear => Set<Gear>();
@@ -72,6 +73,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Band>(b =>
         {
             b.HasIndex(x => x.Slug).IsUnique();
+        });
+
+        builder.Entity<Act>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<BandMembership>(b =>

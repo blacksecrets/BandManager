@@ -549,6 +549,10 @@ public class SuperAdminController(
         var band = new Band { Name = name, Slug = slug };
         db.Bands.Add(band);
         db.BandMemberships.Add(new BandMembership { UserId = adminUser.Id, BandId = band.Id, Role = BandRole.BandAdmin });
+        // Every band gets one undeletable Act from the start (see
+        // Act.cs/ActController.Delete) - named after the band itself,
+        // freely renamable/editable afterward.
+        db.Acts.Add(new Act { BandId = band.Id, Name = name, IsDefault = true });
         await db.SaveChangesAsync();
 
         await ApplyDefaultCadenceRulesAsync(band.Id);

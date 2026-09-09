@@ -124,6 +124,41 @@
             </form>
         </section>
 
+        <section class="platform-card" id="band-acts-section" hidden>
+            <h2>Acts</h2>
+            <p>A band's performance configurations - most bands have just
+               one, but a second, very different one (e.g. a full-electric
+               show vs. an acoustic/unplugged show) gets its own gear list,
+               stage plot, and Tech Rider entirely.</p>
+
+            <table class="user-table">
+                <thead><tr><th>Name</th><th></th><th></th></tr></thead>
+                <tbody id="acts-table-body"></tbody>
+            </table>
+            <button type="button" id="add-act-btn" class="upload-btn">+ Add an Act</button>
+        </section>
+
+        <div id="act-modal-backdrop" class="detail-modal-backdrop" hidden>
+            <div class="detail-modal">
+                <button type="button" class="detail-modal-close" id="act-modal-close">&times;</button>
+                <h2 id="act-modal-title">Add an Act</h2>
+                <form id="act-form" class="cred-form">
+                    <label>Name <input type="text" name="name" maxlength="200" required></label>
+                    <label>Overview / intro text <textarea name="introText" rows="3" placeholder="A short description for the Tech Rider's opening paragraph"></textarea></label>
+                    <label>Video notes <textarea name="videoNotes" rows="2"></textarea></label>
+                    <label>General notes <textarea name="generalNotes" rows="2"></textarea></label>
+                    <label>Tech contact name <input type="text" name="techContactName" maxlength="200"></label>
+                    <label>Tech contact phone <input type="tel" name="techContactPhone" maxlength="30"></label>
+                    <label>Tech contact email <input type="email" name="techContactEmail" maxlength="200"></label>
+                    <div class="cred-form-buttons">
+                        <button type="submit">Save</button>
+                        <button type="button" id="act-delete-btn" hidden>Delete</button>
+                    </div>
+                    <p id="act-form-status" class="save-note"></p>
+                </form>
+            </div>
+        </div>
+
         <div id="edit-roles-modal-backdrop" class="detail-modal-backdrop" hidden>
             <div class="detail-modal">
                 <button type="button" class="detail-modal-close" id="edit-roles-modal-close">&times;</button>
