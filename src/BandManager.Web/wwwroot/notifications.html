@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="/assets/dashboard.css">
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
 </head>
 <body>
     <header class="topbar">
@@ -28,13 +29,11 @@
 
         <section class="platform-card">
             <h2>Your notifications</h2>
-            <table class="user-table">
-                <thead><tr><th></th><th>Message</th><th>When</th></tr></thead>
-                <tbody id="notifications-body"></tbody>
-            </table>
+            <div id="notifications-grid"></div>
         </section>
     </main>
 
+    <script src="/assets/dataGrid.js"></script>
     <script src="/assets/notifications.js"></script>
     <script src="/assets/songReview.js"></script>
     <script src="/assets/branding.js"></script>

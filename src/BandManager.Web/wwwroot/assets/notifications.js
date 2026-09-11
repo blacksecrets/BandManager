@@ -45,31 +45,60 @@ async function loadPendingReviews() {
     if (requests.length === 0) tbody.innerHTML = '<tr><td colspan="5">Nothing awaiting review.</td></tr>';
 }
 
+let notificationsGrid = null;
+
 async function loadNotifications() {
     const res = await fetch('/api/notifications');
     if (!res.ok) return;
     const notifications = await res.json();
-    const tbody = document.getElementById('notifications-body');
-    tbody.innerHTML = '';
-    for (const n of notifications) {
-        const tr = document.createElement('tr');
-        if (!n.isRead) tr.className = 'notification-unread';
-        tr.innerHTML = `
-            <td>${n.isRead ? '' : '●'}</td>
-            <td>${escapeHtml(n.songTitle ? `${n.songTitle}: ` : '')}${escapeHtml(n.message)}</td>
-            <td>${timeAgo(n.createdAt)}</td>
-        `;
-        tr.addEventListener('click', async () => {
-            if (n.isRead) return;
-            await fetch(`/api/notifications/${n.id}/read`, { method: 'POST' });
-            n.isRead = true;
-            tr.className = '';
-            tr.firstElementChild.textContent = '';
-            window.dispatchEvent(new CustomEvent('notif-changed'));
-        });
-        tbody.appendChild(tr);
+
+    const columns = [
+        { key: 'unread', label: '', sortable: false, className: 'notification-dot-col', render: (n) => n.isRead ? '' : '●' },
+        {
+            key: 'message', label: 'Message',
+            searchValue: (n) => `${n.songTitle ? n.songTitle + ': ' : ''}${n.message}`,
+            render: (n) => `${escapeHtml(n.songTitle ? `${n.songTitle}: ` : '')}${escapeHtml(n.message)}`
+        },
+        { key: 'createdAt', label: 'When', sortValue: (n) => new Date(n.createdAt).getTime(), render: (n) => timeAgo(n.createdAt) }
+    ];
+
+    async function bulkAction(url, ids) {
+        await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) });
+        await loadNotifications();
+        window.dispatchEvent(new CustomEvent('notif-changed'));
     }
-    if (notifications.length === 0) tbody.innerHTML = '<tr><td colspan="3">No notifications yet.</td></tr>';
+
+    if (notificationsGrid) {
+        notificationsGrid.setRows(notifications);
+    } else {
+        notificationsGrid = window.DataGrid.render(document.getElementById('notifications-grid'), {
+            columns,
+            rows: notifications,
+            getRowId: (n) => n.id,
+            checkboxes: true,
+            defaultSortKey: 'createdAt',
+            defaultSortDir: 'desc',
+            searchPlaceholder: 'Search notifications...',
+            emptyMessage: 'No notifications yet.',
+            rowClassName: (n) => n.isRead ? '' : 'notification-unread',
+            onRowClick: async (n) => {
+                if (n.isRead) return;
+                await fetch(`/api/notifications/${n.id}/read`, { method: 'POST' });
+                await loadNotifications();
+                window.dispatchEvent(new CustomEvent('notif-changed'));
+            },
+            bulkActions: [
+                { label: 'Mark as read', onClick: (ids) => bulkAction('/api/notifications/mark-read', ids) },
+                { label: 'Mark as unread', onClick: (ids) => bulkAction('/api/notifications/mark-unread', ids) },
+                {
+                    label: 'Delete', onClick: async (ids) => {
+                        if (!confirm(`Delete ${ids.length} notification(s)? This can't be undone.`)) return;
+                        await bulkAction('/api/notifications/delete', ids);
+                    }
+                }
+            ]
+        });
+    }
 }
 
 init();
