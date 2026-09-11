@@ -45,14 +45,26 @@ public class AuthController(
         var user = await userManager.FindByNameAsync(form.Username);
         if (user is not null && !user.IsSuperAdmin)
         {
-            // Only auto-pick when unambiguous - more than one membership
-            // means the frontend needs to show the band switcher before
-            // anything band-scoped can be requested.
+            // A single membership is unambiguous - just pick it. With more
+            // than one, prefer whichever Band this user most recently had
+            // active (BandsController.SetActive stamps LastSelectedAt);
+            // for a user who's never explicitly switched, fall back to the
+            // first by name so the landing Dashboard still has *something*
+            // active rather than forcing the band switcher before anything
+            // band-scoped can be requested.
             var memberships = await db.BandMemberships.AsNoTracking()
-                .Where(m => m.UserId == user.Id).ToListAsync();
+                .Include(m => m.Band)
+                .Where(m => m.UserId == user.Id && !m.Band.IsArchived).ToListAsync();
             if (memberships.Count == 1)
             {
                 activeBand.SetActiveBandId(memberships[0].BandId);
+            }
+            else if (memberships.Count > 1)
+            {
+                var mostRecent = memberships.Where(m => m.LastSelectedAt is not null)
+                    .OrderByDescending(m => m.LastSelectedAt).FirstOrDefault()
+                    ?? memberships.OrderBy(m => m.Band.Name).First();
+                activeBand.SetActiveBandId(mostRecent.BandId);
             }
         }
 

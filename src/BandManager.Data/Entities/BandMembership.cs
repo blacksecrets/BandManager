@@ -26,5 +26,11 @@ public class BandMembership
     // treats "not found" as "no sticky selection."
     public string? LastSelectedGigRef { get; set; }
 
+    // Touched whenever this membership's Band becomes the active one
+    // (POST /api/bands/active, and login's auto-select) - lets login pick
+    // the most-recently-used Band for a multi-band user instead of an
+    // arbitrary one. Null until the first explicit selection.
+    public DateTime? LastSelectedAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

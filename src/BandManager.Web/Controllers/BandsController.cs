@@ -67,6 +67,16 @@ public class BandsController(ApplicationDbContext db, IActiveBandAccessor active
 
         if (!hasAccess) return Forbid();
 
+        // A SuperAdmin picking a Band they aren't a member of has no
+        // membership row to stamp - nothing to touch, and nothing for
+        // login's own auto-select to read back later either.
+        var membership = await db.BandMemberships.FirstOrDefaultAsync(m => m.UserId == userId && m.BandId == request.BandId);
+        if (membership is not null)
+        {
+            membership.LastSelectedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
         activeBand.SetActiveBandId(request.BandId);
         return Ok(new { ok = true, activeBandId = request.BandId });
     }
