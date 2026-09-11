@@ -96,6 +96,7 @@ public class ProfileController(
             catalogViewMode = user.CatalogViewMode ?? "thumbnails",
             catalogViewModeFlyers = user.CatalogViewModeFlyers ?? "thumbnails",
             isSuperAdmin = user.IsSuperAdmin,
+            activeBandId = activeBandRole is not null ? bandId : null,
             activeBandRole,
             activeBandName,
             lastSelectedGigRef,

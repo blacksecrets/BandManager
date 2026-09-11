@@ -1,12 +1,65 @@
 .landing-main {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     min-height: calc(100vh - 65px);
+    padding: 24px;
 }
-.landing-tbd {
-    font-size: 5rem;
-    font-weight: bold;
-    color: #444;
-    letter-spacing: 0.06em;
+
+.landing-widget-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
 }
+.landing-widget-grid[hidden] { display: none; }
+@media (max-width: 900px) {
+    .landing-widget-grid { grid-template-columns: 1fr; }
+}
+
+.landing-superadmin-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+.landing-superadmin-stack[hidden] { display: none; }
+
+.landing-widget {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.landing-widget > h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: #eee;
+}
+.landing-widget-wide { width: 100%; }
+
+.landing-goto-btn {
+    align-self: flex-start;
+    background: #2e4d8b;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin-top: 4px;
+}
+.landing-goto-btn:hover { background: #3a5fab; }
+
+.landing-detail-modal {
+    max-width: 95vw;
+    width: 1100px;
+    max-height: 92vh;
+    overflow-y: auto;
+}
+#landing-detail-modal-goto-btn { margin-top: 14px; }
+
+.status-connected { color: #5fb86a; font-weight: bold; }
+.status-not-connected { color: #999; }

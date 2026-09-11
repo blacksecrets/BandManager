@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BandManager</title>
 <link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
 <link rel="stylesheet" href="/assets/landing.css">
 </head>
 <body>
@@ -17,9 +20,55 @@
     </header>
 
     <main class="landing-main">
-        <span class="landing-tbd">TBD</span>
+        <p id="landing-no-band" class="save-note" hidden>Select a band from the switcher above.</p>
+
+        <div id="landing-member-grid" class="landing-widget-grid" hidden>
+            <section class="landing-widget" data-widget="gigs">
+                <h2>Our Gigs</h2>
+                <div id="landing-gigs-grid"></div>
+                <button type="button" class="landing-goto-btn" data-href="/gig-sets">Go To Gig Management</button>
+            </section>
+            <section class="landing-widget" data-widget="venues">
+                <h2>Our Venues</h2>
+                <div id="landing-venues-grid"></div>
+                <button type="button" class="landing-goto-btn" data-href="/venue-campaigns">Go To Venue Campaigns</button>
+            </section>
+            <section class="landing-widget" data-widget="web-presence">
+                <h2>Our Web Presence</h2>
+                <div id="landing-web-presence-grid"></div>
+                <button type="button" class="landing-goto-btn" data-href="/dashboard">Go To Web Presence</button>
+            </section>
+            <section class="landing-widget" data-widget="calendar">
+                <h2>Our Calendar</h2>
+                <div id="landing-calendar-grid"></div>
+                <button type="button" class="landing-goto-btn" data-href="/calendar">Go To Calendar</button>
+            </section>
+        </div>
+
+        <div id="landing-superadmin-stack" class="landing-superadmin-stack" hidden>
+            <section class="landing-widget landing-widget-wide">
+                <h2>Bands</h2>
+                <div id="landing-bands-grid"></div>
+            </section>
+            <section class="landing-widget landing-widget-wide">
+                <h2>Connectivity Status</h2>
+                <p class="save-note" id="landing-connectivity-note"></p>
+                <div id="landing-connectivity-grid"></div>
+            </section>
+        </div>
     </main>
 
+    <div id="landing-detail-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal landing-detail-modal">
+            <button type="button" class="detail-modal-close" id="landing-detail-modal-close">&times;</button>
+            <h2 id="landing-detail-modal-title"></h2>
+            <div id="landing-detail-modal-grid"></div>
+            <button type="button" id="landing-detail-modal-goto-btn" class="upload-btn"></button>
+        </div>
+    </div>
+
+    <script src="/assets/dataGrid.js"></script>
+    <script src="/assets/landing.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>
