@@ -492,6 +492,10 @@ function openActModal(act) {
     micEqNotesSection.hidden = !act;
     if (act) loadActMicEqNotes(act.id);
 
+    const techRiderSection = document.getElementById('act-tech-rider-preview-section');
+    techRiderSection.hidden = !act;
+    if (act) document.getElementById('act-tech-rider-preview-link').href = `/print-tech-rider.html?actId=${act.id}`;
+
     document.getElementById('act-modal-backdrop').hidden = false;
 }
 

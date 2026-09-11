@@ -1,0 +1,56 @@
+/* Deliberately light/print-first, not dark-mode-aware like the rest of
+   this app - this page exists to be printed (or embedded live) on white,
+   matching print-setlist.css's own precedent. */
+* { box-sizing: border-box; }
+body {
+    background: #e8e8e8;
+    margin: 0;
+    padding: 20px;
+    font-family: system-ui, sans-serif;
+    color: #111;
+}
+
+.print-tech-rider-controls {
+    max-width: 800px;
+    margin: 0 auto 20px;
+    background: #fff;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    padding: 14px 18px;
+}
+.print-tech-rider-controls button {
+    background: #c0392b;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 14px;
+    cursor: pointer;
+}
+
+.print-tech-rider-sheet {
+    max-width: 800px;
+    margin: 0 auto;
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 40px;
+    color: #000;
+}
+.print-tech-rider-sheet h1 { margin: 0 0 4px; font-size: 1.6em; }
+.print-tech-rider-sheet h2 { margin: 28px 0 8px; font-size: 1.15em; border-bottom: 2px solid #222; padding-bottom: 4px; }
+.print-tech-rider-sheet h3 { margin: 16px 0 4px; font-size: 1em; }
+.print-tech-rider-meta { margin: 0 0 20px; color: #444; font-weight: 600; }
+.print-tech-rider-overview { color: #222; }
+
+.print-tech-rider-stage-plot { display: block; width: 100%; max-width: 700px; margin: 8px 0; border: 1px solid #999; }
+.print-tech-rider-legend { margin: 8px 0; padding-left: 1.6em; font-size: 0.92em; }
+.print-tech-rider-legend li { margin-bottom: 3px; }
+
+.print-tech-rider-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9em; }
+.print-tech-rider-table th, .print-tech-rider-table td { border: 1px solid #999; padding: 5px 8px; text-align: left; }
+.print-tech-rider-table th { background: #eee; }
+
+@media print {
+    .no-print { display: none !important; }
+    body { background: #fff; padding: 0; }
+    .print-tech-rider-sheet { border: none; max-width: none; padding: 0.5in; }
+}
