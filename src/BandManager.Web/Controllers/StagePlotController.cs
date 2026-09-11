@@ -1,5 +1,6 @@
 using BandManager.Data;
 using BandManager.Data.Entities;
+using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,8 +20,10 @@ public record UpdateStagePlotItemRequest(double X, double Y, double Rotation);
 [ApiController]
 [Route("/api/acts/{actId:guid}/stage-plot")]
 [Authorize(Policy = "BandAdmin")]
-public class StagePlotController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
+public class StagePlotController(ApplicationDbContext db, IActiveBandAccessor activeBand, IWebHostEnvironment env) : ControllerBase
 {
+    private string FontsRootPath => Path.Combine(env.WebRootPath, "fonts");
+
     private IActionResult? RequireActiveBand(out Guid bandId)
     {
         var id = activeBand.GetActiveBandId();
@@ -61,6 +64,26 @@ public class StagePlotController(ApplicationDbContext db, IActiveBandAccessor ac
             .OrderBy(i => i.VisibleId)
             .ToListAsync();
         return Ok(items.Select(SerializeItem));
+    }
+
+    // The server-rendered PNG - see StagePlotRenderer.cs. Computed fresh
+    // on every request rather than cached: cheap to draw, and always
+    // exactly matches the live item data (no staleness to manage), same
+    // "derived data doesn't get its own table" reasoning as the legend.
+    [HttpGet("render")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> Render(Guid actId)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await ActExistsAsync(bandId, actId)) return NotFound(new { error = "Act not found" });
+
+        var items = await db.StagePlotItems.AsNoTracking()
+            .Where(i => i.StagePlot.ActId == actId)
+            .Select(i => new StagePlotItemDef(i.VisibleId, i.X, i.Y, i.Rotation))
+            .ToListAsync();
+
+        var png = StagePlotRenderer.RenderStagePlot(items, FontsRootPath);
+        return File(png, "image/png");
     }
 
     // A dropped item's position, assigned the next sequential VisibleId

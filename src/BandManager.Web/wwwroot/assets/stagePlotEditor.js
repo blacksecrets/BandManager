@@ -71,6 +71,11 @@
                 <h3>Gear Legend</h3>
                 <ol id="stage-plot-legend-list"></ol>
             </div>
+            <div class="stage-plot-render-preview">
+                <h3>Tech Rider Preview</h3>
+                <p class="save-note">The exact image that will appear in this Act's Tech Rider.</p>
+                <img id="stage-plot-render-img" alt="Rendered stage plot">
+            </div>
         `;
 
         const diagram = document.getElementById('stage-plot-diagram');
@@ -120,10 +125,15 @@
             });
         }
 
+        function refreshRenderPreview() {
+            document.getElementById('stage-plot-render-img').src = `/api/acts/${actId}/stage-plot/render?t=${Date.now()}`;
+        }
+
         function renderAll() {
             renderAvailable();
             renderItems();
             renderLegend();
+            refreshRenderPreview();
         }
 
         async function placeItem(bandGearItemId) {
@@ -172,6 +182,7 @@
                 document.removeEventListener('pointerup', onUp);
                 saveItem(item);
                 renderLegend();
+                refreshRenderPreview();
             }
             document.addEventListener('pointermove', onMove);
             document.addEventListener('pointerup', onUp);
@@ -195,6 +206,7 @@
                 document.removeEventListener('pointermove', onMove);
                 document.removeEventListener('pointerup', onUp);
                 saveItem(item);
+                refreshRenderPreview();
             }
             document.addEventListener('pointermove', onMove);
             document.addEventListener('pointerup', onUp);
