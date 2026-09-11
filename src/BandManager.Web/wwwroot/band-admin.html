@@ -8,6 +8,8 @@
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/profile.css">
 <link rel="stylesheet" href="/assets/stagePlotEditor.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
+<link rel="stylesheet" href="/assets/band-admin.css">
 </head>
 <body>
     <header class="topbar">
@@ -252,6 +254,45 @@
             </div>
         </div>
 
+        <section class="platform-card" id="band-song-catalog-section" hidden>
+            <h2>Band Manager+ Song Catalog</h2>
+            <p>Every song any band has ever entered. Edits here go live
+               immediately for a SuperAdmin, or are submitted for
+               SuperAdmin review otherwise. Search by title, artist,
+               album, key, or "under review".</p>
+            <div class="song-catalog-filters">
+                <label>Duration
+                    <select id="song-catalog-duration-op">
+                        <option value="">Any</option>
+                        <option value="lt">&lt;</option>
+                        <option value="eq">=</option>
+                        <option value="gt">&gt;</option>
+                    </select>
+                </label>
+                <input type="text" id="song-catalog-duration-value" placeholder="mm:ss">
+            </div>
+            <div id="song-catalog-grid"></div>
+        </section>
+
+        <div id="song-catalog-modal-backdrop" class="detail-modal-backdrop" hidden>
+            <div class="detail-modal">
+                <button type="button" class="detail-modal-close" id="song-catalog-modal-close">&times;</button>
+                <h2>Edit Song</h2>
+                <form id="song-catalog-form" class="cred-form">
+                    <label>Title <input type="text" name="title" required></label>
+                    <label>Original artist <input type="text" name="originalArtist"></label>
+                    <label>Album <input type="text" name="album"></label>
+                    <label>Key <input type="text" name="key"></label>
+                    <label>Length (mm:ss) <input type="text" name="length" pattern="^\d{1,2}:\d{2}$"></label>
+                    <label>YouTube URL <input type="url" name="youTubeUrl"></label>
+                    <label>Spotify URL <input type="url" name="spotifyUrl"></label>
+                    <label>Songsterr URL <input type="url" name="songsterrUrl"></label>
+                    <button type="submit" id="song-catalog-form-submit">Submit for review</button>
+                    <p id="song-catalog-form-status" class="save-note"></p>
+                </form>
+            </div>
+        </div>
+
         <section class="platform-card" id="band-promoters-section" hidden>
             <h2>Promoters</h2>
             <p>Booking contacts who book gigs for this band - often across
@@ -295,6 +336,7 @@
     </main>
 
     <script src="/assets/stagePlotEditor.js"></script>
+    <script src="/assets/dataGrid.js"></script>
     <script src="/assets/band-admin.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>

@@ -19,7 +19,10 @@ async function loadBandAdmin() {
     document.getElementById('band-acts-section').hidden = !hasBand;
     document.getElementById('band-gear-section').hidden = !hasBand;
     document.getElementById('band-promoters-section').hidden = !hasBand;
+    document.getElementById('band-song-catalog-section').hidden = !hasBand;
     if (!hasBand) return;
+
+    isSuperAdminGlobal = !!me.isSuperAdmin;
 
     loadBandInfo();
     loadBandBranding();
@@ -28,7 +31,10 @@ async function loadBandAdmin() {
     loadActs();
     loadBandGear();
     loadPromoters();
+    loadSongCatalog();
 }
+
+let isSuperAdminGlobal = false;
 
 // --- Band Information (name/phone/mailing address) ---
 
@@ -1036,6 +1042,141 @@ document.getElementById('act-mic-eq-note-add-btn').addEventListener('click', () 
     card.innerHTML = micEqCardHtml({});
     wireMicEqCard(card, actId);
     list.appendChild(card);
+});
+
+// --- Band Manager+ Song Catalog ---
+function formatSongLength(seconds) {
+    if (seconds == null) return '';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+function parseSongLength(text) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+}
+
+let songCatalogGrid = null;
+let songCatalogRows = [];
+let editingSongId = null;
+
+function isSongUnderReview(song) {
+    return song.status === 'PendingReview' || !!song.pendingEditRequestId;
+}
+
+async function loadSongCatalog() {
+    const res = await fetch('/api/songs');
+    if (!res.ok) return;
+    songCatalogRows = await res.json();
+    renderSongCatalogGrid();
+}
+
+function applySongDurationFilter(rows) {
+    const op = document.getElementById('song-catalog-duration-op').value;
+    const valueRaw = document.getElementById('song-catalog-duration-value').value;
+    const target = parseSongLength(valueRaw);
+    if (!op || target === null) return rows;
+    return rows.filter((s) => {
+        if (s.lengthSeconds == null) return false;
+        if (op === 'lt') return s.lengthSeconds < target;
+        if (op === 'gt') return s.lengthSeconds > target;
+        return s.lengthSeconds === target;
+    });
+}
+
+function renderSongCatalogGrid() {
+    const filtered = applySongDurationFilter(songCatalogRows);
+    const columns = [
+        {
+            key: 'title', label: 'Title',
+            searchValue: (s) => `${s.title} ${isSongUnderReview(s) ? 'under review' : ''}`,
+            render: (s) => `${escapeHtml(s.title)}${isSongUnderReview(s) ? ' <span class="under-review-badge-inline">Under review</span>' : ''}`
+        },
+        { key: 'originalArtist', label: 'Artist', render: (s) => escapeHtml(s.originalArtist || '—') },
+        { key: 'album', label: 'Album', render: (s) => escapeHtml(s.album || '—') },
+        { key: 'key', label: 'Key', render: (s) => escapeHtml(s.key || '—') },
+        { key: 'lengthSeconds', label: 'Length', render: (s) => s.lengthSeconds != null ? formatSongLength(s.lengthSeconds) : '—' },
+        {
+            key: 'links', label: 'Links', sortable: false, searchable: false,
+            render: (s) => `<div class="song-catalog-links">${['YouTube', 'Spotify', 'Songsterr'].map((label, i) => {
+                const url = [s.youTubeUrl, s.spotifyUrl, s.songsterrUrl][i];
+                return url ? `<a href="${url}" target="_blank" rel="noopener">${label}</a>` : `<span class="link-missing">${label}</span>`;
+            }).join('')}</div>`
+        }
+    ];
+
+    if (songCatalogGrid) {
+        songCatalogGrid.setRows(filtered);
+    } else {
+        songCatalogGrid = window.DataGrid.render(document.getElementById('song-catalog-grid'), {
+            columns,
+            rows: filtered,
+            getRowId: (s) => s.id,
+            searchPlaceholder: 'Search title, artist, album, key, or "under review"...',
+            defaultSortKey: 'title',
+            defaultSortDir: 'asc',
+            emptyMessage: 'The catalog is empty.',
+            onRowClick: (s) => openSongCatalogModal(s)
+        });
+    }
+}
+
+document.getElementById('song-catalog-duration-op').addEventListener('change', renderSongCatalogGrid);
+document.getElementById('song-catalog-duration-value').addEventListener('input', renderSongCatalogGrid);
+
+function openSongCatalogModal(song) {
+    editingSongId = song.id;
+    const form = document.getElementById('song-catalog-form');
+    form.title.value = song.title;
+    form.originalArtist.value = song.originalArtist || '';
+    form.album.value = song.album || '';
+    form.key.value = song.key || '';
+    form.length.value = song.lengthSeconds != null ? formatSongLength(song.lengthSeconds) : '';
+    form.youTubeUrl.value = song.youTubeUrl || '';
+    form.spotifyUrl.value = song.spotifyUrl || '';
+    form.songsterrUrl.value = song.songsterrUrl || '';
+    document.getElementById('song-catalog-form-status').textContent = '';
+    const submitBtn = document.getElementById('song-catalog-form-submit');
+    submitBtn.textContent = isSuperAdminGlobal ? 'Save' : 'Submit for review';
+    submitBtn.disabled = !isSuperAdminGlobal && isSongUnderReview(song);
+    document.getElementById('song-catalog-modal-backdrop').hidden = false;
+}
+document.getElementById('song-catalog-modal-close').addEventListener('click', () => {
+    document.getElementById('song-catalog-modal-backdrop').hidden = true;
+});
+
+document.getElementById('song-catalog-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('song-catalog-form-status');
+    const lengthSeconds = parseSongLength(form.length.value);
+    if (form.length.value.trim() && lengthSeconds === null) {
+        status.textContent = 'Length must be in mm:ss format, like 4:32.';
+        return;
+    }
+    const payload = {
+        title: form.title.value.trim(),
+        originalArtist: form.originalArtist.value.trim() || null,
+        album: form.album.value.trim() || null,
+        key: form.key.value.trim() || null,
+        lengthSeconds,
+        youTubeUrl: form.youTubeUrl.value.trim() || null,
+        spotifyUrl: form.spotifyUrl.value.trim() || null,
+        songsterrUrl: form.songsterrUrl.value.trim() || null
+    };
+    const url = isSuperAdminGlobal ? `/api/songs/${editingSongId}` : `/api/songs/${editingSongId}/propose-edit`;
+    const res = await fetch(url, {
+        method: isSuperAdminGlobal ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+    });
+    const body = await res.json();
+    if (!res.ok) { status.textContent = body.error || 'Could not save.'; return; }
+    status.textContent = isSuperAdminGlobal ? 'Saved.' : 'Submitted for review.';
+    await loadSongCatalog();
 });
 
 loadBandAdmin();
