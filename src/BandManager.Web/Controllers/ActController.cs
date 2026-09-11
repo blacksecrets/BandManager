@@ -15,6 +15,8 @@ public record SetActGearRequest(List<Guid> BandGearItemIds);
 
 public record SaveInputChannelRequest(int ChannelNumber, string Source, string? MicRecommendation, string? ProvidedBy, string? PositioningNotes);
 
+public record SaveMonitorMixRequest(string Position, string MixDescription);
+
 /// <summary>
 /// A band's performance configurations - see Act.cs's doc comment. Read
 /// access is broad (BandMember - the Gig create/edit form's Act picker
@@ -260,6 +262,77 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
         if (channel is null) return Ok(new { ok = true });
 
         db.TechRiderInputChannels.Remove(channel);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    private static object SerializeMonitorMix(TechRiderMonitorMix m) => new
+    {
+        id = m.Id,
+        position = m.Position,
+        mixDescription = m.MixDescription
+    };
+
+    [HttpGet("{actId:guid}/monitor-mixes")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> GetMonitorMixes(Guid actId)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+
+        var mixes = await db.TechRiderMonitorMixes.AsNoTracking()
+            .Where(m => m.ActId == actId).OrderBy(m => m.SortOrder).ToListAsync();
+        return Ok(mixes.Select(SerializeMonitorMix));
+    }
+
+    [HttpPost("{actId:guid}/monitor-mixes")]
+    public async Task<IActionResult> AddMonitorMix(Guid actId, [FromBody] SaveMonitorMixRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+        if (string.IsNullOrWhiteSpace(request.Position)) return BadRequest(new { error = "Position is required." });
+        if (string.IsNullOrWhiteSpace(request.MixDescription)) return BadRequest(new { error = "Mix description is required." });
+
+        var maxSort = await db.TechRiderMonitorMixes.Where(m => m.ActId == actId).Select(m => (int?)m.SortOrder).MaxAsync() ?? -1;
+        var mix = new TechRiderMonitorMix
+        {
+            ActId = actId,
+            Position = request.Position.Trim(),
+            MixDescription = request.MixDescription.Trim(),
+            SortOrder = maxSort + 1
+        };
+        db.TechRiderMonitorMixes.Add(mix);
+        await db.SaveChangesAsync();
+        return Ok(SerializeMonitorMix(mix));
+    }
+
+    [HttpPut("{actId:guid}/monitor-mixes/{id:guid}")]
+    public async Task<IActionResult> UpdateMonitorMix(Guid actId, Guid id, [FromBody] SaveMonitorMixRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+        if (string.IsNullOrWhiteSpace(request.Position)) return BadRequest(new { error = "Position is required." });
+        if (string.IsNullOrWhiteSpace(request.MixDescription)) return BadRequest(new { error = "Mix description is required." });
+
+        var mix = await db.TechRiderMonitorMixes.FirstOrDefaultAsync(m => m.Id == id && m.ActId == actId);
+        if (mix is null) return NotFound(new { error = "Not found" });
+
+        mix.Position = request.Position.Trim();
+        mix.MixDescription = request.MixDescription.Trim();
+        await db.SaveChangesAsync();
+        return Ok(SerializeMonitorMix(mix));
+    }
+
+    [HttpDelete("{actId:guid}/monitor-mixes/{id:guid}")]
+    public async Task<IActionResult> DeleteMonitorMix(Guid actId, Guid id)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+
+        var mix = await db.TechRiderMonitorMixes.FirstOrDefaultAsync(m => m.Id == id && m.ActId == actId);
+        if (mix is null) return Ok(new { ok = true });
+
+        db.TechRiderMonitorMixes.Remove(mix);
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }

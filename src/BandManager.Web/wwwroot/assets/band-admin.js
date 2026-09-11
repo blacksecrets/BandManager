@@ -484,6 +484,10 @@ function openActModal(act) {
     inputChannelsSection.hidden = !act;
     if (act) loadActInputChannels(act.id);
 
+    const monitorMixesSection = document.getElementById('act-monitor-mixes-section');
+    monitorMixesSection.hidden = !act;
+    if (act) loadActMonitorMixes(act.id);
+
     document.getElementById('act-modal-backdrop').hidden = false;
 }
 
@@ -840,6 +844,66 @@ document.getElementById('act-input-channel-add-btn').addEventListener('click', (
     const tr = document.createElement('tr');
     tr.innerHTML = inputChannelRowHtml({});
     wireInputChannelRow(tr, actId);
+    body.appendChild(tr);
+});
+
+// --- Tech Rider: Monitor Mix (see TechRiderMonitorMix.cs) ---
+async function loadActMonitorMixes(actId) {
+    const res = await fetch(`/api/acts/${actId}/monitor-mixes`);
+    const mixes = res.ok ? await res.json() : [];
+    renderMonitorMixesTable(mixes, actId);
+}
+
+function monitorMixRowHtml(m) {
+    return `
+        <td><input type="text" class="mm-position" placeholder="e.g. Lead Vocal" value="${escapeHtml(m.position || '')}"></td>
+        <td><input type="text" class="mm-description" placeholder="e.g. Vocals up, light kick/bass" value="${escapeHtml(m.mixDescription || '')}"></td>
+        <td>
+            <button type="button" class="mm-save-btn">Save</button>
+            <button type="button" class="mm-delete-btn">Delete</button>
+        </td>
+    `;
+}
+
+function wireMonitorMixRow(tr, actId) {
+    tr.querySelector('.mm-save-btn').addEventListener('click', async () => {
+        const body = JSON.stringify({
+            position: tr.querySelector('.mm-position').value.trim(),
+            mixDescription: tr.querySelector('.mm-description').value.trim()
+        });
+        const id = tr.dataset.id;
+        const url = id ? `/api/acts/${actId}/monitor-mixes/${id}` : `/api/acts/${actId}/monitor-mixes`;
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+        if (res.ok) await loadActMonitorMixes(actId);
+    });
+    tr.querySelector('.mm-delete-btn').addEventListener('click', async () => {
+        const id = tr.dataset.id;
+        if (!id) { tr.remove(); return; }
+        await fetch(`/api/acts/${actId}/monitor-mixes/${id}`, { method: 'DELETE' });
+        await loadActMonitorMixes(actId);
+    });
+}
+
+function renderMonitorMixesTable(mixes, actId) {
+    const body = document.getElementById('act-monitor-mixes-body');
+    body.innerHTML = '';
+    mixes.forEach((m) => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = m.id;
+        tr.innerHTML = monitorMixRowHtml(m);
+        wireMonitorMixRow(tr, actId);
+        body.appendChild(tr);
+    });
+}
+
+document.getElementById('act-monitor-mix-add-btn').addEventListener('click', () => {
+    const actId = editingActId;
+    if (!actId) return;
+    const body = document.getElementById('act-monitor-mixes-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = monitorMixRowHtml({});
+    wireMonitorMixRow(tr, actId);
     body.appendChild(tr);
 });
 

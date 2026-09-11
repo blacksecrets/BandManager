@@ -19,6 +19,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<StagePlot> StagePlots => Set<StagePlot>();
     public DbSet<StagePlotItem> StagePlotItems => Set<StagePlotItem>();
     public DbSet<TechRiderInputChannel> TechRiderInputChannels => Set<TechRiderInputChannel>();
+    public DbSet<TechRiderMonitorMix> TechRiderMonitorMixes => Set<TechRiderMonitorMix>();
 
     public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
     public DbSet<Platform> Platforms => Set<Platform>();
@@ -147,6 +148,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         });
 
         builder.Entity<TechRiderInputChannel>(b =>
+        {
+            b.HasOne(x => x.Act).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<TechRiderMonitorMix>(b =>
         {
             b.HasOne(x => x.Act).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.Cascade);
         });
