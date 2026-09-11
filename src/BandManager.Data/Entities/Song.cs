@@ -1,5 +1,18 @@
 namespace BandManager.Data.Entities;
 
+// Separate from EditRequestStatus/SongEditRequest, which governs proposed
+// *changes* to an already-approved Song - this is the Song's own baseline
+// state, for a hand-typed brand-new catalog entry that hasn't been through
+// SuperAdmin review yet (see SongsController.ProposeNew). Every
+// pre-existing Song is backfilled to Approved (see the migration) - this
+// workflow only applies going forward.
+public enum SongStatus
+{
+    Approved = 0,
+    PendingReview = 1,
+    Rejected = 2
+}
+
 /// <summary>
 /// A song - global/shared across every Band, the same way Platforms and
 /// ContentTypes are, so one Band adding "Enter Sandman" with its tuning/
@@ -17,6 +30,13 @@ public class Song
     public string? Album { get; set; }
     public string? Key { get; set; }
     public int? LengthSeconds { get; set; }
+    public SongStatus Status { get; set; } = SongStatus.Approved;
+
+    // Set when Status is PendingReview via SongsController.ProposeNew, so
+    // SuperAdmin's approve-new/reject-new (unlike SongEditRequest, a brand
+    // new Song has no separate request row to carry this) can notify the
+    // submitter the same way SongEditRequestsController's review does.
+    public Guid? ProposedByUserId { get; set; }
 
     public string? YouTubeUrl { get; set; }
     public string? SpotifyUrl { get; set; }

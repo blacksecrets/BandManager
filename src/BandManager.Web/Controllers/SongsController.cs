@@ -14,6 +14,8 @@ public record CreateSongRequest(string Title, string? OriginalArtist, string? Al
 public record UpdateSongRequest(string Title, string? OriginalArtist, string? Album, string? Key,
     int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl);
 public record SetTuningRequest(string Instrument, string Tuning);
+public record ResolveNewSongRequest(string Message);
+public record BulkResolveNewSongsRequest(List<Guid> Ids, string Message);
 
 /// <summary>
 /// The global song catalog - shared across every Band the same way
@@ -51,6 +53,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         spotifyUrl = s.SpotifyUrl,
         songsterrUrl = s.SongsterrUrl,
         tunings = s.Tunings ?? new Dictionary<string, string>(),
+        status = s.Status.ToString(),
         pendingEditRequestId
     };
 
@@ -216,6 +219,145 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         db.SongEditRequests.Add(editRequest);
         await db.SaveChangesAsync();
         return Ok(new { ok = true, id = editRequest.Id });
+    }
+
+    // For a hand-typed song that doesn't match anything already in the
+    // shared catalog (see SongEditRequestsController's doc comment on the
+    // parallel review workflow this mirrors for edits) - creates the Song
+    // immediately (so it's usable in the submitting Band's own repertoire
+    // right away, per the "Add a song" flow this backs), but as
+    // PendingReview rather than Approved, so it shows as "Under Review"
+    // everywhere else until a SuperAdmin resolves it. Open to any Band
+    // member, unlike Create (BandAdmin-only) - proposing something for
+    // review is a lower bar than directly publishing to the shared catalog.
+    [HttpPost("propose-new")]
+    public async Task<IActionResult> ProposeNew([FromBody] CreateSongRequest request)
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var title = request.Title?.Trim();
+        if (string.IsNullOrEmpty(title)) return BadRequest(new { error = "Title is required." });
+
+        var song = new Song
+        {
+            Title = title,
+            OriginalArtist = request.OriginalArtist?.Trim(),
+            Album = request.Album?.Trim(),
+            Key = request.Key?.Trim(),
+            LengthSeconds = request.LengthSeconds,
+            YouTubeUrl = request.YouTubeUrl?.Trim(),
+            SpotifyUrl = request.SpotifyUrl?.Trim(),
+            SongsterrUrl = request.SongsterrUrl?.Trim(),
+            Status = SongStatus.PendingReview,
+            ProposedByUserId = userId.Value
+        };
+        db.Songs.Add(song);
+        await db.SaveChangesAsync();
+        return Ok(Serialize(song));
+    }
+
+    [HttpPost("{id:guid}/approve-new")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> ApproveNew(Guid id, [FromBody] ResolveNewSongRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
+
+        var (ok, error) = await ApproveNewOneAsync(id, message);
+        if (!ok) return BadRequest(new { error });
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    [HttpPost("{id:guid}/reject-new")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> RejectNew(Guid id, [FromBody] ResolveNewSongRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
+
+        var (ok, error) = await RejectNewOneAsync(id, message);
+        if (!ok) return BadRequest(new { error });
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    // Bulk variants for the DataGrid-based catalog grid's checkbox
+    // selection, same shape as SongEditRequestsController's bulk-approve/
+    // bulk-reject - one shared message, a row already resolved by the time
+    // this runs is skipped rather than failing the whole batch.
+    [HttpPost("bulk-approve-new")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> BulkApproveNew([FromBody] BulkResolveNewSongsRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
+
+        var count = 0;
+        foreach (var id in request.Ids)
+        {
+            var (ok, _) = await ApproveNewOneAsync(id, message);
+            if (ok) count++;
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, count });
+    }
+
+    [HttpPost("bulk-reject-new")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> BulkRejectNew([FromBody] BulkResolveNewSongsRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
+
+        var count = 0;
+        foreach (var id in request.Ids)
+        {
+            var (ok, _) = await RejectNewOneAsync(id, message);
+            if (ok) count++;
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, count });
+    }
+
+    private async Task<(bool Ok, string? Error)> ApproveNewOneAsync(Guid id, string message)
+    {
+        var song = await db.Songs.FindAsync(id);
+        if (song is null) return (false, "Not found");
+        if (song.Status != SongStatus.PendingReview) return (false, "Not awaiting review.");
+
+        song.Status = SongStatus.Approved;
+        NotifyProposer(song, message);
+        return (true, null);
+    }
+
+    private async Task<(bool Ok, string? Error)> RejectNewOneAsync(Guid id, string message)
+    {
+        var song = await db.Songs.FindAsync(id);
+        if (song is null) return (false, "Not found");
+        if (song.Status != SongStatus.PendingReview) return (false, "Not awaiting review.");
+
+        song.Status = SongStatus.Rejected;
+        NotifyProposer(song, message);
+        return (true, null);
+    }
+
+    // Reuses SongEditReviewed - conceptually the same "a catalog submission
+    // you made was resolved" notification, just for a whole new Song
+    // instead of a proposed edit to an existing one. Not every submission
+    // is guaranteed to have a submitter (Status could in principle be set
+    // some other way later), so this silently no-ops rather than fail the
+    // whole approve/reject on a missing ProposedByUserId.
+    private void NotifyProposer(Song song, string message)
+    {
+        if (song.ProposedByUserId is not { } proposerId) return;
+        db.Notifications.Add(new Notification
+        {
+            UserId = proposerId,
+            Message = $"{song.Title}: {message}",
+            Kind = NotificationKind.SongEditReviewed
+        });
     }
 
     // Adds/updates one instrument's tuning on the shared Song - keyed by
