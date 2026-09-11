@@ -89,6 +89,7 @@ builder.Services.AddScoped<BandManager.Web.Services.NotificationReminderService>
 builder.Services.AddScoped<BandManager.Web.Services.AddressLookupService>();
 builder.Services.AddScoped<BandManager.Web.Services.GoogleCalendarPushService>();
 builder.Services.AddScoped<BandManager.Web.Services.OutlookCalendarPushService>();
+builder.Services.AddScoped<BandManager.Web.Services.TechRiderPdfService>();
 
 // The one genuinely irreplaceable piece of local state - see
 // AesGcmCredentialCipher's doc comment. Configurable via

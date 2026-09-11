@@ -494,7 +494,10 @@ function openActModal(act) {
 
     const techRiderSection = document.getElementById('act-tech-rider-preview-section');
     techRiderSection.hidden = !act;
-    if (act) document.getElementById('act-tech-rider-preview-link').href = `/print-tech-rider.html?actId=${act.id}`;
+    if (act) {
+        document.getElementById('act-tech-rider-preview-link').href = `/print-tech-rider.html?actId=${act.id}`;
+        document.getElementById('act-tech-rider-pdf-link').href = `/api/acts/${act.id}/tech-rider/pdf`;
+    }
 
     document.getElementById('act-modal-backdrop').hidden = false;
 }

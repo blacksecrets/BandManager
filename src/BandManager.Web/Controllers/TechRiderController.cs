@@ -1,7 +1,9 @@
 using System.Text.Json;
 using BandManager.Data;
 using BandManager.Web.Auth;
+using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Playwright;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,7 +23,7 @@ namespace BandManager.Web.Controllers;
 [ApiController]
 [Route("/api/acts/{actId:guid}/tech-rider")]
 [Authorize(Policy = "BandMember")]
-public class TechRiderController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
+public class TechRiderController(ApplicationDbContext db, IActiveBandAccessor activeBand, TechRiderPdfService pdfService) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> Get(Guid actId)
@@ -88,5 +90,42 @@ public class TechRiderController(ApplicationDbContext db, IActiveBandAccessor ac
             monitorMixes,
             micEqNotes
         });
+    }
+
+    // Headless-prints print-tech-rider.html to PDF (see
+    // TechRiderPdfService.cs) - the caller's own auth/session cookies are
+    // forwarded so the internal request renders exactly what they'd see
+    // themselves, no separate export-auth mechanism needed.
+    [HttpGet("pdf")]
+    public async Task<IActionResult> DownloadPdf(Guid actId)
+    {
+        var bandId = activeBand.GetActiveBandId();
+        if (bandId is null) return BadRequest(new { error = "No active band selected." });
+
+        var act = await db.Acts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == actId && a.BandId == bandId);
+        if (act is null) return NotFound(new { error = "Act not found" });
+
+        // Playwright always navigates over loopback (below), regardless of
+        // what host the caller's own browser used to reach this app - the
+        // forwarded cookies' Domain has to match that loopback host, not
+        // Request.Host, or the internal browser context won't send them.
+        const string internalHost = "localhost";
+        var cookies = new List<PdfCookie>();
+        foreach (var name in new[] { "BandManager.Auth", "BandManager.Session" })
+        {
+            if (Request.Cookies.TryGetValue(name, out var value))
+                cookies.Add(new PdfCookie(name, value, internalHost, "/"));
+        }
+
+        var printUrl = $"http://{internalHost}:8080/print-tech-rider.html?actId={actId}";
+        byte[] pdf;
+        try { pdf = await pdfService.GeneratePdfAsync(printUrl, cookies); }
+        catch (Exception ex) when (ex is InvalidOperationException or PlaywrightException)
+        {
+            return StatusCode(502, new { error = $"Could not generate the PDF: {ex.Message}" });
+        }
+
+        var fileName = $"{act.Name.Replace(' ', '-')}-TechRider.pdf";
+        return File(pdf, "application/pdf", fileName);
     }
 }
