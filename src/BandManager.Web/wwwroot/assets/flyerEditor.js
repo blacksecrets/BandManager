@@ -205,7 +205,16 @@
                     const row = document.createElement('div');
                     row.className = 'flyer-field-row';
                     const expanded = expandedKeys.has(field.key);
-                    const fontOptions = fonts.map((f) => `<option value="${f.key}" ${field.fontFamily === f.key ? 'selected' : ''}>${escapeHtml(f.label)}</option>`).join('');
+                    // Selected font pinned to the top (so it's visible
+                    // without scrolling a long list), then a disabled
+                    // separator, then every font alphabetically below -
+                    // bundled and custom fonts sorted together, matching
+                    // how GET /api/flyers/fonts already returns them.
+                    const selectedFont = fonts.find((f) => f.key === field.fontFamily);
+                    const sortedFonts = [...fonts].sort((a, b) => a.label.localeCompare(b.label));
+                    const fontOptions =
+                        (selectedFont ? `<option value="${selectedFont.key}" selected>${escapeHtml(selectedFont.label)}</option><option disabled>──────</option>` : '') +
+                        sortedFonts.map((f) => `<option value="${f.key}">${escapeHtml(f.label)}</option>`).join('');
                     row.innerHTML = `
                         <div class="flyer-field-row-header">
                             <button type="button" class="flyer-field-row-toggle" data-toggle aria-expanded="${expanded}">${expanded ? '&#9662;' : '&#9656;'}</button>
