@@ -166,8 +166,16 @@ if (document.getElementById('catalog-grid')) {
         }
 
         const label = document.createElement('div');
-        label.className = 'catalog-tile-label';
-        label.textContent = item.label || item.original_filename || `#${item.id}`;
+        // A flyer's label alone ("Flyer - <title>") can't tell apart two
+        // gigs with the same title/venue at different dates - suffix with
+        // the gig date, and let it wrap instead of ellipsis-truncating
+        // (that's exactly what usually hides the distinguishing part).
+        const isFlyerLabel = item.category === 'flyer' && item.flyer_info;
+        label.className = 'catalog-tile-label' + (isFlyerLabel ? ' catalog-tile-label-flyer' : '');
+        const baseLabel = item.label || item.original_filename || `#${item.id}`;
+        label.textContent = isFlyerLabel && item.flyer_info.gigDate
+            ? `${baseLabel}, ${item.flyer_info.gigDate}`
+            : baseLabel;
         tile.appendChild(label);
 
         tile.addEventListener('click', () => openCatalogViewer(item));

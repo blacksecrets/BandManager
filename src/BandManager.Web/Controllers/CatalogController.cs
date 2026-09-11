@@ -102,9 +102,9 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         if (flyers.Count == 0) return [];
 
         var gigRefs = flyers.Select(f => f.GigRef).Distinct().ToList();
-        var gigTitlesByRef = await db.Gigs.AsNoTracking()
+        var gigsByRef = await db.Gigs.AsNoTracking()
             .Where(g => g.BandId == bandId && gigRefs.Contains(g.Ref))
-            .ToDictionaryAsync(g => g.Ref, g => g.Title);
+            .ToDictionaryAsync(g => g.Ref, g => new { g.Title, g.Date });
         var countByGigRef = await db.Flyers.AsNoTracking()
             .Where(f => f.BandId == bandId && gigRefs.Contains(f.GigRef))
             .GroupBy(f => f.GigRef)
@@ -113,11 +113,19 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         var result = new Dictionary<Guid, object>();
         foreach (var f in flyers)
         {
+            var gig = gigsByRef.GetValueOrDefault(f.GigRef);
             result[f.GeneratedCatalogItemId] = new
             {
                 flyerId = f.Id,
                 gigRef = f.GigRef,
-                gigTitle = gigTitlesByRef.GetValueOrDefault(f.GigRef, f.GigRef),
+                gigTitle = gig?.Title ?? f.GigRef,
+                // Distinguishes flyers for a gig at the same venue on a
+                // different date, e.g. two "Live at Taylor Pavilion" gigs -
+                // the label alone (Flyer - <title>) can't tell those apart.
+                // Pre-formatted server-side (GigDateTimeFormatting), same
+                // as every other DateOnly the app hands to a client, so
+                // there's no client-side timezone re-parsing to get wrong.
+                gigDate = gig is null ? null : GigDateTimeFormatting.FormatDate(gig.Date),
                 isLastFlyerForGig = countByGigRef.GetValueOrDefault(f.GigRef, 1) <= 1
             };
         }

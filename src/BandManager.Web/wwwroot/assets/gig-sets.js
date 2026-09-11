@@ -343,40 +343,66 @@ function closeSelectFlyerModal() { document.getElementById('select-flyer-modal-b
 document.getElementById('select-flyer-modal-close').addEventListener('click', closeSelectFlyerModal);
 document.getElementById('select-flyer-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'select-flyer-modal-backdrop') closeSelectFlyerModal(); });
 
+async function selectFlyer(flyerId) {
+    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/selected-flyer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flyerId })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) {
+        closeSelectFlyerModal();
+        await loadArtifactPanel();
+    } else {
+        alert(body.error || 'Could not select that flyer.');
+    }
+}
+
 document.getElementById('gig-set-select-flyer-btn').addEventListener('click', async () => {
     if (!selectedGigRef) return;
     const grid = document.getElementById('select-flyer-grid');
     grid.innerHTML = '<p class="save-note">Loading flyers...</p>';
     document.getElementById('select-flyer-modal-backdrop').hidden = false;
 
-    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/flyers`);
-    const flyers = res.ok ? await res.json() : [];
+    const [flyersRes, gigRes] = await Promise.all([
+        fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/flyers`),
+        fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}`)
+    ]);
+    const flyers = flyersRes.ok ? await flyersRes.json() : [];
+    const gig = gigRes.ok ? await gigRes.json() : { title: '', date: '' };
     if (flyers.length === 0) {
         grid.innerHTML = '<p class="save-note">No flyers have been created for this gig yet - use "Create/Edit Flyer" first.</p>';
         return;
     }
 
+    // Assuming there's 1+ flyer per gig, and every tile here is already
+    // scoped to this one gig, the "Flyer - <title>" label alone doesn't
+    // change tile to tile - what does is which one is actually live, so
+    // that's what gets the prominent treatment (badge + explicit
+    // checkbox) rather than just distinguishing tiles by creation date.
+    const gigLabel = `${gig.title || ''}${gig.date ? ', ' + gig.date : ''}`;
     grid.innerHTML = flyers.map((f) => `
-        <button type="button" class="select-flyer-tile${f.isSelected ? ' selected' : ''}" data-flyer-id="${f.id}">
-            <img src="${catalogFileUrlLocal(f.filePath)}" alt="Flyer">
-            <span>${new Date(f.createdAt).toLocaleDateString()}${f.isSelected ? ' · Current' : ''}</span>
-        </button>
+        <div class="select-flyer-tile${f.isSelected ? ' selected' : ''}" data-flyer-id="${f.id}">
+            <button type="button" class="select-flyer-tile-image" data-flyer-id="${f.id}">
+                <img src="${catalogFileUrlLocal(f.filePath)}" alt="Flyer">
+                ${f.isSelected ? '<span class="select-flyer-live-badge">Website Live</span>' : ''}
+            </button>
+            <span class="select-flyer-tile-label">Flyer - ${escapeHtml(gigLabel)}</span>
+            <span class="save-note">Saved ${new Date(f.createdAt).toLocaleDateString()}</span>
+            <label class="checkbox-label select-flyer-live-checkbox">
+                <input type="checkbox" data-flyer-id="${f.id}" ${f.isSelected ? 'checked' : ''}>
+                Make this the live website flyer for ${escapeHtml(gigLabel)}
+            </label>
+        </div>
     `).join('');
 
-    grid.querySelectorAll('.select-flyer-tile').forEach((tile) => {
-        tile.addEventListener('click', async () => {
-            const res2 = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/selected-flyer`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ flyerId: tile.dataset.flyerId })
-            });
-            const body = await res2.json().catch(() => ({}));
-            if (res2.ok) {
-                closeSelectFlyerModal();
-                await loadArtifactPanel();
-            } else {
-                alert(body.error || 'Could not select that flyer.');
-            }
+    grid.querySelectorAll('.select-flyer-tile-image').forEach((btn) => {
+        btn.addEventListener('click', () => selectFlyer(btn.dataset.flyerId));
+    });
+    grid.querySelectorAll('.select-flyer-live-checkbox input').forEach((cb) => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) selectFlyer(cb.dataset.flyerId);
+            else cb.checked = true; // exactly one flyer is always "the" live one - unchecking has nothing to switch to
         });
     });
 });
