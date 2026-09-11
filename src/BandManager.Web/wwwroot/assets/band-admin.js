@@ -480,6 +480,10 @@ function openActModal(act) {
     const stagePlotBtn = document.getElementById('act-stage-plot-btn');
     stagePlotBtn.onclick = () => window.openStagePlotEditor(act.id, act.name);
 
+    const inputChannelsSection = document.getElementById('act-input-channels-section');
+    inputChannelsSection.hidden = !act;
+    if (act) loadActInputChannels(act.id);
+
     document.getElementById('act-modal-backdrop').hidden = false;
 }
 
@@ -766,6 +770,77 @@ document.getElementById('promoter-form').addEventListener('submit', async (e) =>
     const resBody = await res.json().catch(() => ({}));
     if (res.ok) { closePromoterModal(); await loadPromoters(); }
     else { status.textContent = resBody.error || 'Could not save this promoter.'; }
+});
+
+// --- Tech Rider: Input / Mic Splitter Channel List (see TechRiderInputChannel.cs) ---
+async function loadActInputChannels(actId) {
+    const res = await fetch(`/api/acts/${actId}/input-channels`);
+    const channels = res.ok ? await res.json() : [];
+    renderInputChannelsTable(channels, actId);
+}
+
+function inputChannelRowHtml(c) {
+    return `
+        <td><input type="number" class="ic-channel-number" style="width:48px" value="${c.channelNumber ?? ''}"></td>
+        <td><input type="text" class="ic-source" placeholder="e.g. Lead Vocal" value="${escapeHtml(c.source || '')}"></td>
+        <td><input type="text" class="ic-mic" placeholder="e.g. Shure SM58" value="${escapeHtml(c.micRecommendation || '')}"></td>
+        <td><select class="ic-provided-by">
+            <option value="">-</option>
+            <option value="Venue" ${c.providedBy === 'Venue' ? 'selected' : ''}>Venue</option>
+            <option value="Band" ${c.providedBy === 'Band' ? 'selected' : ''}>Band</option>
+            <option value="Either" ${c.providedBy === 'Either' ? 'selected' : ''}>Either</option>
+        </select></td>
+        <td><input type="text" class="ic-notes" value="${escapeHtml(c.positioningNotes || '')}"></td>
+        <td>
+            <button type="button" class="ic-save-btn">Save</button>
+            <button type="button" class="ic-delete-btn">Delete</button>
+        </td>
+    `;
+}
+
+function wireInputChannelRow(tr, actId) {
+    tr.querySelector('.ic-save-btn').addEventListener('click', async () => {
+        const body = JSON.stringify({
+            channelNumber: Number(tr.querySelector('.ic-channel-number').value) || 0,
+            source: tr.querySelector('.ic-source').value.trim(),
+            micRecommendation: tr.querySelector('.ic-mic').value.trim() || null,
+            providedBy: tr.querySelector('.ic-provided-by').value || null,
+            positioningNotes: tr.querySelector('.ic-notes').value.trim() || null
+        });
+        const id = tr.dataset.id;
+        const url = id ? `/api/acts/${actId}/input-channels/${id}` : `/api/acts/${actId}/input-channels`;
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+        if (res.ok) await loadActInputChannels(actId);
+    });
+    tr.querySelector('.ic-delete-btn').addEventListener('click', async () => {
+        const id = tr.dataset.id;
+        if (!id) { tr.remove(); return; }
+        await fetch(`/api/acts/${actId}/input-channels/${id}`, { method: 'DELETE' });
+        await loadActInputChannels(actId);
+    });
+}
+
+function renderInputChannelsTable(channels, actId) {
+    const body = document.getElementById('act-input-channels-body');
+    body.innerHTML = '';
+    channels.forEach((c) => {
+        const tr = document.createElement('tr');
+        tr.dataset.id = c.id;
+        tr.innerHTML = inputChannelRowHtml(c);
+        wireInputChannelRow(tr, actId);
+        body.appendChild(tr);
+    });
+}
+
+document.getElementById('act-input-channel-add-btn').addEventListener('click', () => {
+    const actId = editingActId;
+    if (!actId) return;
+    const body = document.getElementById('act-input-channels-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = inputChannelRowHtml({});
+    wireInputChannelRow(tr, actId);
+    body.appendChild(tr);
 });
 
 loadBandAdmin();

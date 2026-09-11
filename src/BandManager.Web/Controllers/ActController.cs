@@ -13,6 +13,8 @@ public record SaveActRequest(
 
 public record SetActGearRequest(List<Guid> BandGearItemIds);
 
+public record SaveInputChannelRequest(int ChannelNumber, string Source, string? MicRecommendation, string? ProvidedBy, string? PositioningNotes);
+
 /// <summary>
 /// A band's performance configurations - see Act.cs's doc comment. Read
 /// access is broad (BandMember - the Gig create/edit form's Act picker
@@ -177,6 +179,87 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
         foreach (var gearId in request.BandGearItemIds.Where(validIds.Contains))
             db.ActGearItems.Add(new ActGearItem { ActId = actId, BandGearItemId = gearId, SortOrder = sort++ });
 
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    private static object SerializeInputChannel(TechRiderInputChannel c) => new
+    {
+        id = c.Id,
+        channelNumber = c.ChannelNumber,
+        source = c.Source,
+        micRecommendation = c.MicRecommendation,
+        providedBy = c.ProvidedBy,
+        positioningNotes = c.PositioningNotes
+    };
+
+    // This Act's Tech Rider Input/Mic Splitter Channel List - an ordered
+    // table, not a checklist, so it gets normal per-row CRUD rather than
+    // Gear List's replace-the-set save.
+    [HttpGet("{actId:guid}/input-channels")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> GetInputChannels(Guid actId)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+
+        var channels = await db.TechRiderInputChannels.AsNoTracking()
+            .Where(c => c.ActId == actId).OrderBy(c => c.SortOrder).ToListAsync();
+        return Ok(channels.Select(SerializeInputChannel));
+    }
+
+    [HttpPost("{actId:guid}/input-channels")]
+    public async Task<IActionResult> AddInputChannel(Guid actId, [FromBody] SaveInputChannelRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+        if (string.IsNullOrWhiteSpace(request.Source)) return BadRequest(new { error = "Source is required." });
+
+        var maxSort = await db.TechRiderInputChannels.Where(c => c.ActId == actId).Select(c => (int?)c.SortOrder).MaxAsync() ?? -1;
+        var channel = new TechRiderInputChannel
+        {
+            ActId = actId,
+            ChannelNumber = request.ChannelNumber,
+            Source = request.Source.Trim(),
+            MicRecommendation = string.IsNullOrWhiteSpace(request.MicRecommendation) ? null : request.MicRecommendation.Trim(),
+            ProvidedBy = request.ProvidedBy is "Venue" or "Band" or "Either" ? request.ProvidedBy : null,
+            PositioningNotes = string.IsNullOrWhiteSpace(request.PositioningNotes) ? null : request.PositioningNotes.Trim(),
+            SortOrder = maxSort + 1
+        };
+        db.TechRiderInputChannels.Add(channel);
+        await db.SaveChangesAsync();
+        return Ok(SerializeInputChannel(channel));
+    }
+
+    [HttpPut("{actId:guid}/input-channels/{id:guid}")]
+    public async Task<IActionResult> UpdateInputChannel(Guid actId, Guid id, [FromBody] SaveInputChannelRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+        if (string.IsNullOrWhiteSpace(request.Source)) return BadRequest(new { error = "Source is required." });
+
+        var channel = await db.TechRiderInputChannels.FirstOrDefaultAsync(c => c.Id == id && c.ActId == actId);
+        if (channel is null) return NotFound(new { error = "Not found" });
+
+        channel.ChannelNumber = request.ChannelNumber;
+        channel.Source = request.Source.Trim();
+        channel.MicRecommendation = string.IsNullOrWhiteSpace(request.MicRecommendation) ? null : request.MicRecommendation.Trim();
+        channel.ProvidedBy = request.ProvidedBy is "Venue" or "Band" or "Either" ? request.ProvidedBy : null;
+        channel.PositioningNotes = string.IsNullOrWhiteSpace(request.PositioningNotes) ? null : request.PositioningNotes.Trim();
+        await db.SaveChangesAsync();
+        return Ok(SerializeInputChannel(channel));
+    }
+
+    [HttpDelete("{actId:guid}/input-channels/{id:guid}")]
+    public async Task<IActionResult> DeleteInputChannel(Guid actId, Guid id)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+
+        var channel = await db.TechRiderInputChannels.FirstOrDefaultAsync(c => c.Id == id && c.ActId == actId);
+        if (channel is null) return Ok(new { ok = true });
+
+        db.TechRiderInputChannels.Remove(channel);
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }

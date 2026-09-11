@@ -18,6 +18,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ActGearItem> ActGearItems => Set<ActGearItem>();
     public DbSet<StagePlot> StagePlots => Set<StagePlot>();
     public DbSet<StagePlotItem> StagePlotItems => Set<StagePlotItem>();
+    public DbSet<TechRiderInputChannel> TechRiderInputChannels => Set<TechRiderInputChannel>();
 
     public DbSet<PlatformSetting> PlatformSettings => Set<PlatformSetting>();
     public DbSet<Platform> Platforms => Set<Platform>();
@@ -143,6 +144,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.StagePlot).WithMany(p => p.Items).HasForeignKey(x => x.StagePlotId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.BandGearItem).WithMany().HasForeignKey(x => x.BandGearItemId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<TechRiderInputChannel>(b =>
+        {
+            b.HasOne(x => x.Act).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // --- Global reference data (identical for every Band) ---
