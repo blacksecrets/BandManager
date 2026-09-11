@@ -135,8 +135,8 @@ public class FlyersController(
     // Powers the "Edit" button on an already-generated flyer's viewer
     // modal - returns enough to reopen the editor pre-populated with this
     // flyer's actual saved background/fields, instead of the blank
-    // known-fields default. Saving from there still creates a NEW Flyer
-    // row (see Create below) - editing never overwrites history.
+    // known-fields default. Saving from there calls Update below, which
+    // overwrites this same Flyer row rather than creating a new one.
     [HttpGet("{id:guid}")]
     [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> Get(Guid id)
@@ -175,21 +175,24 @@ public class FlyersController(
         });
     }
 
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] SaveFlyerRequest request)
-    {
-        var (band, err) = await RequireActiveBandAsync();
-        if (err is not null) return err;
+    // Shared by Create and Update - resolves the gig/source image, parses
+    // the submitted fields, and renders the final flyer image. Doesn't
+    // touch the database beyond reads, so both callers stay free to decide
+    // whether the result becomes a new Flyer row or an update to an
+    // existing one.
+    private record RenderResult(Gig Gig, CatalogItem Source, byte[] Rendered, List<FlyerFieldDef> Fields);
 
+    private async Task<(RenderResult? Result, IActionResult? Error)> RenderFlyerFromRequestAsync(Band band, SaveFlyerRequest request)
+    {
         var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == request.GigRef);
-        if (gig is null) return NotFound(new { error = "Gig not found" });
+        if (gig is null) return (null, NotFound(new { error = "Gig not found" }));
 
         var source = await db.CatalogItems.FirstOrDefaultAsync(c => c.Id == request.SourceCatalogItemId && c.BandId == band.Id);
-        if (source is null) return NotFound(new { error = "Source image not found" });
+        if (source is null) return (null, NotFound(new { error = "Source image not found" }));
 
         byte[] backgroundBytes;
         try { backgroundBytes = await catalogStore.GetCatalogItemBufferAsync(band.Id, source.Id); }
-        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return (null, BadRequest(new { error = ex.Message })); }
 
         var fields = request.Fields.Select(f => new FlyerFieldDef(
             f.Key, f.Label, Enum.Parse<FlyerFieldType>(f.Type, ignoreCase: true),
@@ -211,32 +214,20 @@ public class FlyersController(
 
         byte[] rendered;
         try { rendered = FlyerRenderer.RenderFlyer(backgroundBytes, fields, FontsRootPath, LogoResolver, CustomFontPathResolver); }
-        catch (InvalidOperationException ex) { return BadRequest(new { error = ex.Message }); }
+        catch (InvalidOperationException ex) { return (null, BadRequest(new { error = ex.Message })); }
 
-        var gigRef = gig.Ref;
-        var catalogItem = await catalogStore.RegisterCatalogItemAsync(
-            band.Id, rendered, "image/png", $"flyer-{gigRef}.png",
-            CatalogSource.Upload, sourceUrl: null, uploadedBy: User.Identity?.Name,
-            label: $"Flyer - {gig.Title}", category: CatalogCategory.Flyer);
+        return (new RenderResult(gig, source, rendered, fields), null);
+    }
 
-        var flyer = new Flyer
-        {
-            BandId = band.Id,
-            GeneratedCatalogItemId = catalogItem.Id,
-            SourceCatalogItemId = source.Id,
-            GigRef = gigRef,
-            Fields = fields
-        };
-        db.Flyers.Add(flyer);
-
-        // Publishing live is opt-in per save (request.Publish, unchecked by
-        // default client-side) - a plain Save only ever writes to this
-        // band's own Catalog, never touches the connected site, until the
-        // checkbox is explicitly checked. Still requires a site to be
-        // configured at all to push, same "known interim limitation" as
-        // GigsController's own flyer paths - the Flyer/Catalog rows above
-        // are saved either way.
-        if (!request.Publish || !await HasSiteConfiguredAsync(band))
+    // Shared by Create and Update - persists whatever the caller already
+    // staged on `flyer` (new or mutated) and, only when request.Publish was
+    // checked and a site is actually configured, pushes the rendered image
+    // live. Unpublished/unconfigured saves still persist normally - the
+    // Flyer/Catalog rows are never gated behind the publish checkbox, only
+    // the live push is.
+    private async Task<IActionResult> SaveAndMaybePublishAsync(Band band, Flyer flyer, Gig gig, byte[] rendered, CatalogItem catalogItem, bool publish)
+    {
+        if (!publish || !await HasSiteConfiguredAsync(band))
         {
             await db.SaveChangesAsync();
             return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = false });
@@ -262,5 +253,67 @@ public class FlyersController(
         }
 
         return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = true });
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] SaveFlyerRequest request)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var (result, renderErr) = await RenderFlyerFromRequestAsync(band, request);
+        if (renderErr is not null) return renderErr;
+        var (gig, source, rendered, fields) = result!;
+
+        var catalogItem = await catalogStore.RegisterCatalogItemAsync(
+            band.Id, rendered, "image/png", $"flyer-{gig.Ref}.png",
+            CatalogSource.Upload, sourceUrl: null, uploadedBy: User.Identity?.Name,
+            label: $"Flyer - {gig.Title}", category: CatalogCategory.Flyer);
+
+        var flyer = new Flyer
+        {
+            BandId = band.Id,
+            GeneratedCatalogItemId = catalogItem.Id,
+            SourceCatalogItemId = source.Id,
+            GigRef = gig.Ref,
+            Fields = fields
+        };
+        db.Flyers.Add(flyer);
+
+        return await SaveAndMaybePublishAsync(band, flyer, gig, rendered, catalogItem, request.Publish);
+    }
+
+    // Editing an already-generated flyer (opened via "Edit" on its viewer
+    // modal) now updates that same Flyer row in place instead of Create's
+    // always-insert-a-new-row behavior - Richard's testing found the old
+    // "editing creates a new Flyer" design meant re-picking a flyer for a
+    // gig after tweaking it didn't reliably pick up the change. Only
+    // re-pushes to the live site if request.Publish is checked at save
+    // time - an already-live flyer being edited does not auto-repush just
+    // because it was already live, same one safety gate as Create.
+    [HttpPut("{id:guid}")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] SaveFlyerRequest request)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var flyer = await db.Flyers.FirstOrDefaultAsync(f => f.Id == id && f.BandId == band.Id);
+        if (flyer is null) return NotFound(new { error = "Flyer not found" });
+
+        var (result, renderErr) = await RenderFlyerFromRequestAsync(band, request);
+        if (renderErr is not null) return renderErr;
+        var (gig, source, rendered, fields) = result!;
+
+        var catalogItem = await catalogStore.RegisterCatalogItemAsync(
+            band.Id, rendered, "image/png", $"flyer-{gig.Ref}.png",
+            CatalogSource.Upload, sourceUrl: null, uploadedBy: User.Identity?.Name,
+            label: $"Flyer - {gig.Title}", category: CatalogCategory.Flyer);
+
+        flyer.GeneratedCatalogItemId = catalogItem.Id;
+        flyer.SourceCatalogItemId = source.Id;
+        flyer.GigRef = gig.Ref;
+        flyer.Fields = fields;
+
+        return await SaveAndMaybePublishAsync(band, flyer, gig, rendered, catalogItem, request.Publish);
     }
 }

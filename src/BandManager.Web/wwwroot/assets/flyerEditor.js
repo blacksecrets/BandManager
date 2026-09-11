@@ -120,9 +120,8 @@
     // with catalogItemId/gigRef (starting a fresh one) - when given, the
     // background image and gig are resolved from the flyer itself, and
     // its saved field values/positions are the starting point instead of
-    // the blank known-fields default. Saving still always creates a NEW
-    // Flyer row (see FlyersController.Create) - this never overwrites the
-    // flyer being edited, only starts from it.
+    // the blank known-fields default. Saving updates that same Flyer row
+    // in place (see FlyersController.Update) instead of creating a new one.
     window.openFlyerEditor = function openFlyerEditor({ catalogItemId, gigRef, flyerId } = {}) {
         return new Promise(async (resolve) => {
             resolvePromise = resolve;
@@ -508,8 +507,8 @@
                         rotation: f.rotation || 0, skew: !!f.skew
                     }))
                 };
-                const res = await fetch('/api/flyers', {
-                    method: 'POST',
+                const res = await fetch(flyerId ? `/api/flyers/${flyerId}` : '/api/flyers', {
+                    method: flyerId ? 'PUT' : 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
