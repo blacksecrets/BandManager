@@ -14,6 +14,7 @@ async function loadSuperAdminPage() {
     document.getElementById('posting-oauth-section').hidden = false;
     document.getElementById('usps-section').hidden = false;
     document.getElementById('admin-branding-section').hidden = false;
+    document.getElementById('song-catalog-review-section').hidden = false;
     document.getElementById('flyer-fonts-section').hidden = false;
 
     loadAllUsersPicker();
@@ -28,6 +29,7 @@ async function loadSuperAdminPage() {
     loadBranding();
     renderSongImportBandCheckboxes();
     loadFlyerFonts();
+    loadSuperAdminSongCatalog();
 }
 
 // --- Bulk song CSV import ---
@@ -846,5 +848,138 @@ document.getElementById('flyer-font-upload-form').addEventListener('submit', asy
         status.textContent = result.error || 'Could not upload that font.';
     }
 });
+
+// --- Band Manager+ Song Catalog (review) ---
+function formatSuperAdminSongLength(seconds) {
+    if (seconds == null) return '';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${String(s).padStart(2, '0')}`;
+}
+function parseSuperAdminSongLength(text) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return null;
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return null;
+    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
+}
+
+let superAdminSongCatalogGrid = null;
+let superAdminSongCatalogRows = [];
+
+function isSuperAdminSongUnderReview(song) {
+    return song.status === 'PendingReview' || !!song.pendingEditRequestId;
+}
+
+async function loadSuperAdminSongCatalog() {
+    const res = await fetch('/api/songs');
+    if (!res.ok) return;
+    superAdminSongCatalogRows = await res.json();
+    renderSuperAdminSongCatalogGrid();
+}
+
+function applySuperAdminSongDurationFilter(rows) {
+    const op = document.getElementById('superadmin-song-catalog-duration-op').value;
+    const target = parseSuperAdminSongLength(document.getElementById('superadmin-song-catalog-duration-value').value);
+    if (!op || target === null) return rows;
+    return rows.filter((s) => {
+        if (s.lengthSeconds == null) return false;
+        if (op === 'lt') return s.lengthSeconds < target;
+        if (op === 'gt') return s.lengthSeconds > target;
+        return s.lengthSeconds === target;
+    });
+}
+
+async function resolveNewSongOne(url, songTitle) {
+    const message = prompt(`Message for the submitter of "${songTitle}":`, '');
+    if (message === null) return;
+    if (!message.trim()) { alert('A message is required.'); return; }
+    const res = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: message.trim() })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(body.error || 'Could not resolve this song.'); return; }
+    await loadSuperAdminSongCatalog();
+}
+
+async function resolveNewSongsBulk(url, ids) {
+    const message = prompt(`Message to include on all ${ids.length} notification(s):`, '');
+    if (message === null) return;
+    if (!message.trim()) { alert('A message is required.'); return; }
+    const res = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, message: message.trim() })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(body.error || 'Could not resolve those songs.'); return; }
+    await loadSuperAdminSongCatalog();
+}
+
+function renderSuperAdminSongCatalogGrid() {
+    const filtered = applySuperAdminSongDurationFilter(superAdminSongCatalogRows);
+    const columns = [
+        {
+            key: 'title', label: 'Title',
+            searchValue: (s) => `${s.title} ${isSuperAdminSongUnderReview(s) ? 'under review' : ''}`,
+            render: (s) => `${escapeHtml(s.title)}${isSuperAdminSongUnderReview(s) ? ' <span class="under-review-badge-inline">Under review</span>' : ''}`
+        },
+        { key: 'originalArtist', label: 'Artist', render: (s) => escapeHtml(s.originalArtist || '—') },
+        { key: 'album', label: 'Album', render: (s) => escapeHtml(s.album || '—') },
+        { key: 'lengthSeconds', label: 'Length', render: (s) => s.lengthSeconds != null ? formatSuperAdminSongLength(s.lengthSeconds) : '—' },
+        {
+            key: 'review', label: '', sortable: false, searchable: false,
+            render: (s) => {
+                if (s.status === 'PendingReview') return `<button type="button" class="song-catalog-accept-btn" data-song-id="${s.id}" data-song-title="${escapeHtml(s.title)}">Accept</button> <button type="button" class="song-catalog-reject-btn" data-song-id="${s.id}" data-song-title="${escapeHtml(s.title)}">Reject</button>`;
+                if (s.pendingEditRequestId) return `<button type="button" class="song-catalog-review-edit-btn" data-request-id="${s.pendingEditRequestId}">Review edit</button>`;
+                return '';
+            }
+        }
+    ];
+
+    if (superAdminSongCatalogGrid) {
+        superAdminSongCatalogGrid.setRows(filtered);
+    } else {
+        const container = document.getElementById('superadmin-song-catalog-grid');
+        superAdminSongCatalogGrid = window.DataGrid.render(container, {
+            columns,
+            rows: filtered,
+            getRowId: (s) => s.id,
+            checkboxes: true,
+            searchPlaceholder: 'Search title, artist, album, or "under review"...',
+            defaultSortKey: 'title',
+            defaultSortDir: 'asc',
+            emptyMessage: 'The catalog is empty.',
+            bulkActions: [
+                {
+                    label: 'Accept All Checked (new songs)', onClick: (ids) => {
+                        const newSongIds = ids.filter((id) => superAdminSongCatalogRows.find((s) => s.id === id)?.status === 'PendingReview');
+                        if (newSongIds.length === 0) { alert('None of the checked rows are newly-proposed songs - edit review happens on Notifications.'); return; }
+                        return resolveNewSongsBulk('/api/songs/bulk-approve-new', newSongIds);
+                    }
+                },
+                {
+                    label: 'Reject All Checked (new songs)', onClick: (ids) => {
+                        const newSongIds = ids.filter((id) => superAdminSongCatalogRows.find((s) => s.id === id)?.status === 'PendingReview');
+                        if (newSongIds.length === 0) { alert('None of the checked rows are newly-proposed songs - edit review happens on Notifications.'); return; }
+                        return resolveNewSongsBulk('/api/songs/bulk-reject-new', newSongIds);
+                    }
+                }
+            ]
+        });
+        container.addEventListener('click', (e) => {
+            const acceptBtn = e.target.closest('.song-catalog-accept-btn');
+            const rejectBtn = e.target.closest('.song-catalog-reject-btn');
+            const reviewBtn = e.target.closest('.song-catalog-review-edit-btn');
+            if (acceptBtn) { e.stopPropagation(); resolveNewSongOne(`/api/songs/${acceptBtn.dataset.songId}/approve-new`, acceptBtn.dataset.songTitle); }
+            else if (rejectBtn) { e.stopPropagation(); resolveNewSongOne(`/api/songs/${rejectBtn.dataset.songId}/reject-new`, rejectBtn.dataset.songTitle); }
+            else if (reviewBtn) {
+                e.stopPropagation();
+                window.openReviewSummary({ requestId: reviewBtn.dataset.requestId, isSuperAdmin: true, onResolved: loadSuperAdminSongCatalog });
+            }
+        });
+    }
+}
+
+document.getElementById('superadmin-song-catalog-duration-op').addEventListener('change', renderSuperAdminSongCatalogGrid);
+document.getElementById('superadmin-song-catalog-duration-value').addEventListener('input', renderSuperAdminSongCatalogGrid);
 
 loadSuperAdminPage();

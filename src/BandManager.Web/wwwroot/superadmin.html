@@ -7,6 +7,8 @@
 <link rel="stylesheet" href="/assets/dashboard.css">
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
+<link rel="stylesheet" href="/assets/band-admin.css">
 </head>
 <body>
     <header class="topbar">
@@ -295,6 +297,26 @@
             <p id="branding-status" class="save-note"></p>
         </section>
 
+        <section class="platform-card" id="song-catalog-review-section" hidden>
+            <h2>Band Manager+ Song Catalog</h2>
+            <p>Every song any band has ever entered. Newly-proposed songs
+               (still awaiting review) show Accept/Reject here directly;
+               a proposed *edit* to an already-approved song opens the
+               full before/after diff to review, same as Notifications.</p>
+            <div class="song-catalog-filters">
+                <label>Duration
+                    <select id="superadmin-song-catalog-duration-op">
+                        <option value="">Any</option>
+                        <option value="lt">&lt;</option>
+                        <option value="eq">=</option>
+                        <option value="gt">&gt;</option>
+                    </select>
+                </label>
+                <input type="text" id="superadmin-song-catalog-duration-value" placeholder="mm:ss">
+            </div>
+            <div id="superadmin-song-catalog-grid"></div>
+        </section>
+
         <section class="platform-card" id="flyer-fonts-section" hidden>
             <h2>Flyer fonts</h2>
             <p>Fonts every band can pick from in the flyer editor, beyond the 7 built in. Accepts .ttf and .otf files.</p>
@@ -314,7 +336,9 @@
         </section>
     </main>
 
+    <script src="/assets/dataGrid.js"></script>
     <script src="/assets/superadmin.js"></script>
+    <script src="/assets/songReview.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/topNav.js"></script>
     <script src="/assets/bandSwitcher.js"></script>
