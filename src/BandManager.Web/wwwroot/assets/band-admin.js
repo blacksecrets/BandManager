@@ -477,6 +477,9 @@ function openActModal(act) {
     gearSection.hidden = !act;
     if (act) loadActGearChecklist(act.id);
 
+    const stagePlotBtn = document.getElementById('act-stage-plot-btn');
+    stagePlotBtn.onclick = () => window.openStagePlotEditor(act.id, act.name);
+
     document.getElementById('act-modal-backdrop').hidden = false;
 }
 
