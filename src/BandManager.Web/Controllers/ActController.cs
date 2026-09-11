@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BandManager.Data;
 using BandManager.Data.Entities;
 using BandManager.Web.Auth;
@@ -16,6 +17,9 @@ public record SetActGearRequest(List<Guid> BandGearItemIds);
 public record SaveInputChannelRequest(int ChannelNumber, string Source, string? MicRecommendation, string? ProvidedBy, string? PositioningNotes);
 
 public record SaveMonitorMixRequest(string Position, string MixDescription);
+
+public record FrequencyRowRequest(string Frequency, string? EqMove, string? Reason);
+public record SaveMicEqNoteRequest(string MicModel, string? Context, List<FrequencyRowRequest>? FrequencyRows, string? GeneralNotes);
 
 /// <summary>
 /// A band's performance configurations - see Act.cs's doc comment. Read
@@ -333,6 +337,81 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
         if (mix is null) return Ok(new { ok = true });
 
         db.TechRiderMonitorMixes.Remove(mix);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    private static object SerializeMicEqNote(TechRiderMicEqNote n) => new
+    {
+        id = n.Id,
+        micModel = n.MicModel,
+        context = n.Context,
+        frequencyRows = JsonSerializer.Deserialize<List<FrequencyRowRequest>>(n.FrequencyRowsJson) ?? new List<FrequencyRowRequest>(),
+        generalNotes = n.GeneralNotes
+    };
+
+    [HttpGet("{actId:guid}/mic-eq-notes")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> GetMicEqNotes(Guid actId)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+
+        var notes = await db.TechRiderMicEqNotes.AsNoTracking()
+            .Where(n => n.ActId == actId).OrderBy(n => n.SortOrder).ToListAsync();
+        return Ok(notes.Select(SerializeMicEqNote));
+    }
+
+    [HttpPost("{actId:guid}/mic-eq-notes")]
+    public async Task<IActionResult> AddMicEqNote(Guid actId, [FromBody] SaveMicEqNoteRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+        if (string.IsNullOrWhiteSpace(request.MicModel)) return BadRequest(new { error = "Mic model is required." });
+
+        var maxSort = await db.TechRiderMicEqNotes.Where(n => n.ActId == actId).Select(n => (int?)n.SortOrder).MaxAsync() ?? -1;
+        var note = new TechRiderMicEqNote
+        {
+            ActId = actId,
+            MicModel = request.MicModel.Trim(),
+            Context = string.IsNullOrWhiteSpace(request.Context) ? null : request.Context.Trim(),
+            FrequencyRowsJson = JsonSerializer.Serialize(request.FrequencyRows ?? new List<FrequencyRowRequest>()),
+            GeneralNotes = string.IsNullOrWhiteSpace(request.GeneralNotes) ? null : request.GeneralNotes.Trim(),
+            SortOrder = maxSort + 1
+        };
+        db.TechRiderMicEqNotes.Add(note);
+        await db.SaveChangesAsync();
+        return Ok(SerializeMicEqNote(note));
+    }
+
+    [HttpPut("{actId:guid}/mic-eq-notes/{id:guid}")]
+    public async Task<IActionResult> UpdateMicEqNote(Guid actId, Guid id, [FromBody] SaveMicEqNoteRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+        if (string.IsNullOrWhiteSpace(request.MicModel)) return BadRequest(new { error = "Mic model is required." });
+
+        var note = await db.TechRiderMicEqNotes.FirstOrDefaultAsync(n => n.Id == id && n.ActId == actId);
+        if (note is null) return NotFound(new { error = "Not found" });
+
+        note.MicModel = request.MicModel.Trim();
+        note.Context = string.IsNullOrWhiteSpace(request.Context) ? null : request.Context.Trim();
+        note.FrequencyRowsJson = JsonSerializer.Serialize(request.FrequencyRows ?? new List<FrequencyRowRequest>());
+        note.GeneralNotes = string.IsNullOrWhiteSpace(request.GeneralNotes) ? null : request.GeneralNotes.Trim();
+        await db.SaveChangesAsync();
+        return Ok(SerializeMicEqNote(note));
+    }
+
+    [HttpDelete("{actId:guid}/mic-eq-notes/{id:guid}")]
+    public async Task<IActionResult> DeleteMicEqNote(Guid actId, Guid id)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        if (!await db.Acts.AnyAsync(a => a.Id == actId && a.BandId == bandId)) return NotFound(new { error = "Act not found" });
+
+        var note = await db.TechRiderMicEqNotes.FirstOrDefaultAsync(n => n.Id == id && n.ActId == actId);
+        if (note is null) return Ok(new { ok = true });
+
+        db.TechRiderMicEqNotes.Remove(note);
         await db.SaveChangesAsync();
         return Ok(new { ok = true });
     }

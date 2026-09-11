@@ -488,6 +488,10 @@ function openActModal(act) {
     monitorMixesSection.hidden = !act;
     if (act) loadActMonitorMixes(act.id);
 
+    const micEqNotesSection = document.getElementById('act-mic-eq-notes-section');
+    micEqNotesSection.hidden = !act;
+    if (act) loadActMicEqNotes(act.id);
+
     document.getElementById('act-modal-backdrop').hidden = false;
 }
 
@@ -905,6 +909,117 @@ document.getElementById('act-monitor-mix-add-btn').addEventListener('click', () 
     tr.innerHTML = monitorMixRowHtml({});
     wireMonitorMixRow(tr, actId);
     body.appendChild(tr);
+});
+
+// --- Tech Rider: Mic EQ Notes (see TechRiderMicEqNote.cs) - per-Act, not
+// a shared library, since the right EQ starting point depends on what
+// this mic is miking in THIS act's own setup. ---
+async function loadActMicEqNotes(actId) {
+    const res = await fetch(`/api/acts/${actId}/mic-eq-notes`);
+    const notes = res.ok ? await res.json() : [];
+    renderMicEqNotesList(notes, actId);
+}
+
+function freqRowHtml(row) {
+    row = row || {};
+    return `
+        <tr>
+            <td><input type="text" class="meq-freq-hz" placeholder="e.g. 100-150Hz" value="${escapeHtml(row.frequency || '')}"></td>
+            <td><input type="text" class="meq-freq-move" placeholder="e.g. Cut" value="${escapeHtml(row.eqMove || '')}"></td>
+            <td><input type="text" class="meq-freq-reason" placeholder="e.g. Boxiness" value="${escapeHtml(row.reason || '')}"></td>
+            <td><button type="button" class="meq-remove-row-btn">&times;</button></td>
+        </tr>
+    `;
+}
+
+function micEqCardHtml(n) {
+    const rows = n.frequencyRows && n.frequencyRows.length ? n.frequencyRows : [{}];
+    return `
+        <label>Mic Model <input type="text" class="meq-mic-model" placeholder="e.g. Shure SM57" value="${escapeHtml(n.micModel || '')}"></label>
+        <label>Context <input type="text" class="meq-context" placeholder="e.g. Electric Guitar Amp" value="${escapeHtml(n.context || '')}"></label>
+        <table class="user-table meq-freq-table">
+            <thead><tr><th>Frequency</th><th>EQ Move</th><th>Reason</th><th></th></tr></thead>
+            <tbody class="meq-freq-body">${rows.map(freqRowHtml).join('')}</tbody>
+        </table>
+        <button type="button" class="meq-add-row-btn">+ Add Frequency Row</button>
+        <label>General Notes <textarea class="meq-general-notes" rows="2">${escapeHtml(n.generalNotes || '')}</textarea></label>
+        <div class="cred-form-buttons">
+            <button type="button" class="meq-save-btn">Save</button>
+            <button type="button" class="meq-delete-btn">Delete</button>
+        </div>
+        <p class="meq-status save-note"></p>
+    `;
+}
+
+function wireMicEqCard(card, actId) {
+    function wireRemoveButtons() {
+        card.querySelectorAll('.meq-remove-row-btn').forEach((btn) => {
+            btn.onclick = () => { btn.closest('tr').remove(); };
+        });
+    }
+    wireRemoveButtons();
+
+    card.querySelector('.meq-add-row-btn').addEventListener('click', () => {
+        const tbody = card.querySelector('.meq-freq-body');
+        const tr = document.createElement('tr');
+        tr.innerHTML = freqRowHtml({});
+        tbody.appendChild(tr);
+        wireRemoveButtons();
+    });
+
+    card.querySelector('.meq-save-btn').addEventListener('click', async () => {
+        const status = card.querySelector('.meq-status');
+        const frequencyRows = Array.from(card.querySelectorAll('.meq-freq-body tr')).map((tr) => ({
+            frequency: tr.querySelector('.meq-freq-hz').value.trim(),
+            eqMove: tr.querySelector('.meq-freq-move').value.trim() || null,
+            reason: tr.querySelector('.meq-freq-reason').value.trim() || null
+        })).filter((r) => r.frequency);
+
+        const body = JSON.stringify({
+            micModel: card.querySelector('.meq-mic-model').value.trim(),
+            context: card.querySelector('.meq-context').value.trim() || null,
+            frequencyRows,
+            generalNotes: card.querySelector('.meq-general-notes').value.trim() || null
+        });
+        const id = card.dataset.id;
+        const url = id ? `/api/acts/${actId}/mic-eq-notes/${id}` : `/api/acts/${actId}/mic-eq-notes`;
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+        const resBody = await res.json().catch(() => ({}));
+        if (res.ok) await loadActMicEqNotes(actId);
+        else status.textContent = resBody.error || 'Could not save this note.';
+    });
+
+    card.querySelector('.meq-delete-btn').addEventListener('click', async () => {
+        const id = card.dataset.id;
+        if (!id) { card.remove(); return; }
+        await fetch(`/api/acts/${actId}/mic-eq-notes/${id}`, { method: 'DELETE' });
+        await loadActMicEqNotes(actId);
+    });
+}
+
+function renderMicEqNotesList(notes, actId) {
+    const list = document.getElementById('act-mic-eq-notes-list');
+    list.innerHTML = '';
+    notes.forEach((n) => {
+        const card = document.createElement('div');
+        card.className = 'platform-card';
+        card.dataset.id = n.id;
+        card.innerHTML = micEqCardHtml(n);
+        wireMicEqCard(card, actId);
+        list.appendChild(card);
+    });
+}
+
+document.getElementById('act-mic-eq-note-add-btn').addEventListener('click', () => {
+    const actId = editingActId;
+    if (!actId) return;
+    const list = document.getElementById('act-mic-eq-notes-list');
+    const card = document.createElement('div');
+    card.className = 'platform-card';
+    card.innerHTML = micEqCardHtml({});
+    wireMicEqCard(card, actId);
+    list.appendChild(card);
 });
 
 loadBandAdmin();
