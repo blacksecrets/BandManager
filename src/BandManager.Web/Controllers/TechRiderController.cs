@@ -1,5 +1,7 @@
 using System.Text.Json;
 using BandManager.Data;
+using BandManager.Data.Entities;
+using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -23,8 +25,30 @@ namespace BandManager.Web.Controllers;
 [ApiController]
 [Route("/api/acts/{actId:guid}/tech-rider")]
 [Authorize(Policy = "BandMember")]
-public class TechRiderController(ApplicationDbContext db, IActiveBandAccessor activeBand, TechRiderPdfService pdfService) : ControllerBase
+public class TechRiderController(
+    ApplicationDbContext db,
+    IActiveBandAccessor activeBand,
+    TechRiderPdfService pdfService,
+    TechRiderSiteEditor siteEditor,
+    CredentialStore credentialStore) : ControllerBase
 {
+    private async Task<bool> HasSiteConfiguredAsync(Band band) =>
+        !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
+        && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
+
+    private async Task<byte[]> GeneratePdfBytesAsync(Guid actId)
+    {
+        const string internalHost = "localhost";
+        var cookies = new List<PdfCookie>();
+        foreach (var name in new[] { "BandManager.Auth", "BandManager.Session" })
+        {
+            if (Request.Cookies.TryGetValue(name, out var value))
+                cookies.Add(new PdfCookie(name, value, internalHost, "/"));
+        }
+        var printUrl = $"http://{internalHost}:8080/print-tech-rider.html?actId={actId}";
+        return await pdfService.GeneratePdfAsync(printUrl, cookies);
+    }
+
     [HttpGet]
     public async Task<IActionResult> Get(Guid actId)
     {
@@ -105,21 +129,8 @@ public class TechRiderController(ApplicationDbContext db, IActiveBandAccessor ac
         var act = await db.Acts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == actId && a.BandId == bandId);
         if (act is null) return NotFound(new { error = "Act not found" });
 
-        // Playwright always navigates over loopback (below), regardless of
-        // what host the caller's own browser used to reach this app - the
-        // forwarded cookies' Domain has to match that loopback host, not
-        // Request.Host, or the internal browser context won't send them.
-        const string internalHost = "localhost";
-        var cookies = new List<PdfCookie>();
-        foreach (var name in new[] { "BandManager.Auth", "BandManager.Session" })
-        {
-            if (Request.Cookies.TryGetValue(name, out var value))
-                cookies.Add(new PdfCookie(name, value, internalHost, "/"));
-        }
-
-        var printUrl = $"http://{internalHost}:8080/print-tech-rider.html?actId={actId}";
         byte[] pdf;
-        try { pdf = await pdfService.GeneratePdfAsync(printUrl, cookies); }
+        try { pdf = await GeneratePdfBytesAsync(actId); }
         catch (Exception ex) when (ex is InvalidOperationException or PlaywrightException)
         {
             return StatusCode(502, new { error = $"Could not generate the PDF: {ex.Message}" });
@@ -127,5 +138,44 @@ public class TechRiderController(ApplicationDbContext db, IActiveBandAccessor ac
 
         var fileName = $"{act.Name.Replace(' ', '-')}-TechRider.pdf";
         return File(pdf, "application/pdf", fileName);
+    }
+
+    // Pushes this Act's PDF to the band's connected site (best-effort
+    // epk.html Downloads link patch included) - a no-op, not an error,
+    // for a band with no site configured, matching every other
+    // site-publishing feature in this app.
+    [HttpPost("publish")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> Publish(Guid actId)
+    {
+        var bandId = activeBand.GetActiveBandId();
+        if (bandId is null) return BadRequest(new { error = "No active band selected." });
+
+        var band = await db.Bands.FirstOrDefaultAsync(b => b.Id == bandId);
+        if (band is null) return BadRequest(new { error = "No active band selected." });
+
+        var act = await db.Acts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == actId && a.BandId == bandId);
+        if (act is null) return NotFound(new { error = "Act not found" });
+
+        if (!await HasSiteConfiguredAsync(band))
+            return Ok(new { ok = true, published = false, reason = "This band has no website connected - nothing to publish to." });
+
+        byte[] pdf;
+        try { pdf = await GeneratePdfBytesAsync(actId); }
+        catch (Exception ex) when (ex is InvalidOperationException or PlaywrightException)
+        {
+            return StatusCode(502, new { error = $"Could not generate the PDF: {ex.Message}" });
+        }
+
+        try
+        {
+            await siteEditor.PublishAsync(band, act, pdf);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return StatusCode(502, new { error = $"Could not push to the site: {ex.Message}" });
+        }
+
+        return Ok(new { ok = true, published = true, path = TechRiderSiteEditor.PdfPath(band, act) });
     }
 }

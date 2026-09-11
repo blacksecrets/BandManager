@@ -127,6 +127,7 @@ builder.Services.AddScoped<BandManager.Data.Services.FlyerCache>(sp =>
     new BandManager.Data.Services.FlyerCache(sp.GetRequiredService<IHttpClientFactory>().CreateClient(), flyerCacheRootPath));
 
 builder.Services.AddScoped<BandManager.Data.Services.GigsSiteEditor>();
+builder.Services.AddScoped<BandManager.Data.Services.TechRiderSiteEditor>();
 builder.Services.AddScoped<BandManager.Data.Services.MediaSiteEditor>();
 builder.Services.AddScoped<BandManager.Data.Services.GallerySiteEditor>();
 

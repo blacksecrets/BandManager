@@ -243,6 +243,49 @@ public static class SiteTextEditing
         return $"{baseSlug}-{n}";
     }
 
+    /// <summary>Finds the bounds of one HTML element by its `id="..."`
+    /// attribute - depth-aware across same-named nested tags, matching a
+    /// closing tag by tag name alone (`</section\b[^>]*>`) rather than
+    /// requiring an exact `</section>`, since real hand-authored site HTML
+    /// isn't always well-formed (e.g. epk.html's `</section id="...">`
+    /// closing tags, which every browser's own error-recovery parsing
+    /// already tolerates the same way). Used for splicing into pages like
+    /// epk.html rather than the JS-array-literal files FindBlock above
+    /// handles.</summary>
+    public static TextBlock? FindHtmlElementBlock(string html, string id)
+    {
+        var openPattern = new Regex($@"<(\w+)\b[^>]*\bid\s*=\s*""{Regex.Escape(id)}""[^>]*>");
+        var openMatch = openPattern.Match(html);
+        if (!openMatch.Success) return null;
+
+        var tagName = openMatch.Groups[1].Value;
+        var start = openMatch.Index;
+        var openTagPattern = new Regex($@"<{Regex.Escape(tagName)}\b", RegexOptions.IgnoreCase);
+        var closeTagPattern = new Regex($@"</{Regex.Escape(tagName)}\b[^>]*>", RegexOptions.IgnoreCase);
+
+        var depth = 1;
+        var pos = openMatch.Index + openMatch.Length;
+        while (depth > 0)
+        {
+            var nextClose = closeTagPattern.Match(html, pos);
+            if (!nextClose.Success) return null; // malformed - no matching close found, leave untouched
+
+            var nextOpen = openTagPattern.Match(html, pos);
+            if (nextOpen.Success && nextOpen.Index < nextClose.Index)
+            {
+                depth++;
+                pos = nextOpen.Index + nextOpen.Length;
+            }
+            else
+            {
+                depth--;
+                pos = nextClose.Index + nextClose.Length;
+                if (depth == 0) return new TextBlock(start, pos, html[start..pos]);
+            }
+        }
+        return null;
+    }
+
     /// <summary>Removes a whole block (start..end), including whichever
     /// neighboring comma keeps the array/object valid.</summary>
     public static string RemoveBlock(string content, TextBlock block)

@@ -497,6 +497,15 @@ function openActModal(act) {
     if (act) {
         document.getElementById('act-tech-rider-preview-link').href = `/print-tech-rider.html?actId=${act.id}`;
         document.getElementById('act-tech-rider-pdf-link').href = `/api/acts/${act.id}/tech-rider/pdf`;
+        const publishStatus = document.getElementById('act-tech-rider-publish-status');
+        publishStatus.textContent = '';
+        document.getElementById('act-tech-rider-publish-btn').onclick = async () => {
+            publishStatus.textContent = 'Publishing... this can take several seconds.';
+            const res = await fetch(`/api/acts/${act.id}/tech-rider/publish`, { method: 'POST' });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) { publishStatus.textContent = body.error || 'Could not publish.'; return; }
+            publishStatus.textContent = body.published ? `Published to ${body.path}.` : (body.reason || 'Nothing to publish.');
+        };
     }
 
     document.getElementById('act-modal-backdrop').hidden = false;
