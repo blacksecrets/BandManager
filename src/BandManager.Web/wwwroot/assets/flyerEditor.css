@@ -179,6 +179,17 @@
 .flyer-style-toggles:not(.flyer-style-toggles-image) .checkbox-label:nth-child(3) { text-decoration: underline; }
 .flyer-style-toggles-image .checkbox-label { font-style: oblique 20deg; }
 
+#flyer-publish-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #ccc;
+    font-size: 0.85rem;
+    margin: 10px 0;
+    cursor: pointer;
+}
+#flyer-publish-label input { width: auto; }
+
 #flyer-add-with-btn, #flyer-add-presented-by-btn {
     background: #444;
     color: #eee;

@@ -165,6 +165,9 @@
                 <button type="button" id="flyer-add-with-btn">+ Add another "With"</button>
                 <button type="button" id="flyer-add-presented-by-btn">+ Add another Presented By</button>
                 <button type="button" id="flyer-add-image-btn">+ Add an image</button>
+                <label class="checkbox-label" id="flyer-publish-label">
+                    <input type="checkbox" id="flyer-publish-checkbox"> Publish this flyer to the band's live website now
+                </label>
                 <button type="button" id="flyer-save-btn">Save</button>
                 <p id="flyer-editor-status" class="save-note"></p>
             `;
@@ -457,10 +460,14 @@
 
             document.getElementById('flyer-save-btn').addEventListener('click', async () => {
                 const status = document.getElementById('flyer-editor-status');
-                status.textContent = 'Saving... this can take several seconds while it publishes to the site.';
+                const publish = document.getElementById('flyer-publish-checkbox').checked;
+                status.textContent = publish
+                    ? 'Saving... this can take several seconds while it publishes to the site.'
+                    : 'Saving to your Catalog...';
                 const payload = {
                     sourceCatalogItemId: catalogItemId,
                     gigRef,
+                    publish,
                     fields: fields.map((f) => ({
                         key: f.key, label: f.label, type: f.type, x: f.x, y: f.y,
                         fontSize: f.fontSize, fontFamily: f.fontFamily, color: f.color,

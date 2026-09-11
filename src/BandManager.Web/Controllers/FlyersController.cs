@@ -11,7 +11,7 @@ namespace BandManager.Web.Controllers;
 public record SaveFlyerFieldDto(
     string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool Included, string? Value,
     bool Bold = false, bool Italic = false, bool Underline = false, double Rotation = 0, bool Skew = false);
-public record SaveFlyerRequest(Guid SourceCatalogItemId, string GigRef, List<SaveFlyerFieldDto> Fields);
+public record SaveFlyerRequest(Guid SourceCatalogItemId, string GigRef, List<SaveFlyerFieldDto> Fields, bool Publish = false);
 
 /// <summary>
 /// Builds a final flyer image from an existing Catalog image + typed field
@@ -229,13 +229,17 @@ public class FlyersController(
         };
         db.Flyers.Add(flyer);
 
-        // Still requires a site to push the rendered image live, same
-        // "known interim limitation" as GigsController's own flyer paths -
-        // the Flyer/Catalog rows above are saved either way.
-        if (!await HasSiteConfiguredAsync(band))
+        // Publishing live is opt-in per save (request.Publish, unchecked by
+        // default client-side) - a plain Save only ever writes to this
+        // band's own Catalog, never touches the connected site, until the
+        // checkbox is explicitly checked. Still requires a site to be
+        // configured at all to push, same "known interim limitation" as
+        // GigsController's own flyer paths - the Flyer/Catalog rows above
+        // are saved either way.
+        if (!request.Publish || !await HasSiteConfiguredAsync(band))
         {
             await db.SaveChangesAsync();
-            return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id });
+            return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = false });
         }
 
         try
@@ -257,6 +261,6 @@ public class FlyersController(
             return StatusCode(502, new { error = $"Flyer saved to Catalog, but could not push it live: {ex.Message}", flyerId = flyer.Id, catalogItemId = catalogItem.Id });
         }
 
-        return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id });
+        return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = true });
     }
 }
