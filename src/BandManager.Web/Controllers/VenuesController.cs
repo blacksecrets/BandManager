@@ -10,7 +10,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web.Controllers;
 
-public record SaveVenueRequest(string Name, string? AddressLine1, string? City, string? State, string? PostalCode, string? Phone, string? Website, string? Notes);
+public record SaveVenueRequest(
+    string Name, string? AddressLine1, string? City, string? State, string? PostalCode, string? Phone, string? Website, string? Notes,
+    int? AudienceCapacity, decimal? StageWidthFeet, decimal? StageDepthFeet, Guid? DefaultPromoterId);
 public record SaveVenueContactRequest(string? Name, string? Title, string? Email, string? Phone, bool IsPrimary);
 
 /// <summary>
@@ -46,6 +48,10 @@ public class VenuesController(ApplicationDbContext db, IActiveBandAccessor activ
         phone = v.Phone,
         website = v.Website,
         notes = v.Notes,
+        audienceCapacity = v.AudienceCapacity,
+        stageWidthFeet = v.StageWidthFeet,
+        stageDepthFeet = v.StageDepthFeet,
+        defaultPromoterId = v.DefaultPromoterId,
         contacts = v.Contacts.Select(c => new { id = c.Id, name = c.Name, title = c.Title, email = c.Email, phone = c.Phone, isPrimary = c.IsPrimary })
     };
 
@@ -73,6 +79,8 @@ public class VenuesController(ApplicationDbContext db, IActiveBandAccessor activ
         if (RequireActiveBand(out var bandId) is { } err) return err;
         var name = request.Name?.Trim();
         if (string.IsNullOrEmpty(name)) return BadRequest(new { error = "Venue name is required." });
+        if (request.DefaultPromoterId is { } promoterId && !await db.Promoters.AnyAsync(p => p.Id == promoterId && p.BandId == bandId))
+            return BadRequest(new { error = "That promoter isn't on this band's roster." });
 
         var venue = new Venue
         {
@@ -84,7 +92,11 @@ public class VenuesController(ApplicationDbContext db, IActiveBandAccessor activ
             PostalCode = Clean(request.PostalCode),
             Phone = Clean(request.Phone),
             Website = Clean(request.Website),
-            Notes = Clean(request.Notes)
+            Notes = Clean(request.Notes),
+            AudienceCapacity = request.AudienceCapacity,
+            StageWidthFeet = request.StageWidthFeet,
+            StageDepthFeet = request.StageDepthFeet,
+            DefaultPromoterId = request.DefaultPromoterId
         };
         db.Venues.Add(venue);
         await db.SaveChangesAsync();
@@ -100,6 +112,8 @@ public class VenuesController(ApplicationDbContext db, IActiveBandAccessor activ
 
         var name = request.Name?.Trim();
         if (string.IsNullOrEmpty(name)) return BadRequest(new { error = "Venue name is required." });
+        if (request.DefaultPromoterId is { } promoterId && !await db.Promoters.AnyAsync(p => p.Id == promoterId && p.BandId == bandId))
+            return BadRequest(new { error = "That promoter isn't on this band's roster." });
 
         venue.Name = name;
         venue.AddressLine1 = Clean(request.AddressLine1);
@@ -109,6 +123,10 @@ public class VenuesController(ApplicationDbContext db, IActiveBandAccessor activ
         venue.Phone = Clean(request.Phone);
         venue.Website = Clean(request.Website);
         venue.Notes = Clean(request.Notes);
+        venue.AudienceCapacity = request.AudienceCapacity;
+        venue.StageWidthFeet = request.StageWidthFeet;
+        venue.StageDepthFeet = request.StageDepthFeet;
+        venue.DefaultPromoterId = request.DefaultPromoterId;
         await db.SaveChangesAsync();
         return Ok(Serialize(venue));
     }

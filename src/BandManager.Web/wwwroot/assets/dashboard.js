@@ -676,6 +676,7 @@ function renderAddCalendarForm(open) {
         <label>Venue <input type="text" name="venue" maxlength="200" required></label>
         <label>Venue link (optional) <input type="text" name="venueUrl" placeholder="https://" maxlength="500"></label>
         <label class="add-calendar-act-label" hidden>Act <select name="actId" class="add-calendar-act-select"></select></label>
+        <label class="add-calendar-promoter-label" hidden>Promoter <select name="promoterId" class="add-calendar-promoter-select"><option value="">None</option></select></label>
         <label>Address <input type="text" name="address" placeholder="e.g. 119 North Loudoun Street, Winchester, VA" maxlength="300" required></label>
         <label>Date <input type="date" name="date" required></label>
         <label>Time (optional) <input type="text" name="time" placeholder="e.g. Doors: 7PM - Show: 8PM" maxlength="100"></label>
@@ -710,6 +711,11 @@ function renderAddCalendarForm(open) {
         form.querySelector('.add-calendar-act-label').hidden = acts.length <= 1;
         form.querySelector('.add-calendar-act-select').innerHTML =
             acts.map((a) => `<option value="${a.id}" ${a.isDefault ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('');
+    }).catch(() => {});
+    fetch('/api/promoters').then((r) => r.ok ? r.json() : []).then((promoters) => {
+        form.querySelector('.add-calendar-promoter-label').hidden = promoters.length === 0;
+        form.querySelector('.add-calendar-promoter-select').innerHTML =
+            '<option value="">None</option>' + promoters.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
     }).catch(() => {});
 
     function updateTicketModeUI() {
@@ -1535,10 +1541,15 @@ async function openWebsiteEditForm(item) {
     // Stays out of the way for the common single-Act band - the picker
     // only appears once there's an actual choice to make.
     let acts = [];
+    let promoters = [];
     try {
         const actsRes = await fetch('/api/acts');
         acts = actsRes.ok ? await actsRes.json() : [];
     } catch { acts = []; }
+    try {
+        const promotersRes = await fetch('/api/promoters');
+        promoters = promotersRes.ok ? await promotersRes.json() : [];
+    } catch { promoters = []; }
 
     const title = document.createElement('h2');
     title.textContent = `Edit calendar listing — ${gig.title || item.gig_title || ''}`;
@@ -1565,6 +1576,7 @@ async function openWebsiteEditForm(item) {
         <label>Venue <input type="text" name="venue" value="${escapeHtml(gig.venue || '')}" maxlength="200"></label>
         <label>Venue link (optional) <input type="text" name="venueUrl" value="${escapeHtml(gig.venueUrl || '')}" maxlength="500" placeholder="https:// - the venue name links here on the site"></label>
         ${acts.length > 1 ? `<label>Act <select name="actId">${acts.map((a) => `<option value="${a.id}" ${a.id === gig.actId ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('')}</select></label>` : ''}
+        ${promoters.length > 0 ? `<label>Promoter <select name="promoterId"><option value="">None</option>${promoters.map((p) => `<option value="${p.id}" ${p.id === gig.promoterId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}</select></label>` : ''}
         <label>Address <input type="text" name="address" value="${escapeHtml(gig.address || '')}" maxlength="300" placeholder="e.g. 119 North Loudoun Street, Winchester, VA" required></label>
         <label>Date <input type="text" name="date" value="${escapeHtml(gig.date || '')}" maxlength="100" placeholder="e.g. Friday, October 3, 2026"></label>
         <label>Time (optional) <input type="text" name="time" value="${escapeHtml(gig.time || '')}" maxlength="100" placeholder="e.g. Doors: 7PM - Show: 8PM"></label>
@@ -1669,6 +1681,7 @@ async function openWebsiteEditForm(item) {
         if (customText !== (gig.customTicketsText || '')) fields.customTicketsText = customText;
 
         if (form.actId && form.actId.value !== (gig.actId || '')) fields.actId = form.actId.value;
+        if (form.promoterId && form.promoterId.value !== (gig.promoterId || '')) fields.promoterId = form.promoterId.value;
 
         // Always sent, not diffed against the original like the scalar
         // fields above - comparing two With-act lists for "did anything

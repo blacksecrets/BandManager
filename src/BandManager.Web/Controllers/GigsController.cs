@@ -101,6 +101,19 @@ public class GigsController(
         return defaultAct?.Id;
     }
 
+    // Falls back to the picked Venue's own default promoter when no
+    // explicit pick was made - never forces a value like ResolveActIdAsync
+    // does, since "no promoter yet" is a legitimate state for a Gig,
+    // unlike Act.
+    private async Task<Guid?> ResolvePromoterIdAsync(Guid bandId, Guid? requested, Guid? venueId)
+    {
+        if (requested is { } id && await db.Promoters.AnyAsync(p => p.Id == id && p.BandId == bandId))
+            return id;
+        if (venueId is { } vId)
+            return (await db.Venues.FirstOrDefaultAsync(v => v.Id == vId && v.BandId == bandId))?.DefaultPromoterId;
+        return null;
+    }
+
     private async Task<bool> HasSiteConfiguredAsync(Band band) =>
         !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
         && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
@@ -165,6 +178,7 @@ public class GigsController(
             id = gig.Ref,
             title = gig.Title,
             actId = gig.ActId,
+            promoterId = gig.PromoterId,
             venue = gig.Venue,
             venueUrl = gig.VenueUrl,
             date = FormatDate(gig.Date),
@@ -239,6 +253,15 @@ public class GigsController(
             && Guid.TryParse(actIdEl.GetString(), out var requestedActId))
             gig.ActId = await ResolveActIdAsync(band.Id, requestedActId);
 
+        if (body.TryGetProperty("promoterId", out var promoterIdEl))
+        {
+            if (promoterIdEl.ValueKind == JsonValueKind.String && Guid.TryParse(promoterIdEl.GetString(), out var requestedPromoterId)
+                && await db.Promoters.AnyAsync(p => p.Id == requestedPromoterId && p.BandId == band.Id))
+                gig.PromoterId = requestedPromoterId;
+            else if (promoterIdEl.ValueKind is JsonValueKind.Null or JsonValueKind.String)
+                gig.PromoterId = null; // an empty string or explicit null both mean "cleared"
+        }
+
         if (body.TryGetProperty("with", out var withEl) && withEl.ValueKind == JsonValueKind.String)
         {
             List<GigWithActInput>? inputs;
@@ -303,12 +326,16 @@ public class GigsController(
         Guid? requestedActId = Guid.TryParse(F("actId"), out var parsedActId) ? parsedActId : null;
         var actId = await ResolveActIdAsync(band.Id, requestedActId);
 
+        Guid? requestedPromoterId = Guid.TryParse(F("promoterId"), out var parsedPromoterId) ? parsedPromoterId : null;
+        var promoterId = await ResolvePromoterIdAsync(band.Id, requestedPromoterId, venueId);
+
         var gig = new Gig
         {
             BandId = band.Id,
             Ref = Guid.NewGuid().ToString(),
             Title = title,
             ActId = actId,
+            PromoterId = promoterId,
             Venue = venue,
             VenueId = venueId,
             Address = address,

@@ -39,6 +39,10 @@
                         <label>Contact name <input type="text" name="contactName" maxlength="200"></label>
                         <label>Contact email <input type="email" name="contactEmail" maxlength="300"></label>
                         <label>Contact phone <input type="tel" name="contactPhone" maxlength="30"></label>
+                        <label>Audience capacity <input type="number" name="audienceCapacity" min="0"></label>
+                        <label>Stage width (ft) <input type="number" step="0.5" name="stageWidthFeet" min="0"></label>
+                        <label>Stage depth (ft) <input type="number" step="0.5" name="stageDepthFeet" min="0"></label>
+                        <label>Default promoter (optional) <select name="defaultPromoterId" id="venue-add-promoter-select"><option value="">None</option></select></label>
                         <button type="submit">Add venue</button>
                         <p id="venue-add-status" class="save-note"></p>
                     </form>

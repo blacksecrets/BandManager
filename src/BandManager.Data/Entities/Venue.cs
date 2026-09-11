@@ -22,6 +22,17 @@ public class Venue
     public string? Website { get; set; }
     public string? Notes { get; set; }
 
+    // For the Tech Rider - a venue's room capacity and stage footprint,
+    // both purely informational (no validation against an Act's gear).
+    public int? AudienceCapacity { get; set; }
+    public decimal? StageWidthFeet { get; set; }
+    public decimal? StageDepthFeet { get; set; }
+
+    // This venue's usual promoter, if it has one - just a default; a Gig
+    // at this venue can pick a different one (see Gig.PromoterId).
+    public Guid? DefaultPromoterId { get; set; }
+    public Promoter? DefaultPromoter { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<VenueContact> Contacts { get; set; } = new List<VenueContact>();

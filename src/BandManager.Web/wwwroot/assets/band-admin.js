@@ -18,6 +18,7 @@ async function loadBandAdmin() {
     document.getElementById('band-roles-section').hidden = !hasBand;
     document.getElementById('band-acts-section').hidden = !hasBand;
     document.getElementById('band-gear-section').hidden = !hasBand;
+    document.getElementById('band-promoters-section').hidden = !hasBand;
     if (!hasBand) return;
 
     loadBandInfo();
@@ -26,6 +27,7 @@ async function loadBandAdmin() {
     loadBandRolesMembers();
     loadActs();
     loadBandGear();
+    loadPromoters();
 }
 
 // --- Band Information (name/phone/mailing address) ---
@@ -690,6 +692,77 @@ document.getElementById('copy-gear-member-select').addEventListener('change', as
             else { status.textContent = body.error || 'Could not copy this item.'; }
         });
     });
+});
+
+// --- Promoters (a band's reusable booking-contact roster - see Promoter.cs) ---
+let promoters = [];
+let editingPromoterId = null;
+
+async function loadPromoters() {
+    const res = await fetch('/api/promoters');
+    promoters = res.ok ? await res.json() : [];
+    renderPromotersList();
+}
+
+function renderPromotersList() {
+    const body = document.getElementById('promoters-table-body');
+    body.innerHTML = promoters.map((p) => `
+        <tr>
+            <td>${escapeHtml(p.name)}</td>
+            <td>${escapeHtml(p.company || '')}</td>
+            <td><button type="button" class="promoter-edit-btn" data-id="${p.id}">Edit</button></td>
+        </tr>
+    `).join('') || '<tr><td colspan="3" class="save-note">No promoters yet.</td></tr>';
+
+    body.querySelectorAll('.promoter-edit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => openPromoterModal(promoters.find((p) => p.id === btn.dataset.id)));
+    });
+}
+
+function closePromoterModal() { document.getElementById('promoter-modal-backdrop').hidden = true; }
+document.getElementById('promoter-modal-close').addEventListener('click', closePromoterModal);
+document.getElementById('promoter-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'promoter-modal-backdrop') closePromoterModal(); });
+
+function openPromoterModal(promoter) {
+    editingPromoterId = promoter ? promoter.id : null;
+    document.getElementById('promoter-modal-title').textContent = promoter ? 'Edit Promoter' : 'Add a Promoter';
+    document.getElementById('promoter-form-status').textContent = '';
+    const form = document.getElementById('promoter-form');
+    form.name.value = promoter?.name || '';
+    form.company.value = promoter?.company || '';
+    form.phone.value = promoter?.phone || '';
+    form.email.value = promoter?.email || '';
+
+    const deleteBtn = document.getElementById('promoter-delete-btn');
+    deleteBtn.hidden = !promoter;
+    deleteBtn.onclick = async () => {
+        if (!editingPromoterId) return;
+        if (!confirm(`Delete "${promoter.name}"? This can't be undone.`)) return;
+        const res = await fetch(`/api/promoters/${editingPromoterId}`, { method: 'DELETE' });
+        if (res.ok) { closePromoterModal(); await loadPromoters(); }
+    };
+
+    document.getElementById('promoter-modal-backdrop').hidden = false;
+}
+
+document.getElementById('add-promoter-btn').addEventListener('click', () => openPromoterModal(null));
+
+document.getElementById('promoter-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('promoter-form-status');
+    const body = JSON.stringify({
+        name: form.name.value.trim(),
+        company: form.company.value.trim() || null,
+        phone: form.phone.value.trim() || null,
+        email: form.email.value.trim() || null
+    });
+    const url = editingPromoterId ? `/api/promoters/${editingPromoterId}` : '/api/promoters';
+    const method = editingPromoterId ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+    const resBody = await res.json().catch(() => ({}));
+    if (res.ok) { closePromoterModal(); await loadPromoters(); }
+    else { status.textContent = resBody.error || 'Could not save this promoter.'; }
 });
 
 loadBandAdmin();

@@ -38,6 +38,14 @@ public class Gig
     // orphan" check on the other side of this reference).
     public Guid? ActId { get; set; }
     public Act? ActEntity { get; set; }
+
+    // The actual promoter for this specific show - pre-filled from the
+    // picked Venue's DefaultPromoterId when the venue is chosen, but
+    // freely overridable afterward (a venue's usual promoter isn't
+    // always who's actually working this one).
+    public Guid? PromoterId { get; set; }
+    public Promoter? Promoter { get; set; }
+
     public DateOnly Date { get; set; }
 
     // Time stays free text, deliberately NOT DateOnly/TimeOnly - real data

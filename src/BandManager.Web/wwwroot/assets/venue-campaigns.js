@@ -35,6 +35,17 @@ async function init() {
 
     await loadCadenceSteps();
     await loadGrid();
+    await loadPromotersForVenueForm();
+}
+
+// Stays a plain "None" option when the band has no promoters yet - a
+// venue's default promoter is always optional.
+async function loadPromotersForVenueForm() {
+    const res = await fetch('/api/promoters');
+    const promoters = res.ok ? await res.json() : [];
+    const select = document.getElementById('venue-add-promoter-select');
+    select.innerHTML = '<option value="">None</option>' +
+        promoters.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
 }
 
 // --- Grid ---
@@ -97,7 +108,11 @@ document.getElementById('venue-add-form').addEventListener('submit', async (e) =
             state: form.state.value.trim(),
             postalCode: form.postalCode.value.trim(),
             phone: form.phone.value.trim(),
-            website: form.website.value.trim()
+            website: form.website.value.trim(),
+            audienceCapacity: form.audienceCapacity.value.trim() === '' ? null : Number(form.audienceCapacity.value),
+            stageWidthFeet: form.stageWidthFeet.value.trim() === '' ? null : Number(form.stageWidthFeet.value),
+            stageDepthFeet: form.stageDepthFeet.value.trim() === '' ? null : Number(form.stageDepthFeet.value),
+            defaultPromoterId: form.defaultPromoterId.value || null
         })
     });
     const body = await res.json();

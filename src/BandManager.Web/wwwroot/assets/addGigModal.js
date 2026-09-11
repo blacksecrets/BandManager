@@ -14,6 +14,7 @@
     let venueModalBackdrop = null;
     let venues = [];
     let acts = [];
+    let promoters = [];
     let selectedVenue = null; // { id, name, addressLine1, city, state, postalCode, ... } | null
     let resolvePromise = null;
 
@@ -96,6 +97,7 @@
 
                     <label>Venue link (optional) <input type="text" name="venueUrl" placeholder="https://" maxlength="500"></label>
                     <label id="add-gig-act-label" hidden>Act <select name="actId" id="add-gig-act-select"></select></label>
+                    <label id="add-gig-promoter-label" hidden>Promoter <select name="promoterId" id="add-gig-promoter-select"><option value="">None</option></select></label>
                     <label>Date <input type="date" name="date" required></label>
                     <label>Time (optional) <input type="text" name="time" placeholder="e.g. Doors: 7PM - Show: 8PM" maxlength="100"></label>
                     <label>Doors time (optional) <input type="text" name="doorsTime" placeholder="e.g. 7:00 PM" maxlength="60"></label>
@@ -162,6 +164,9 @@
         selectedVenue = v;
         document.getElementById('add-gig-venue-manual').hidden = true;
         document.getElementById('add-gig-venue-picker').hidden = true;
+        // Pre-fills from the venue's usual promoter - still freely
+        // changeable afterward, this is only a starting point.
+        if (v.defaultPromoterId) document.getElementById('add-gig-promoter-select').value = v.defaultPromoterId;
         const sel = document.getElementById('add-gig-venue-selected');
         sel.hidden = false;
         sel.innerHTML = `
@@ -192,6 +197,19 @@
         const select = document.getElementById('add-gig-act-select');
         label.hidden = acts.length <= 1;
         select.innerHTML = acts.map((a) => `<option value="${a.id}" ${a.isDefault ? 'selected' : ''}>${escapeHtml(a.name)}</option>`).join('');
+    }
+
+    async function loadPromoters() {
+        try {
+            const res = await fetch('/api/promoters');
+            promoters = res.ok ? await res.json() : [];
+        } catch { promoters = []; }
+        const label = document.getElementById('add-gig-promoter-label');
+        const select = document.getElementById('add-gig-promoter-select');
+        label.hidden = promoters.length === 0;
+        const current = select.value;
+        select.innerHTML = '<option value="">None</option>' + promoters.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+        select.value = current;
     }
 
     function renderVenueList(box) {
@@ -249,6 +267,13 @@
                 <label>Phone <input type="tel" name="phone" maxlength="30" value="${escapeHtml(v.phone || '')}"></label>
                 <label>Website <input type="url" name="website" maxlength="300" value="${escapeHtml(v.website || '')}"></label>
                 <label>Notes <textarea name="notes" rows="2" maxlength="1000">${escapeHtml(v.notes || '')}</textarea></label>
+                <label>Audience capacity <input type="number" name="audienceCapacity" min="0" value="${v.audienceCapacity ?? ''}"></label>
+                <label>Stage width (ft) <input type="number" step="0.5" name="stageWidthFeet" min="0" value="${v.stageWidthFeet ?? ''}"></label>
+                <label>Stage depth (ft) <input type="number" step="0.5" name="stageDepthFeet" min="0" value="${v.stageDepthFeet ?? ''}"></label>
+                <label>Default promoter (optional) <select name="defaultPromoterId">
+                    <option value="">None</option>
+                    ${promoters.map((p) => `<option value="${p.id}" ${p.id === v.defaultPromoterId ? 'selected' : ''}>${escapeHtml(p.name)}</option>`).join('')}
+                </select></label>
                 <div class="adhoc-form-buttons">
                     <button type="submit">Save &amp; use this venue</button>
                     <button type="button" id="add-gig-venue-use-asis-btn">Use as-is</button>
@@ -277,7 +302,11 @@
                 postalCode: form.postalCode.value.trim() || null,
                 phone: form.phone.value.trim() || null,
                 website: form.website.value.trim() || null,
-                notes: form.notes.value.trim() || null
+                notes: form.notes.value.trim() || null,
+                audienceCapacity: form.audienceCapacity.value.trim() === '' ? null : Number(form.audienceCapacity.value),
+                stageWidthFeet: form.stageWidthFeet.value.trim() === '' ? null : Number(form.stageWidthFeet.value),
+                stageDepthFeet: form.stageDepthFeet.value.trim() === '' ? null : Number(form.stageDepthFeet.value),
+                defaultPromoterId: form.defaultPromoterId.value || null
             };
             status.textContent = 'Saving...';
             const res = await fetch(`/api/venues/${v.id}`, {
@@ -385,6 +414,7 @@
         backdrop.hidden = false;
         loadVenues();
         loadActs();
+        loadPromoters();
         if (options && options.prefillVenue) showSelectedVenue(options.prefillVenue);
         return new Promise((resolve) => { resolvePromise = resolve; });
     };

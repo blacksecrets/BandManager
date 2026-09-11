@@ -217,6 +217,38 @@
             </div>
         </div>
 
+        <section class="platform-card" id="band-promoters-section" hidden>
+            <h2>Promoters</h2>
+            <p>Booking contacts who book gigs for this band - often across
+               several venues (e.g. a local promoter you deal with
+               regularly). A Venue can name one as its usual promoter;
+               each Gig can still pick a different one.</p>
+
+            <table class="user-table">
+                <thead><tr><th>Name</th><th>Company</th><th></th></tr></thead>
+                <tbody id="promoters-table-body"></tbody>
+            </table>
+            <button type="button" id="add-promoter-btn" class="upload-btn">+ Add a Promoter</button>
+        </section>
+
+        <div id="promoter-modal-backdrop" class="detail-modal-backdrop" hidden>
+            <div class="detail-modal">
+                <button type="button" class="detail-modal-close" id="promoter-modal-close">&times;</button>
+                <h2 id="promoter-modal-title">Add a Promoter</h2>
+                <form id="promoter-form" class="cred-form">
+                    <label>Name <input type="text" name="name" maxlength="200" required></label>
+                    <label>Company <input type="text" name="company" maxlength="200"></label>
+                    <label>Phone <input type="tel" name="phone" maxlength="30"></label>
+                    <label>Email <input type="email" name="email" maxlength="200"></label>
+                    <div class="cred-form-buttons">
+                        <button type="submit">Save</button>
+                        <button type="button" id="promoter-delete-btn" hidden>Delete</button>
+                    </div>
+                    <p id="promoter-form-status" class="save-note"></p>
+                </form>
+            </div>
+        </div>
+
         <div id="edit-roles-modal-backdrop" class="detail-modal-backdrop" hidden>
             <div class="detail-modal">
                 <button type="button" class="detail-modal-close" id="edit-roles-modal-close">&times;</button>

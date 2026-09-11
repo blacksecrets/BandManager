@@ -49,6 +49,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Gig> Gigs => Set<Gig>();
     public DbSet<GigWithBand> GigWithBands => Set<GigWithBand>();
     public DbSet<Venue> Venues => Set<Venue>();
+    public DbSet<Promoter> Promoters => Set<Promoter>();
     public DbSet<VenueContact> VenueContacts => Set<VenueContact>();
     public DbSet<VenueCadenceStep> VenueCadenceSteps => Set<VenueCadenceStep>();
     public DbSet<VenueCampaign> VenueCampaigns => Set<VenueCampaign>();
@@ -290,11 +291,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.VenueEntity).WithMany().HasForeignKey(x => x.VenueId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne(x => x.SelectedFlyer).WithMany().HasForeignKey(x => x.SelectedFlyerId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne(x => x.ActEntity).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.Restrict);
+            b.HasOne(x => x.Promoter).WithMany().HasForeignKey(x => x.PromoterId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // --- Venue outreach ---
 
         builder.Entity<Venue>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.DefaultPromoter).WithMany().HasForeignKey(x => x.DefaultPromoterId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<Promoter>(b =>
         {
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
         });
