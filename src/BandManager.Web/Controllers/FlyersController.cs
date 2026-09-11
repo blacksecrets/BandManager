@@ -236,6 +236,17 @@ public class FlyersController(
         try
         {
             await gigsSiteEditor.PushFlyerImageAsync(band, gig, rendered, string.IsNullOrEmpty(gig.FlyerMain) ? $"Add flyer for {gig.Title}" : $"Update flyer for {gig.Title}");
+
+            // A publish here means this flyer's bytes are now what's
+            // actually live at FlyerMain's path - keep SelectedFlyerId in
+            // sync so "Select Flyer"'s Current badge (and the live-site
+            // badge the flyer grid shows) reflects reality even when this
+            // flyer was published straight from Create/Update rather than
+            // through the Select Flyer picker. Previously only
+            // GigsController.SetSelectedFlyer ever touched this field, so
+            // publishing a new flyer directly left it pointing at whatever
+            // was last explicitly selected (or null).
+            gig.SelectedFlyerId = flyer.Id;
             await db.SaveChangesAsync();
 
             var withActs = await db.GigWithBands.Where(w => w.GigId == gig.Id).Include(w => w.WithBand)
