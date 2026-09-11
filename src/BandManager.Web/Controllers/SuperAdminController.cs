@@ -635,6 +635,19 @@ public class SuperAdminController(
         return Ok(fonts.Select(f => new { id = f.Id, label = f.Label, extension = f.Extension, fileUrl = $"/custom-fonts/{f.Id}{f.Extension}", createdAt = f.CreatedAt }));
     }
 
+    // TrueType: starts with the sfnt version 0x00010000, or "true"/"ttcf"
+    // for a TrueType Collection. OpenType (CFF-flavored): starts with
+    // "OTTO". Checked against the file's actual bytes rather than trusting
+    // its extension/claimed content-type, which anyone uploading can set
+    // to anything.
+    private static bool LooksLikeTrueTypeOrOpenType(byte[] header)
+    {
+        if (header.Length < 4) return false;
+        if (header[0] == 0x00 && header[1] == 0x01 && header[2] == 0x00 && header[3] == 0x00) return true;
+        var tag = System.Text.Encoding.ASCII.GetString(header, 0, 4);
+        return tag is "true" or "ttcf" or "OTTO";
+    }
+
     [HttpPost("fonts")]
     [RequestSizeLimit(MaxFontBytes)]
     public async Task<IActionResult> UploadCustomFont()
@@ -650,11 +663,36 @@ public class SuperAdminController(
         if (extension != ".ttf" && extension != ".otf")
             return BadRequest(new { error = "Only .ttf and .otf font files are supported" });
 
-        var font = new CustomFlyerFont { Label = label, Extension = extension };
+        if (await db.CustomFlyerFonts.AnyAsync(f => f.Label.ToLower() == label.ToLower()))
+            return BadRequest(new { error = $"A font named \"{label}\" already exists." });
+
+        byte[] bytes;
+        using (var ms = new MemoryStream())
+        {
+            await file.CopyToAsync(ms);
+            bytes = ms.ToArray();
+        }
+        if (!LooksLikeTrueTypeOrOpenType(bytes))
+            return BadRequest(new { error = "That file doesn't look like a valid .ttf or .otf font." });
+
+        // Same font uploaded under a second label - compare content, not
+        // just the extension check above, since the existing fonts on
+        // disk are the only record of what's already here (no stored
+        // hash column to index against).
         Directory.CreateDirectory(CustomFontsRootPath);
+        var existingFonts = await db.CustomFlyerFonts.AsNoTracking().ToListAsync();
+        foreach (var existing in existingFonts)
+        {
+            var existingPath = Path.Combine(CustomFontsRootPath, $"{existing.Id}{existing.Extension}");
+            if (!System.IO.File.Exists(existingPath)) continue;
+            var existingBytes = await System.IO.File.ReadAllBytesAsync(existingPath);
+            if (existingBytes.Length == bytes.Length && existingBytes.AsSpan().SequenceEqual(bytes))
+                return BadRequest(new { error = $"This exact font file is already uploaded as \"{existing.Label}\"." });
+        }
+
+        var font = new CustomFlyerFont { Label = label, Extension = extension };
         var path = Path.Combine(CustomFontsRootPath, $"{font.Id}{extension}");
-        await using (var stream = System.IO.File.Create(path))
-            await file.CopyToAsync(stream);
+        await System.IO.File.WriteAllBytesAsync(path, bytes);
 
         db.CustomFlyerFonts.Add(font);
         await db.SaveChangesAsync();
