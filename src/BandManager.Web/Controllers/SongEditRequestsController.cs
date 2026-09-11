@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record ResolveSongEditRequestRequest(string Message);
+public record BulkResolveSongEditRequestsRequest(List<Guid> Ids, string Message);
 
 /// <summary>
 /// The review queue for SongsController.ProposeEdit's staged edits. Reading
@@ -101,9 +102,82 @@ public class SongEditRequestsController(ApplicationDbContext db, UserManager<App
         var user = await userManager.GetUserAsync(User);
         if (user is null) return Unauthorized();
 
+        var (ok, error) = await ApproveOneAsync(id, message, user.Id);
+        if (!ok) return BadRequest(new { error });
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    [HttpPost("{id:guid}/reject")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> Reject(Guid id, [FromBody] ResolveSongEditRequestRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
+        if (message.Length > 250) return BadRequest(new { error = "Message must be 250 characters or fewer." });
+
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        var (ok, error) = await RejectOneAsync(id, message, user.Id);
+        if (!ok) return BadRequest(new { error });
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true });
+    }
+
+    // Bulk variants for the DataGrid-based pending-review queue's checkbox
+    // selection ("Accept All Checked"/"Reject All Checked") - one shared
+    // resolution message applies to every checked row, same requirement
+    // (non-empty) as resolving one at a time. A row that's already been
+    // resolved by the time this runs (e.g. two SuperAdmins reviewing at
+    // once) is skipped rather than failing the whole batch - the response
+    // reports how many actually went through.
+    [HttpPost("bulk-approve")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> BulkApprove([FromBody] BulkResolveSongEditRequestsRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
+
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        var count = 0;
+        foreach (var id in request.Ids)
+        {
+            var (ok, _) = await ApproveOneAsync(id, message, user.Id);
+            if (ok) count++;
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, count });
+    }
+
+    [HttpPost("bulk-reject")]
+    [Authorize(Policy = "SuperAdmin")]
+    public async Task<IActionResult> BulkReject([FromBody] BulkResolveSongEditRequestsRequest request)
+    {
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
+        if (message.Length > 250) return BadRequest(new { error = "Message must be 250 characters or fewer." });
+
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        var count = 0;
+        foreach (var id in request.Ids)
+        {
+            var (ok, _) = await RejectOneAsync(id, message, user.Id);
+            if (ok) count++;
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, count });
+    }
+
+    private async Task<(bool Ok, string? Error)> ApproveOneAsync(Guid id, string message, Guid resolvedByUserId)
+    {
         var editRequest = await db.SongEditRequests.Include(r => r.Song).FirstOrDefaultAsync(r => r.Id == id);
-        if (editRequest is null) return NotFound(new { error = "Not found" });
-        if (editRequest.Status != EditRequestStatus.Pending) return BadRequest(new { error = "Already resolved." });
+        if (editRequest is null) return (false, "Not found");
+        if (editRequest.Status != EditRequestStatus.Pending) return (false, "Already resolved.");
 
         var song = editRequest.Song;
         foreach (var (field, change) in editRequest.Changes)
@@ -123,7 +197,7 @@ public class SongEditRequestsController(ApplicationDbContext db, UserManager<App
 
         editRequest.Status = EditRequestStatus.Approved;
         editRequest.ResolvedAt = DateTime.UtcNow;
-        editRequest.ResolvedByUserId = user.Id;
+        editRequest.ResolvedByUserId = resolvedByUserId;
         editRequest.ResolutionMessage = message;
 
         db.Notifications.Add(new Notification
@@ -134,30 +208,20 @@ public class SongEditRequestsController(ApplicationDbContext db, UserManager<App
             SongEditRequestId = editRequest.Id
         });
 
-        await db.SaveChangesAsync();
-        return Ok(new { ok = true });
+        return (true, null);
     }
 
-    [HttpPost("{id:guid}/reject")]
-    [Authorize(Policy = "SuperAdmin")]
-    public async Task<IActionResult> Reject(Guid id, [FromBody] ResolveSongEditRequestRequest request)
+    private async Task<(bool Ok, string? Error)> RejectOneAsync(Guid id, string message, Guid resolvedByUserId)
     {
-        var message = request.Message?.Trim();
-        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "A message is required." });
-        if (message.Length > 250) return BadRequest(new { error = "Message must be 250 characters or fewer." });
-
-        var user = await userManager.GetUserAsync(User);
-        if (user is null) return Unauthorized();
-
         var editRequest = await db.SongEditRequests.FirstOrDefaultAsync(r => r.Id == id);
-        if (editRequest is null) return NotFound(new { error = "Not found" });
-        if (editRequest.Status != EditRequestStatus.Pending) return BadRequest(new { error = "Already resolved." });
+        if (editRequest is null) return (false, "Not found");
+        if (editRequest.Status != EditRequestStatus.Pending) return (false, "Already resolved.");
 
         // The Song itself is never touched - rejecting just clears the
         // under-review state and tells the requester why.
         editRequest.Status = EditRequestStatus.Rejected;
         editRequest.ResolvedAt = DateTime.UtcNow;
-        editRequest.ResolvedByUserId = user.Id;
+        editRequest.ResolvedByUserId = resolvedByUserId;
         editRequest.ResolutionMessage = message;
 
         db.Notifications.Add(new Notification
@@ -168,7 +232,6 @@ public class SongEditRequestsController(ApplicationDbContext db, UserManager<App
             SongEditRequestId = editRequest.Id
         });
 
-        await db.SaveChangesAsync();
-        return Ok(new { ok = true });
+        return (true, null);
     }
 }

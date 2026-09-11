@@ -19,30 +19,63 @@ async function init() {
     await loadNotifications();
 }
 
+let pendingReviewGrid = null;
+
 async function loadPendingReviews() {
     const res = await fetch('/api/song-edit-requests/pending');
     if (!res.ok) return;
     const requests = await res.json();
-    const tbody = document.getElementById('pending-review-body');
-    tbody.innerHTML = '';
-    for (const r of requests) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${escapeHtml(r.songTitle)}</td>
-            <td>${escapeHtml(r.requestedByFirstName)}</td>
-            <td>${escapeHtml(r.bandName)}</td>
-            <td>${timeAgo(r.createdAt)}</td>
-            <td></td>
-        `;
-        const reviewBtn = document.createElement('button');
-        reviewBtn.textContent = 'Review';
-        reviewBtn.addEventListener('click', () => {
-            window.openReviewSummary({ requestId: r.id, isSuperAdmin: true, onResolved: async () => { await loadPendingReviews(); await loadNotifications(); } });
+
+    async function bulkResolve(url, ids) {
+        const message = prompt(`Message to include on all ${ids.length} notification(s):`, '');
+        if (message === null) return; // cancelled
+        if (!message.trim()) { alert('A message is required.'); return; }
+        const bodyRes = await fetch(url, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids, message: message.trim() })
         });
-        tr.lastElementChild.appendChild(reviewBtn);
-        tbody.appendChild(tr);
+        const body = await bodyRes.json().catch(() => ({}));
+        if (!bodyRes.ok) { alert(body.error || 'Could not resolve those requests.'); return; }
+        await loadPendingReviews();
+        await loadNotifications();
     }
-    if (requests.length === 0) tbody.innerHTML = '<tr><td colspan="5">Nothing awaiting review.</td></tr>';
+
+    const columns = [
+        { key: 'songTitle', label: 'Song', render: (r) => escapeHtml(r.songTitle) },
+        { key: 'requestedByFirstName', label: 'Proposed by', render: (r) => escapeHtml(r.requestedByFirstName) },
+        { key: 'bandName', label: 'Band', render: (r) => escapeHtml(r.bandName) },
+        { key: 'createdAt', label: 'Submitted', sortValue: (r) => new Date(r.createdAt).getTime(), render: (r) => timeAgo(r.createdAt) },
+        { key: 'review', label: '', sortable: false, searchable: false, render: (r) => `<button type="button" class="pending-review-btn" data-request-id="${r.id}">Review</button>` }
+    ];
+
+    if (pendingReviewGrid) {
+        pendingReviewGrid.setRows(requests);
+    } else {
+        const container = document.getElementById('pending-review-grid');
+        pendingReviewGrid = window.DataGrid.render(container, {
+            columns,
+            rows: requests,
+            getRowId: (r) => r.id,
+            checkboxes: true,
+            defaultSortKey: 'createdAt',
+            defaultSortDir: 'asc',
+            searchPlaceholder: 'Search pending edits...',
+            emptyMessage: 'Nothing awaiting review.',
+            bulkActions: [
+                { label: 'Accept All Checked', onClick: (ids) => bulkResolve('/api/song-edit-requests/bulk-approve', ids) },
+                { label: 'Reject All Checked', onClick: (ids) => bulkResolve('/api/song-edit-requests/bulk-reject', ids) }
+            ]
+        });
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('.pending-review-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            window.openReviewSummary({
+                requestId: btn.dataset.requestId, isSuperAdmin: true,
+                onResolved: async () => { await loadPendingReviews(); await loadNotifications(); }
+            });
+        });
+    }
 }
 
 let notificationsGrid = null;
