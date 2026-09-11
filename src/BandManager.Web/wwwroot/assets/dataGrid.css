@@ -1,0 +1,83 @@
+.data-grid-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+.data-grid-search {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    background: #151515;
+    color: #eee;
+    font-size: 0.85rem;
+    min-width: 220px;
+}
+.data-grid-bulk-btn {
+    background: #2e4d8b;
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.data-grid-bulk-btn:hover:not(:disabled) { background: #3a5fab; }
+.data-grid-bulk-btn:disabled { background: #333; color: #777; cursor: default; }
+
+.data-grid-table-wrap { overflow-x: auto; }
+.data-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+.data-grid-table th {
+    text-align: left;
+    color: #999;
+    font-weight: normal;
+    font-size: 0.8rem;
+    padding: 6px 10px;
+    border-bottom: 1px solid #333;
+    white-space: nowrap;
+}
+.data-grid-table th.data-grid-sortable { cursor: pointer; user-select: none; }
+.data-grid-table th.data-grid-sortable:hover { color: #ccc; }
+.data-grid-table th.sorted { color: #eee; }
+.data-grid-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #262626;
+    color: #ddd;
+}
+.data-grid-row-clickable { cursor: pointer; }
+.data-grid-row-clickable:hover { background: rgba(255, 255, 255, 0.04); }
+.data-grid-check-col { width: 28px; }
+.data-grid-empty { color: #888; text-align: center; padding: 18px 10px; }
+
+.data-grid-table tfoot td {
+    padding: 8px 10px;
+    border-top: 2px solid #444;
+    border-bottom: none;
+    color: #ccc;
+    font-weight: bold;
+}
+
+.data-grid-pagination {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    font-size: 0.82rem;
+    color: #aaa;
+}
+.data-grid-pagination button {
+    background: #222;
+    color: #ddd;
+    border: 1px solid #444;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+}
+.data-grid-pagination button:hover:not(:disabled) { background: #2e2e2e; }
+.data-grid-pagination button:disabled { color: #666; cursor: default; }
