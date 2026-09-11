@@ -144,6 +144,16 @@
         .breadcrumb-parent:hover { color: #eee; text-decoration: underline; }
         .breadcrumb-sep { color: #666; }
         .breadcrumb-current { color: inherit; }
+        .dashboard-back-link {
+            color: #aaa;
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 4px 8px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+        .dashboard-back-link:hover { color: #eee; border-color: #666; }
         .notif-bell {
             position: relative;
             background: none;
@@ -191,6 +201,14 @@
         // Injected rather than a static per-page placeholder (unlike
         // #role-badge/#main-nav) - keeps every page's topbar markup
         // untouched, same reasoning as this script's own injected <style>.
+        // Present on every page, including the Dashboard itself - clicking
+        // it there is just a harmless reload, not worth special-casing.
+        const dashboardLink = document.createElement('a');
+        dashboardLink.href = '/';
+        dashboardLink.className = 'dashboard-back-link';
+        dashboardLink.textContent = '‹ Dashboard';
+        topbar.insertBefore(dashboardLink, navEl);
+
         const bell = document.createElement('button');
         bell.type = 'button';
         bell.className = 'notif-bell';
