@@ -632,7 +632,7 @@ public class SuperAdminController(
     public async Task<IActionResult> ListCustomFonts()
     {
         var fonts = await db.CustomFlyerFonts.AsNoTracking().OrderBy(f => f.Label).ToListAsync();
-        return Ok(fonts.Select(f => new { id = f.Id, label = f.Label, fileUrl = $"/custom-fonts/{f.Id}{f.Extension}" }));
+        return Ok(fonts.Select(f => new { id = f.Id, label = f.Label, extension = f.Extension, fileUrl = $"/custom-fonts/{f.Id}{f.Extension}", createdAt = f.CreatedAt }));
     }
 
     [HttpPost("fonts")]

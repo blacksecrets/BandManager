@@ -796,25 +796,40 @@ for (const type of ['logo', 'background', 'favicon']) {
 }
 
 // --- Flyer fonts (SuperAdmin-uploaded, platform-wide) ---
+let flyerFontsGrid = null;
+
 async function loadFlyerFonts() {
     const res = await fetch('/api/superadmin/fonts');
     if (!res.ok) return;
     const fonts = await res.json();
-    const tbody = document.getElementById('flyer-fonts-table-body');
-    tbody.innerHTML = '';
-    for (const font of fonts) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${escapeHtml(font.label)}</td><td></td>`;
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-btn';
-        removeBtn.textContent = 'Remove';
-        removeBtn.addEventListener('click', async () => {
-            if (!confirm(`Remove the font "${font.label}"? Flyers already using it keep their already-rendered image, but re-saving them will fall back to a bundled font.`)) return;
-            const delRes = await fetch(`/api/superadmin/fonts/${font.id}`, { method: 'DELETE' });
+
+    const columns = [
+        { key: 'label', label: 'Name', render: (f) => escapeHtml(f.label) },
+        { key: 'extension', label: 'Type', render: (f) => escapeHtml((f.extension || '').replace('.', '').toUpperCase()) },
+        { key: 'createdAt', label: 'Uploaded', sortValue: (f) => new Date(f.createdAt).getTime(), render: (f) => new Date(f.createdAt).toLocaleDateString() },
+        {
+            key: 'remove', label: '', sortable: false, searchable: false,
+            render: (f) => `<button type="button" class="remove-btn font-remove-btn" data-font-id="${f.id}" data-font-label="${escapeHtml(f.label)}">Remove</button>`
+        }
+    ];
+
+    if (flyerFontsGrid) {
+        flyerFontsGrid.setRows(fonts);
+    } else {
+        const container = document.getElementById('flyer-fonts-grid');
+        flyerFontsGrid = window.DataGrid.render(container, {
+            columns, rows: fonts, getRowId: (f) => f.id,
+            defaultSortKey: 'label', defaultSortDir: 'asc',
+            emptyMessage: 'No custom fonts uploaded yet.'
+        });
+        container.addEventListener('click', async (e) => {
+            const btn = e.target.closest('.font-remove-btn');
+            if (!btn) return;
+            e.stopPropagation();
+            if (!confirm(`Remove the font "${btn.dataset.fontLabel}"? Flyers already using it keep their already-rendered image, but re-saving them will fall back to a bundled font.`)) return;
+            const delRes = await fetch(`/api/superadmin/fonts/${btn.dataset.fontId}`, { method: 'DELETE' });
             if (delRes.ok) loadFlyerFonts();
         });
-        tr.lastElementChild.appendChild(removeBtn);
-        tbody.appendChild(tr);
     }
 }
 
