@@ -17,6 +17,23 @@
         return '/' + String(relPath || '').replace(/\\/g, '/').replace(/^data\/catalog\//, 'catalog-files/');
     }
 
+    // Image-type fields only ever store a bare catalogItemId in field.value
+    // (see FlyerRenderer.cs) - not a displayable URL - so both the live
+    // preview and a freshly-picked image need one lookup to resolve it.
+    // Result is cached on the field itself (field.imageUrl) since the id
+    // never changes without going through this same function again.
+    async function resolveImageFieldUrl(field) {
+        if (!field.value) { field.imageUrl = null; return; }
+        try {
+            const res = await fetch(`/api/catalog/${field.value}`);
+            if (!res.ok) { field.imageUrl = null; return; }
+            const item = await res.json();
+            field.imageUrl = catalogFileUrl(item.file_path);
+        } catch {
+            field.imageUrl = null;
+        }
+    }
+
     // SuperAdmin-uploaded custom fonts (key "custom-<id>") aren't in
     // flyerEditor.css's static @font-face rules like the 7 bundled ones -
     // this injects one on first use of each, so the live preview can
@@ -152,6 +169,7 @@
             const knownFields = await knownFieldsRes.json();
 
             let fields = existingFields || buildInitialFields(knownFields, gig);
+            await Promise.all(fields.filter((f) => f.type === 'Image' && f.value).map(resolveImageFieldUrl));
 
             body.innerHTML = `
                 <h2>${flyerId ? 'Edit Flyer' : 'Create Flyer'}: ${escapeHtml(gig.title)}</h2>
@@ -244,6 +262,7 @@
                                 }
                                 if (!catalogItemId) return;
                                 field.value = catalogItemId;
+                                await resolveImageFieldUrl(field);
                                 renderFieldList();
                                 renderPreview();
                             }
@@ -287,9 +306,13 @@
                         el.style.fontStyle = field.italic ? 'italic' : 'normal';
                         el.style.textDecoration = field.underline ? 'underline' : 'none';
                     } else {
-                        el.textContent = field.value ? '' : '(no image chosen)';
+                        el.textContent = field.imageUrl ? '' : '(no image chosen)';
                         el.style.width = `${(field.fontSize || 0.1) * bgImg.clientHeight * 2}px`;
                         el.style.height = `${(field.fontSize || 0.1) * bgImg.clientHeight}px`;
+                        el.style.backgroundImage = field.imageUrl ? `url(${field.imageUrl})` : 'none';
+                        el.style.backgroundSize = 'contain';
+                        el.style.backgroundRepeat = 'no-repeat';
+                        el.style.backgroundPosition = 'center';
                     }
                     el.addEventListener('pointerdown', (e) => startFieldDrag(e, el, field));
 
