@@ -36,9 +36,17 @@ public record SetSelectedFlyerRequest(Guid FlyerId);
 /// siteless band can still fully use the separate Flyer system
 /// (CatalogStore-backed, already site-independent) instead.
 /// </summary>
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] doesn't override, it ANDs the two, so
+// Get/Reschedule/ListFlyers below were silently still BandAdmin-only
+// despite their own attributes and doc comments explicitly saying
+// otherwise (Reschedule exists specifically so Calendar drag-to-
+// reschedule works for any band member, not just admins - it didn't).
+// Every action now states its own required policy instead - see
+// AccountingController.cs for the same fix, caught first there.
 [ApiController]
 [Route("/api/gigs")]
-[Authorize(Policy = "BandAdmin")]
 public class GigsController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
@@ -265,6 +273,7 @@ public class GigsController(
     }
 
     [HttpPut("{gigRef}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(string gigRef, [FromBody] JsonElement body)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -366,6 +375,7 @@ public class GigsController(
     // A title, venue, address, and date are required.
     [HttpPost]
     [RequestSizeLimit(MaxFlyerBytes)]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create()
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -485,6 +495,7 @@ public class GigsController(
     // comment's "known interim limitation."
     [HttpPost("{gigRef}/flyer")]
     [RequestSizeLimit(MaxFlyerBytes)]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UploadFlyer(string gigRef)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -545,6 +556,7 @@ public class GigsController(
     // modal's bulleted warning. No IsArchived filtering needed here: a gig
     // that isn't archived yet by definition has nothing archived under it.
     [HttpGet("{gigRef}/archive-preview")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> ArchivePreview(string gigRef)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -572,6 +584,7 @@ public class GigsController(
     // site's live listing (see the tranche plan's explicit non-goal) -
     // purely an in-app visibility toggle.
     [HttpPost("{gigRef}/archive")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Archive(string gigRef)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -598,6 +611,7 @@ public class GigsController(
     // currently archived (safe since nothing else can independently
     // archive either today).
     [HttpPost("{gigRef}/unarchive")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Unarchive(string gigRef)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -656,6 +670,7 @@ public class GigsController(
     // leaves the in-app selection saved (mirrors this controller's other
     // "already saved even if pushing live failed" endpoints).
     [HttpPost("{gigRef}/selected-flyer")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> SetSelectedFlyer(string gigRef, [FromBody] SetSelectedFlyerRequest request)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -693,6 +708,7 @@ public class GigsController(
     // Deletes the gig and every schedule item tied to it across every
     // platform - none of those make sense anymore once the show is gone.
     [HttpDelete("{gigRef}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Delete(string gigRef)
     {
         var (band, err) = await RequireActiveBandAsync();

@@ -22,7 +22,13 @@ namespace BandManager.Web.Controllers;
 /// </summary>
 [ApiController]
 [Route("/api/media")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class MediaController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
@@ -65,6 +71,7 @@ public class MediaController(
     }
 
     [HttpPut("{mediaRef}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(string mediaRef, [FromBody] Dictionary<string, string> body)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -101,6 +108,7 @@ public class MediaController(
     // that, but still requires a site (see class doc comment).
     [HttpPost]
     [RequestSizeLimit(MaxArtBytes)]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create()
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -179,6 +187,7 @@ public class MediaController(
     // comment).
     [HttpPost("{mediaRef}/art")]
     [RequestSizeLimit(MaxArtBytes)]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UploadArt(string mediaRef)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -238,6 +247,7 @@ public class MediaController(
 
     // Deletes the entry entirely - a media item has no other existence.
     [HttpDelete("{mediaRef}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Delete(string mediaRef)
     {
         var (band, err) = await RequireActiveBandAsync();

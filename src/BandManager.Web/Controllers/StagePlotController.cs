@@ -19,7 +19,13 @@ public record UpdateStagePlotItemRequest(double X, double Y, double Rotation);
 /// </summary>
 [ApiController]
 [Route("/api/acts/{actId:guid}/stage-plot")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class StagePlotController(ApplicationDbContext db, IActiveBandAccessor activeBand, IWebHostEnvironment env) : ControllerBase
 {
     private string FontsRootPath => Path.Combine(env.WebRootPath, "fonts");
@@ -92,6 +98,7 @@ public class StagePlotController(ApplicationDbContext db, IActiveBandAccessor ac
     // List can be placed, so the plot can never reference something the
     // Act's own catalog selection doesn't include.
     [HttpPost("items")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> AddItem(Guid actId, [FromBody] PlaceStagePlotItemRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -126,6 +133,7 @@ public class StagePlotController(ApplicationDbContext db, IActiveBandAccessor ac
     }
 
     [HttpPut("items/{itemId:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UpdateItem(Guid actId, Guid itemId, [FromBody] UpdateStagePlotItemRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -146,6 +154,7 @@ public class StagePlotController(ApplicationDbContext db, IActiveBandAccessor ac
     // Un-places the item (doesn't touch the Act's Gear List membership -
     // it's still available to drag back on).
     [HttpDelete("items/{itemId:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> RemoveItem(Guid actId, Guid itemId)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;

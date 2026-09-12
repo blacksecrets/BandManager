@@ -17,7 +17,13 @@ public record SavePromoterRequest(string Name, string? Company, string? Phone, s
 /// </summary>
 [ApiController]
 [Route("/api/promoters")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class PromoterController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
@@ -47,6 +53,7 @@ public class PromoterController(ApplicationDbContext db, IActiveBandAccessor act
     }
 
     [HttpPost]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create([FromBody] SavePromoterRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -67,6 +74,7 @@ public class PromoterController(ApplicationDbContext db, IActiveBandAccessor act
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SavePromoterRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -85,6 +93,7 @@ public class PromoterController(ApplicationDbContext db, IActiveBandAccessor act
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Delete(Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;

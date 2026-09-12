@@ -21,7 +21,13 @@ public record SaveBandGearRequest(
 /// </summary>
 [ApiController]
 [Route("/api/band-gear")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class BandGearController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
@@ -71,6 +77,7 @@ public class BandGearController(ApplicationDbContext db, IActiveBandAccessor act
     }
 
     [HttpPost]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create([FromBody] SaveBandGearRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -93,6 +100,7 @@ public class BandGearController(ApplicationDbContext db, IActiveBandAccessor act
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveBandGearRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -109,6 +117,7 @@ public class BandGearController(ApplicationDbContext db, IActiveBandAccessor act
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Delete(Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -125,6 +134,7 @@ public class BandGearController(ApplicationDbContext db, IActiveBandAccessor act
     // Band Admin can't browse a stranger's inventory just by guessing a
     // user id).
     [HttpGet("member-gear/{userId:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> ListMemberGear(Guid userId)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -151,6 +161,7 @@ public class BandGearController(ApplicationDbContext db, IActiveBandAccessor act
     // independently afterward. OwnerUserId is set to that member,
     // matching what "copied from my own gear" should mean.
     [HttpPost("from-member/{gearId:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> CreateFromMember(Guid gearId)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;

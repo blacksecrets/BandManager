@@ -16,7 +16,13 @@ public record SaveVenueCadenceStepRequest(int DaysAfterPrevious, string Type, st
 /// </summary>
 [ApiController]
 [Route("/api/venue-cadence-steps")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class VenueCadenceStepsController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
@@ -51,6 +57,7 @@ public class VenueCadenceStepsController(ApplicationDbContext db, IActiveBandAcc
     // order; there's no reordering (deleting the last one and re-adding
     // is the way to change the end of the sequence).
     [HttpPost]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create([FromBody] SaveVenueCadenceStepRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -76,6 +83,7 @@ public class VenueCadenceStepsController(ApplicationDbContext db, IActiveBandAcc
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveVenueCadenceStepRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -97,6 +105,7 @@ public class VenueCadenceStepsController(ApplicationDbContext db, IActiveBandAcc
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Delete(Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;

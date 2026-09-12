@@ -25,7 +25,13 @@ public record UpdateGalleryImageRequest(string Alt);
 /// </summary>
 [ApiController]
 [Route("/api/gallery")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class GalleryController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
@@ -70,6 +76,7 @@ public class GalleryController(
     // Edits an existing image's caption. The photo itself is replaced via
     // its own route below, since that also has to regenerate the thumbnail.
     [HttpPut("{galleryRef}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(string galleryRef, [FromBody] UpdateGalleryImageRequest request)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -95,6 +102,7 @@ public class GalleryController(
     // comment).
     [HttpPost]
     [RequestSizeLimit(MaxPhotoBytes)]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create()
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -155,6 +163,7 @@ public class GalleryController(
     // in place - still requires a site (see class doc comment).
     [HttpPost("{galleryRef}/photo")]
     [RequestSizeLimit(MaxPhotoBytes)]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UploadPhoto(string galleryRef)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -202,6 +211,7 @@ public class GalleryController(
 
     // Deletes the entry entirely, same as media items.
     [HttpDelete("{galleryRef}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Delete(string galleryRef)
     {
         var (band, err) = await RequireActiveBandAsync();

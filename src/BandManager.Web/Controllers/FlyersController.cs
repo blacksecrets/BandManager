@@ -27,9 +27,14 @@ public record SetFlyerGigRequest(string? GigRef);
 /// layout every flyer seeds from, moved here from the now-deleted
 /// FlyerTemplatesController).
 /// </summary>
+// No class-level [Authorize] here deliberately - see GigsController.cs's
+// identical note: a class-level [Authorize(Policy="BandAdmin")] combined
+// with a looser method-level [Authorize(Policy="BandMember")] doesn't
+// override, it ANDs the two, so Fonts/KnownFieldsDefaults/Get/UpcomingGigs
+// below were silently still BandAdmin-only. Every action now states its
+// own required policy instead.
 [ApiController]
 [Route("/api/flyers")]
-[Authorize(Policy = "BandAdmin")]
 public class FlyersController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
@@ -214,6 +219,7 @@ public class FlyersController(
     // the live one - are shown client-side using Get's isLastFlyerForGig/
     // isWebLiveFlyer, before this is ever called).
     [HttpPut("{id:guid}/gig")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> SetGig(Guid id, [FromBody] SetFlyerGigRequest request)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -333,6 +339,7 @@ public class FlyersController(
     }
 
     [HttpPost]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create([FromBody] SaveFlyerRequest request)
     {
         var (band, err) = await RequireActiveBandAsync();
@@ -369,6 +376,7 @@ public class FlyersController(
     // time - an already-live flyer being edited does not auto-repush just
     // because it was already live, same one safety gate as Create.
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveFlyerRequest request)
     {
         var (band, err) = await RequireActiveBandAsync();

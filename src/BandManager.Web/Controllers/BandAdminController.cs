@@ -19,7 +19,13 @@ public record UpdateBandInfoRequest(string Name, string? Phone, string? AddressL
 /// </summary>
 [ApiController]
 [Route("/api/band-admin")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class BandAdminController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
@@ -61,6 +67,7 @@ public class BandAdminController(
     // sensitive lives in a logo/background/favicon path.
     [HttpGet("branding")]
     [AllowAnonymous]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> GetBranding()
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -77,6 +84,7 @@ public class BandAdminController(
 
     [HttpPost("branding/{type}")]
     [RequestSizeLimit(MaxAssetBytes)]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UploadAsset(string type)
     {
         if (!AssetTypes.Contains(type)) return BadRequest(new { error = "Invalid branding type" });
@@ -116,6 +124,7 @@ public class BandAdminController(
     }
 
     [HttpDelete("branding/{type}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> DeleteAsset(string type)
     {
         if (!AssetTypes.Contains(type)) return BadRequest(new { error = "Invalid branding type" });
@@ -150,6 +159,7 @@ public class BandAdminController(
     // contract); everything else is optional, same as ApplicationUser's/
     // Venue's.
     [HttpGet("info")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> GetInfo()
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -169,6 +179,7 @@ public class BandAdminController(
     }
 
     [HttpPut("info")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UpdateInfo([FromBody] UpdateBandInfoRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -199,6 +210,7 @@ public class BandAdminController(
     }
 
     [HttpPut("branding/accent-color")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UpdateAccentColor([FromBody] UpdateAccentColorRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;

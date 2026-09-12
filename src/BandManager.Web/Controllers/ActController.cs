@@ -30,7 +30,13 @@ public record SaveMicEqNoteRequest(string MicModel, string? Context, List<Freque
 /// </summary>
 [ApiController]
 [Route("/api/acts")]
-[Authorize(Policy = "BandAdmin")]
+// No class-level [Authorize] here deliberately - a class-level
+// [Authorize(Policy="BandAdmin")] combined with a looser method-level
+// [Authorize(Policy="BandMember")] override on individual actions below
+// doesn't override, it ANDs the two, so those actions were silently
+// still BandAdmin-only. Every action now states its own required
+// policy instead - see GigsController.cs/FlyersController.cs for the
+// same fix, caught first via AccountingController.cs.
 public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
@@ -87,6 +93,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPost]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Create([FromBody] SaveActRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -100,6 +107,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Update(Guid id, [FromBody] SaveActRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -119,6 +127,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     // reassign those first rather than silently orphaning them (the DB's
     // own Restrict FK on Gig.ActId backs this up either way).
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> Delete(Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -171,6 +180,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     // submitted (order preserved), same "just rewrite it" approach as
     // this session's other checklist-shaped saves.
     [HttpPut("{actId:guid}/gear")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> SetGear(Guid actId, [FromBody] SetActGearRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -215,6 +225,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPost("{actId:guid}/input-channels")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> AddInputChannel(Guid actId, [FromBody] SaveInputChannelRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -238,6 +249,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPut("{actId:guid}/input-channels/{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UpdateInputChannel(Guid actId, Guid id, [FromBody] SaveInputChannelRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -257,6 +269,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpDelete("{actId:guid}/input-channels/{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> DeleteInputChannel(Guid actId, Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -290,6 +303,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPost("{actId:guid}/monitor-mixes")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> AddMonitorMix(Guid actId, [FromBody] SaveMonitorMixRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -311,6 +325,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPut("{actId:guid}/monitor-mixes/{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UpdateMonitorMix(Guid actId, Guid id, [FromBody] SaveMonitorMixRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -328,6 +343,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpDelete("{actId:guid}/monitor-mixes/{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> DeleteMonitorMix(Guid actId, Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -363,6 +379,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPost("{actId:guid}/mic-eq-notes")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> AddMicEqNote(Guid actId, [FromBody] SaveMicEqNoteRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -385,6 +402,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpPut("{actId:guid}/mic-eq-notes/{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> UpdateMicEqNote(Guid actId, Guid id, [FromBody] SaveMicEqNoteRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -403,6 +421,7 @@ public class ActController(ApplicationDbContext db, IActiveBandAccessor activeBa
     }
 
     [HttpDelete("{actId:guid}/mic-eq-notes/{id:guid}")]
+    [Authorize(Policy = "BandAdmin")]
     public async Task<IActionResult> DeleteMicEqNote(Guid actId, Guid id)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
