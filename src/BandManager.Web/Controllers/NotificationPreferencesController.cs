@@ -44,7 +44,12 @@ public class NotificationPreferencesController(ApplicationDbContext db) : Contro
             .Where(p => p.UserId == userId)
             .ToDictionaryAsync(p => p.Kind);
 
-        var result = Enum.GetValues<NotificationKind>().Select(kind =>
+        // OutboundEmailCopy excluded - it's not a personal reminder a user
+        // opts into, it's LoggingEmailSender's own unconditional SuperAdmin
+        // safety net (see its doc comment). Listing it here would show a
+        // toggle that does nothing, since that sender never consults
+        // NotificationPreference for this kind.
+        var result = Enum.GetValues<NotificationKind>().Where(k => k != NotificationKind.OutboundEmailCopy).Select(kind =>
         {
             var applies = LeadTimeKinds.Contains(kind);
             if (existing.TryGetValue(kind, out var pref))

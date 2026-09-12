@@ -6,7 +6,9 @@ namespace BandManager.Data.Entities;
 // ever actually been written so far (SongEditRequestsController), so
 // ordinal 0 correctly back-classifies every real row with no data fixup
 // needed.
-public enum NotificationKind { SongEditReviewed, GigReminder, RehearsalReminder, AvailabilityReminder, ResponsibilityChanged }
+// OutboundEmailCopy appended, not reordered - see the ordinal note above,
+// same reasoning applies to every value already in real use.
+public enum NotificationKind { SongEditReviewed, GigReminder, RehearsalReminder, AvailabilityReminder, ResponsibilityChanged, OutboundEmailCopy }
 
 /// <summary>
 /// One user's notification settings for one NotificationKind - global per
