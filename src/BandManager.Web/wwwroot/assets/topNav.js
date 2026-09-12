@@ -195,12 +195,18 @@
         const active = bands.find((b) => b.bandId === me.activeBandId);
         const activeLabel = active ? active.bandName : (me.isSuperAdmin ? 'No band selected' : 'Pick a band');
         const initials = activeLabel.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || '?';
+        // Role line must never go blank just because no band is active -
+        // that's exactly the state where knowing "you're SuperAdmin" (not
+        // a plain member with nothing picked yet) matters most. Falls back
+        // to isAdmin's own "Band Admin"/nothing the same way the sidebar
+        // footer's #role-badge does, so the two never disagree.
+        const roleLabel = active ? active.role : (me.isSuperAdmin ? 'SuperAdmin' : me.isAdmin ? 'Band Admin' : '');
 
         btn.innerHTML = `
             <span class="sidebar-band-avatar">${escapeHtml(initials)}</span>
             <span class="sidebar-band-meta">
                 <span class="sidebar-band-name">${escapeHtml(activeLabel)}</span>
-                <span class="sidebar-band-role">${active ? escapeHtml(active.role) : ''}</span>
+                <span class="sidebar-band-role">${escapeHtml(roleLabel)}</span>
             </span>
             <span class="chevron">&#9662;</span>
         `;
