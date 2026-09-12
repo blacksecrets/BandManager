@@ -74,45 +74,9 @@ window.openBandMemberPicker = function openBandMemberPicker({ max = 2, current =
     });
 };
 
-let openProfilePopoverEl = null;
-function closeProfilePopover() {
-    if (openProfilePopoverEl) { openProfilePopoverEl.remove(); openProfilePopoverEl = null; }
-}
-document.addEventListener('click', closeProfilePopover);
-
-function openProfilePopover(anchorEl, member) {
-    closeProfilePopover();
-    if (!member) return;
-
-    const pop = document.createElement('div');
-    pop.className = 'assignee-profile-popover';
-
-    const name = document.createElement('strong');
-    name.textContent = member.firstName;
-    pop.appendChild(name);
-
-    if (member.username) {
-        const username = document.createElement('div');
-        username.className = 'save-note';
-        username.textContent = member.username;
-        pop.appendChild(username);
-    }
-    if (member.role) {
-        const role = document.createElement('div');
-        role.className = 'save-note';
-        role.textContent = member.role;
-        pop.appendChild(role);
-    }
-
-    document.body.appendChild(pop);
-    const rect = anchorEl.getBoundingClientRect();
-    pop.style.top = `${window.scrollY + rect.bottom + 4}px`;
-    pop.style.left = `${window.scrollX + rect.left}px`;
-    pop.addEventListener('click', (e) => e.stopPropagation());
-    openProfilePopoverEl = pop;
-}
-
-// Renders up to 2 clickable first-name badges (click -> profile popover)
+// Renders up to 2 clickable first-name badges (click -> full profile modal,
+// via UserAvatar's own shared document-level click handler - see
+// userAvatar.js)
 // plus, when editable, a Reassign/Assign button that opens the picker and
 // calls onReassign(newIds) with the result. The returned element updates
 // itself in place after a successful reassign.
@@ -135,12 +99,11 @@ window.renderAssigneeBadges = function renderAssigneeBadges({ assigneeUserId1, a
             ids.forEach((id, i) => {
                 if (i > 0) wrap.appendChild(document.createTextNode(', '));
                 const member = byId[id];
-                const nameBtn = document.createElement('button');
-                nameBtn.type = 'button';
-                nameBtn.className = 'assignee-name-link';
-                nameBtn.textContent = member ? member.firstName : 'Unknown';
-                nameBtn.addEventListener('click', (e) => { e.stopPropagation(); openProfilePopover(nameBtn, member); });
-                wrap.appendChild(nameBtn);
+                const span = document.createElement('span');
+                span.innerHTML = member
+                    ? UserAvatar.renderWithName({ id: member.id, name: member.firstName, avatarUrl: member.avatarUrl }, 20)
+                    : 'Unknown';
+                wrap.appendChild(span.firstElementChild || span);
             });
         }
 

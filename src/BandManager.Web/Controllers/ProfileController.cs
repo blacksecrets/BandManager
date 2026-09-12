@@ -93,6 +93,7 @@ public class ProfileController(
             city = user.City,
             state = user.State,
             postalCode = user.PostalCode,
+            avatarUrl = user.AvatarFileName is { } avatarFn ? $"/avatars/{avatarFn}" : null,
             catalogViewMode = user.CatalogViewMode ?? "thumbnails",
             catalogViewModeFlyers = user.CatalogViewModeFlyers ?? "thumbnails",
             isSuperAdmin = user.IsSuperAdmin,
@@ -291,10 +292,118 @@ public class ProfileController(
                 id = m.UserId,
                 firstName = m.User.FirstName ?? m.User.UserName!.Split('@')[0],
                 username = m.User.UserName,
-                role = m.Role.ToString()
+                role = m.Role.ToString(),
+                avatarUrl = m.User.AvatarFileName != null ? $"/avatars/{m.User.AvatarFileName}" : null
             })
             .ToListAsync();
         return Ok(members);
+    }
+
+    // --- Avatar (self-service; served via the authenticated /avatars
+    // static mount - see MapAuthenticatedStaticFiles in Program.cs). Not a
+    // CatalogItem (those are Band-scoped, a user isn't tied to one Band) -
+    // same plain file-on-disk convention as platform branding below,
+    // scoped by user id instead of a fixed logo/background/favicon key. ---
+    private const long MaxAvatarBytes = 8 * 1024 * 1024;
+
+    [HttpPost("avatar")]
+    [Authorize]
+    [RequestSizeLimit(MaxAvatarBytes)]
+    public async Task<IActionResult> UploadAvatar()
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+        if (!Request.HasFormContentType) return BadRequest(new { error = "No file provided" });
+
+        var form = await Request.ReadFormAsync();
+        var file = form.Files.GetFile("file");
+        if (file is null || file.Length == 0) return BadRequest(new { error = "No file provided" });
+        if (!(file.ContentType ?? "").StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            return BadRequest(new { error = $"Expected an image file, got {file.ContentType}" });
+
+        var avatarsDir = Path.Combine(env.ContentRootPath, "data", "avatars");
+        Directory.CreateDirectory(avatarsDir);
+
+        if (user.AvatarFileName is { } oldFileName)
+        {
+            try { System.IO.File.Delete(Path.Combine(avatarsDir, oldFileName)); } catch { /* best-effort */ }
+        }
+
+        var ext = Path.GetExtension(file.FileName);
+        if (string.IsNullOrEmpty(ext) || ext.Length > 10) ext = ".png";
+        var fileName = $"{user.Id}-{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}{ext}";
+        await using (var stream = System.IO.File.Create(Path.Combine(avatarsDir, fileName)))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        user.AvatarFileName = fileName;
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, url = $"/avatars/{fileName}" });
+    }
+
+    [HttpDelete("avatar")]
+    [Authorize]
+    public async Task<IActionResult> DeleteAvatar()
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+        if (user.AvatarFileName is { } fileName)
+        {
+            var avatarsDir = Path.Combine(env.ContentRootPath, "data", "avatars");
+            try { System.IO.File.Delete(Path.Combine(avatarsDir, fileName)); } catch { /* best-effort */ }
+            user.AvatarFileName = null;
+            await db.SaveChangesAsync();
+        }
+        return Ok(new { ok = true });
+    }
+
+    // Band-scoped profile detail for the "click an avatar/name" modal
+    // (userAvatar.js) - full contact info only for someone you actually
+    // share a Band with (or yourself, or as SuperAdmin). Deliberately a
+    // plain 403 (not a leak-avoiding 404) since this codebase's other
+    // permission checks already work that way (e.g. BandAccessCheck), and
+    // user ids aren't secret here - already visible in band-members lists
+    // to anyone who shares a Band.
+    [HttpGet("{userId:guid}")]
+    [Authorize]
+    public async Task<IActionResult> GetUserProfile(Guid userId)
+    {
+        var requestingUserId = User.GetUserId();
+        if (requestingUserId is null) return Unauthorized();
+
+        var target = await db.Users.FindAsync(userId);
+        if (target is null) return NotFound(new { error = "User not found" });
+
+        if (requestingUserId != userId)
+        {
+            var requestingUser = await userManager.GetUserAsync(User);
+            var isSuperAdmin = requestingUser?.IsSuperAdmin ?? false;
+            if (!isSuperAdmin)
+            {
+                var sharesBand = await db.BandMemberships.Where(m => m.UserId == requestingUserId)
+                    .Select(m => m.BandId)
+                    .AnyAsync(bandId => db.BandMemberships.Any(m2 => m2.UserId == userId && m2.BandId == bandId));
+                if (!sharesBand) return Forbid();
+            }
+        }
+
+        var memberships = await db.BandMemberships.Where(m => m.UserId == userId)
+            .Include(m => m.Band)
+            .OrderBy(m => m.Band.Name)
+            .Select(m => new { bandName = m.Band.Name, role = m.Role.ToString() })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            id = target.Id,
+            displayName = target.DisplayName,
+            email = target.Email,
+            cellNumber = target.CellNumber,
+            avatarUrl = target.AvatarFileName is { } fn ? $"/avatars/{fn}" : null,
+            isSuperAdmin = target.IsSuperAdmin,
+            bands = memberships
+        });
     }
 
     // The seed picklist for "role(s) in the band" (Bassist, Sound
@@ -374,7 +483,8 @@ public class ProfileController(
             is_admin = m.Role == BandRole.BandAdmin,
             email_confirmed = m.User.EmailConfirmed,
             created_at = m.CreatedAt,
-            roles = rolesByUser.GetValueOrDefault(m.UserId, [])
+            roles = rolesByUser.GetValueOrDefault(m.UserId, []),
+            avatarUrl = m.User.AvatarFileName != null ? $"/avatars/{m.User.AvatarFileName}" : null
         }));
     }
 

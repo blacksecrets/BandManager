@@ -517,8 +517,9 @@ async function loadAllUsers() {
             : '—';
 
         const tr = document.createElement('tr');
+        const chip = UserAvatar.renderWithName({ id: u.id, name: u.username, avatarUrl: u.avatarUrl }, 24);
         tr.innerHTML = `
-            <td>${escapeHtml(u.username)}${u.isSelf ? ' (you)' : ''}</td>
+            <td>${chip}${u.isSelf ? ' (you)' : ''}</td>
             <td>${u.isSuperAdmin ? 'SuperAdmin' : '—'}</td>
             <td>${escapeHtml(bandsSummary)}</td>
             <td></td>

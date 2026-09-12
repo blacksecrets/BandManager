@@ -22,6 +22,16 @@
 
         <section class="platform-card">
             <h2>Your account</h2>
+
+            <div class="avatar-upload-row">
+                <span id="avatar-preview"></span>
+                <div class="avatar-upload-controls">
+                    <label class="avatar-upload-btn">Upload photo<input type="file" id="avatar-file-input" accept="image/*" hidden></label>
+                    <button type="button" id="avatar-remove-btn" hidden>Remove photo</button>
+                    <p id="avatar-status" class="save-note"></p>
+                </div>
+            </div>
+
             <p id="whoami" class="save-note"></p>
             <p id="must-change-password-banner" class="verify-error-banner" hidden>Your password was set by an admin - please choose your own below.</p>
 
@@ -134,6 +144,7 @@
     <script src="/assets/gigPrepShared.js"></script>
     <script src="/assets/profile.js"></script>
     <script src="/assets/branding.js"></script>
+    <script src="/assets/userAvatar.js"></script>
     <script src="/assets/topNav.js"></script>
     <script src="/assets/password-toggle.js"></script>
     <script src="/assets/testModeBanner.js"></script>

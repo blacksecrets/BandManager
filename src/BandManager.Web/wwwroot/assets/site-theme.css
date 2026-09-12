@@ -189,6 +189,81 @@ nav.sidebar-nav { display: flex; flex-direction: column; gap: 2px; overflow-y: a
 }
 .notif-badge[hidden] { display: none; }
 
+/* Shared user avatar + profile modal (userAvatar.js) - used anywhere a
+   user is displayed across the app, not just the sidebar's own footer. */
+.c-accent { background: var(--accent); color: var(--accent-ink); }
+.c-structure { background: var(--structure); color: var(--structure-ink); }
+.c-success { background: var(--success); color: var(--success-ink); }
+.c-danger { background: var(--danger); color: var(--danger-ink); }
+
+.user-avatar-trigger { cursor: pointer; }
+.user-avatar-img, .user-avatar-initials {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    font-weight: 600;
+    vertical-align: middle;
+}
+.user-chip { display: inline-flex; align-items: center; gap: 8px; }
+.user-name-trigger { color: var(--text-primary); }
+.user-name-trigger:hover { color: var(--accent); text-decoration: underline; }
+
+.user-profile-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+.user-profile-modal-backdrop[hidden] { display: none; }
+.user-profile-modal {
+    background: var(--bg-surface);
+    border: 0.5px solid var(--border-strong);
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 420px;
+    width: 100%;
+    max-height: 85vh;
+    overflow-y: auto;
+    position: relative;
+}
+.user-profile-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+}
+.user-profile-modal-close:hover { color: var(--text-primary); }
+.user-profile-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+.user-profile-avatar-large { width: 64px; height: 64px; font-size: 22px; }
+.user-profile-header h3 { margin: 0 0 4px; font-size: 17px; }
+.user-profile-superadmin-tag {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    border: 0.5px solid var(--accent);
+    border-radius: 999px;
+    padding: 1px 7px;
+    vertical-align: middle;
+    text-transform: uppercase;
+}
+.user-profile-modal h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 16px 0 6px; }
+.user-profile-band-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.user-profile-band-list li { display: flex; justify-content: space-between; padding: 6px 0; border-top: 0.5px solid var(--border); font-size: 13.5px; }
+.user-profile-band-list li:first-child { border-top: none; }
+.user-profile-band-role { color: var(--text-muted); }
+
 @media (max-width: 880px) {
     #app-shell { grid-template-columns: 1fr; }
     #app-sidebar { display: none; }

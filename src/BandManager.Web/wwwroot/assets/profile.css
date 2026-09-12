@@ -1,3 +1,20 @@
+.avatar-upload-row { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.avatar-upload-row .user-avatar-img, .avatar-upload-row .user-avatar-initials { width: 64px; height: 64px; font-size: 22px; cursor: default; }
+.avatar-upload-controls { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.avatar-upload-btn {
+    display: inline-block;
+    background: none;
+    border: 1px solid #444;
+    color: #eee;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+.avatar-upload-btn:hover { border-color: #666; }
+#avatar-remove-btn { background: none; border: 1px solid #444; color: #eee; padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+#avatar-remove-btn:hover { border-color: #666; }
+
 .checkbox-label {
     flex-direction: row !important;
     align-items: center;

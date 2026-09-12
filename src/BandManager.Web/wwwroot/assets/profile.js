@@ -1,8 +1,40 @@
+function renderAvatarPreview(me) {
+    const displayName = me.firstName ? `${me.firstName} ${me.lastName || ''}`.trim() : me.username;
+    document.getElementById('avatar-preview').innerHTML = UserAvatar.render({ id: me.id, name: displayName, avatarUrl: me.avatarUrl }, 64);
+    document.getElementById('avatar-remove-btn').hidden = !me.avatarUrl;
+}
+
+document.getElementById('avatar-file-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const status = document.getElementById('avatar-status');
+    status.textContent = 'Uploading...';
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/profile/avatar', { method: 'POST', body: formData });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+        status.textContent = body.error || 'Could not upload that photo.';
+        return;
+    }
+    status.textContent = 'Photo updated.';
+    e.target.value = '';
+    await loadMe();
+});
+
+document.getElementById('avatar-remove-btn').addEventListener('click', async () => {
+    if (!confirm('Remove your photo? You\'ll go back to the default initials circle.')) return;
+    await fetch('/api/profile/avatar', { method: 'DELETE' });
+    document.getElementById('avatar-status').textContent = 'Photo removed.';
+    await loadMe();
+});
+
 async function loadMe() {
     const res = await fetch('/api/profile/me');
     const me = await res.json();
     const roleNote = me.isSuperAdmin ? ' (SuperAdmin)' : me.activeBandRole === 'BandAdmin' ? ` (Band Admin of ${me.activeBandName || 'this band'})` : '';
     document.getElementById('whoami').textContent = `Logged in as ${me.username}${roleNote}`;
+    renderAvatarPreview(me);
     document.querySelector('#username-form input[name="username"]').value = me.username || '';
     document.querySelector('#name-form input[name="firstName"]').value = me.firstName || '';
     document.querySelector('#name-form input[name="lastName"]').value = me.lastName || '';

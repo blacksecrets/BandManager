@@ -257,8 +257,9 @@ async function loadUsers() {
     for (const user of users) {
         const isSelf = user.username === me.username;
         const tr = document.createElement('tr');
+        const chip = UserAvatar.renderWithName({ id: user.id, name: user.username, avatarUrl: user.avatarUrl }, 24);
         tr.innerHTML = `
-            <td>${user.username}${isSelf ? ' (you)' : ''}</td>
+            <td>${chip}${isSelf ? ' (you)' : ''}</td>
             <td>${user.is_admin ? 'Admin' : 'User'}</td>
             <td class="user-roles-cell">${(user.roles || []).join(', ') || '—'}</td>
             <td>${user.email_confirmed ? 'Verified' : 'Unverified'}</td>

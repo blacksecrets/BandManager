@@ -294,6 +294,7 @@ public class SuperAdminController(
             isSuperAdmin = u.IsSuperAdmin,
             emailConfirmed = u.EmailConfirmed,
             isSelf = u.Id == currentUserId,
+            avatarUrl = u.AvatarFileName != null ? $"/avatars/{u.AvatarFileName}" : null,
             memberships = u.BandMemberships
                 .OrderBy(m => m.Band.Name)
                 .Select(m => new { bandId = m.BandId, bandName = m.Band.Name, isArchived = m.Band.IsArchived, role = m.Role.ToString() })

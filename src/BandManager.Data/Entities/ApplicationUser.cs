@@ -44,6 +44,14 @@ public class ApplicationUser : IdentityUser<Guid>
     public string? State { get; set; }
     public string? PostalCode { get; set; }
 
+    // Self-service, null until set (falls back to a colored initials
+    // circle - see userAvatar.js). Just a filename, same convention as
+    // PlatformSetting's logo/background/favicon_filename - stored under
+    // data/avatars, served via the /avatars static mount. Not a
+    // CatalogItem: those are Band-scoped and a user isn't tied to one
+    // Band, so this needed its own simple file-on-disk convention instead.
+    public string? AvatarFileName { get; set; }
+
     // "thumbnails" or "details" - which grid layout Images and Flyers
     // opens to. Null (never chosen yet) is treated as "thumbnails" by the
     // frontend, not defaulted here, matching CellNumber/etc.'s "nobody's

@@ -116,11 +116,10 @@
         const row = document.createElement('div');
         row.className = 'sidebar-footer-row';
 
-        const avatar = document.createElement('div');
-        avatar.className = 'sidebar-user-avatar';
-        const initials = ((me.firstName || me.username || '?')[0] + (me.lastName ? me.lastName[0] : '')).toUpperCase();
-        avatar.textContent = initials;
-        row.appendChild(avatar);
+        const displayName = me.firstName ? `${me.firstName} ${me.lastName || ''}`.trim() : me.username;
+        const avatarWrap = document.createElement('span');
+        avatarWrap.innerHTML = UserAvatar.render({ id: me.id, name: displayName, avatarUrl: me.avatarUrl }, 30);
+        row.appendChild(avatarWrap.firstElementChild);
 
         const meta = document.createElement('div');
         meta.className = 'sidebar-user-meta';
