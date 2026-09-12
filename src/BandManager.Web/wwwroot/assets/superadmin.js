@@ -905,17 +905,131 @@ function applySuperAdminSongDurationFilter(rows) {
     });
 }
 
-async function resolveNewSongOne(url, songTitle) {
-    const message = prompt(`Message for the submitter of "${songTitle}":`, '');
-    if (message === null) return;
-    if (!message.trim()) { alert('A message is required.'); return; }
+async function resolveNewSongOne(url, songTitle, message) {
+    if (message === undefined) {
+        message = prompt(`Message for the submitter of "${songTitle}":`, '');
+        if (message === null) return false;
+    }
+    if (!message.trim()) { alert('A message is required.'); return false; }
     const res = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: message.trim() })
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) { alert(body.error || 'Could not resolve this song.'); return; }
+    if (!res.ok) { alert(body.error || 'Could not resolve this song.'); return false; }
     await loadSuperAdminSongCatalog();
+    return true;
 }
+
+// --- New-song review modal: song details + fuzzy catalog matches + a
+// live web search, so a SuperAdmin can actually verify a proposed song
+// (and spot a likely duplicate the exact-match check upstream missed)
+// before Accepting or Rejecting it, instead of doing that from memory
+// off a bare grid row. ---
+function renderSuperAdminWebResults(box, youTube, spotify) {
+    box.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'song-web-results';
+    const buildColumn = (title, items) => {
+        const col = document.createElement('div');
+        col.className = 'song-web-column';
+        const heading = document.createElement('h4');
+        heading.textContent = title;
+        col.appendChild(heading);
+        if (items.length === 0) {
+            const none = document.createElement('p');
+            none.className = 'save-note';
+            none.textContent = 'No results (or no API key configured).';
+            col.appendChild(none);
+        }
+        for (const item of items) {
+            const row = document.createElement('div');
+            row.className = 'song-web-result';
+            row.innerHTML = `
+                ${item.thumbnail ? `<img src="${item.thumbnail}" alt="">` : ''}
+                <div class="song-web-result-text">${escapeHtml(item.title)}<small>${escapeHtml(item.artist || '')}</small></div>
+            `;
+            col.appendChild(row);
+        }
+        return col;
+    };
+    grid.appendChild(buildColumn('YouTube', youTube));
+    grid.appendChild(buildColumn('Spotify', spotify));
+    box.appendChild(grid);
+}
+
+function renderSuperAdminFuzzyMatches(box, matches) {
+    box.innerHTML = '';
+    if (matches.length === 0) {
+        box.innerHTML = '<p class="save-note">No similar songs found in the catalog.</p>';
+        return;
+    }
+    for (const m of matches) {
+        const row = document.createElement('div');
+        row.className = 'song-result-row';
+        row.innerHTML = `<div class="song-result-info">${escapeHtml(m.song.title)}<small>${escapeHtml(m.song.originalArtist || '')}</small></div><span class="save-note">${Math.round(m.score * 100)}% match</span>`;
+        box.appendChild(row);
+    }
+}
+
+async function openNewSongReview(song) {
+    document.getElementById('new-song-review-title').textContent = song.title;
+    document.getElementById('new-song-review-artist').textContent = song.originalArtist ? `by ${song.originalArtist}` : 'Original artist unknown';
+    document.getElementById('new-song-review-album').textContent = song.album || '—';
+    document.getElementById('new-song-review-key').textContent = song.key || '—';
+    document.getElementById('new-song-review-length').textContent = song.lengthSeconds != null ? formatSuperAdminSongLength(song.lengthSeconds) : '—';
+
+    const linksBox = document.getElementById('new-song-review-links');
+    linksBox.innerHTML = '';
+    for (const [label, url] of [['YouTube', song.youTubeUrl], ['Spotify', song.spotifyUrl], ['Songsterr', song.songsterrUrl]]) {
+        const el = document.createElement(url ? 'a' : 'span');
+        if (url) { el.href = url; el.target = '_blank'; el.rel = 'noopener'; } else { el.className = 'link-missing'; }
+        el.textContent = label;
+        linksBox.appendChild(el);
+    }
+
+    document.getElementById('new-song-review-message').value = '';
+    document.getElementById('new-song-review-accept-btn').dataset.songId = song.id;
+    document.getElementById('new-song-review-accept-btn').dataset.songTitle = song.title;
+    document.getElementById('new-song-review-reject-btn').dataset.songId = song.id;
+    document.getElementById('new-song-review-reject-btn').dataset.songTitle = song.title;
+    document.getElementById('new-song-review-modal-backdrop').hidden = false;
+
+    const fuzzyBox = document.getElementById('new-song-review-fuzzy');
+    const webBox = document.getElementById('new-song-review-web');
+    fuzzyBox.innerHTML = '<p class="save-note">Searching...</p>';
+    webBox.innerHTML = '<p class="save-note">Searching...</p>';
+
+    const fuzzyRes = await fetch(`/api/songs/${song.id}/fuzzy-matches`);
+    renderSuperAdminFuzzyMatches(fuzzyBox, fuzzyRes.ok ? await fuzzyRes.json() : []);
+
+    const q = `${song.title} ${song.originalArtist || ''}`.trim();
+    const webRes = await fetch(`/api/songs/search-web?q=${encodeURIComponent(q)}`);
+    if (webRes.ok) {
+        const { youTube, spotify } = await webRes.json();
+        renderSuperAdminWebResults(webBox, youTube, spotify);
+    } else {
+        webBox.innerHTML = '<p class="save-note">Search failed.</p>';
+    }
+}
+
+document.getElementById('new-song-review-close').addEventListener('click', () => {
+    document.getElementById('new-song-review-modal-backdrop').hidden = true;
+});
+document.getElementById('new-song-review-modal-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'new-song-review-modal-backdrop') document.getElementById('new-song-review-modal-backdrop').hidden = true;
+});
+document.getElementById('new-song-review-accept-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('new-song-review-accept-btn');
+    const message = document.getElementById('new-song-review-message').value;
+    if (await resolveNewSongOne(`/api/songs/${btn.dataset.songId}/approve-new`, btn.dataset.songTitle, message))
+        document.getElementById('new-song-review-modal-backdrop').hidden = true;
+});
+document.getElementById('new-song-review-reject-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('new-song-review-reject-btn');
+    const message = document.getElementById('new-song-review-message').value;
+    if (await resolveNewSongOne(`/api/songs/${btn.dataset.songId}/reject-new`, btn.dataset.songTitle, message))
+        document.getElementById('new-song-review-modal-backdrop').hidden = true;
+});
 
 async function resolveNewSongsBulk(url, ids) {
     const message = prompt(`Message to include on all ${ids.length} notification(s):`, '');
@@ -943,7 +1057,7 @@ function renderSuperAdminSongCatalogGrid() {
         {
             key: 'review', label: '', sortable: false, searchable: false,
             render: (s) => {
-                if (s.status === 'PendingReview') return `<button type="button" class="song-catalog-accept-btn" data-song-id="${s.id}" data-song-title="${escapeHtml(s.title)}">Accept</button> <button type="button" class="song-catalog-reject-btn" data-song-id="${s.id}" data-song-title="${escapeHtml(s.title)}">Reject</button>`;
+                if (s.status === 'PendingReview') return `<span class="save-note">Click row to review</span>`;
                 if (s.pendingEditRequestId) return `<button type="button" class="song-catalog-review-edit-btn" data-request-id="${s.pendingEditRequestId}">Review edit</button>`;
                 return '';
             }
@@ -963,6 +1077,7 @@ function renderSuperAdminSongCatalogGrid() {
             defaultSortKey: 'title',
             defaultSortDir: 'asc',
             emptyMessage: 'The catalog is empty.',
+            onRowClick: (s) => { if (s.status === 'PendingReview') openNewSongReview(s); },
             bulkActions: [
                 {
                     label: 'Accept All Checked (new songs)', onClick: (ids) => {
@@ -981,12 +1096,8 @@ function renderSuperAdminSongCatalogGrid() {
             ]
         });
         container.addEventListener('click', (e) => {
-            const acceptBtn = e.target.closest('.song-catalog-accept-btn');
-            const rejectBtn = e.target.closest('.song-catalog-reject-btn');
             const reviewBtn = e.target.closest('.song-catalog-review-edit-btn');
-            if (acceptBtn) { e.stopPropagation(); resolveNewSongOne(`/api/songs/${acceptBtn.dataset.songId}/approve-new`, acceptBtn.dataset.songTitle); }
-            else if (rejectBtn) { e.stopPropagation(); resolveNewSongOne(`/api/songs/${rejectBtn.dataset.songId}/reject-new`, rejectBtn.dataset.songTitle); }
-            else if (reviewBtn) {
+            if (reviewBtn) {
                 e.stopPropagation();
                 window.openReviewSummary({ requestId: reviewBtn.dataset.requestId, isSuperAdmin: true, onResolved: loadSuperAdminSongCatalog });
             }

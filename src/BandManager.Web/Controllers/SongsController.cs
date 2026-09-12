@@ -113,6 +113,31 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         return Ok(new { match = song is null ? null : Serialize(song) });
     }
 
+    // Ranked "might already be the same song" candidates for the
+    // SuperAdmin new-song review screen - unlike Match above (an exact
+    // yes/no rule used before creating anything), this is a fuzzy score
+    // over the already-Approved catalog, meant to help a human spot a
+    // likely duplicate that title-cased or "(Live)"-suffixed its way
+    // past the exact check, not to resolve anything automatically.
+    [HttpGet("{id:guid}/fuzzy-matches")]
+    public async Task<IActionResult> FuzzyMatches(Guid id)
+    {
+        var song = await db.Songs.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
+        if (song is null) return NotFound(new { error = "Not found" });
+
+        var candidates = await db.Songs.AsNoTracking()
+            .Where(s => s.Id != id && s.Status == SongStatus.Approved)
+            .ToListAsync();
+
+        var matches = candidates
+            .Select(c => (Song: c, Score: SongSimilarity.Score(song.Title, song.OriginalArtist, c.Title, c.OriginalArtist)))
+            .Where(m => m.Score >= 0.55)
+            .OrderByDescending(m => m.Score)
+            .Take(5)
+            .Select(m => new { song = Serialize(m.Song), score = Math.Round(m.Score, 2) });
+        return Ok(matches);
+    }
+
     // Live YouTube + Spotify lookup - Songsterr has no API to call (see
     // SongSearchService's doc comment), so it's never part of this result
     // set; the songsterrUrl field is always filled in by hand.

@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/assets/profile.css">
 <link rel="stylesheet" href="/assets/dataGrid.css">
 <link rel="stylesheet" href="/assets/band-admin.css">
+<link rel="stylesheet" href="/assets/repertoire.css">
 </head>
 <body>
     <header class="topbar">
@@ -332,6 +333,35 @@
             <div id="flyer-fonts-grid"></div>
         </section>
     </main>
+
+    <div id="new-song-review-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="new-song-review-close">&times;</button>
+            <h2 id="new-song-review-title"></h2>
+            <p class="save-note" id="new-song-review-artist"></p>
+
+            <dl class="repertoire-detail-facts">
+                <div><dt>Album</dt><dd id="new-song-review-album"></dd></div>
+                <div><dt>Key</dt><dd id="new-song-review-key"></dd></div>
+                <div><dt>Length</dt><dd id="new-song-review-length"></dd></div>
+            </dl>
+            <div class="song-links" id="new-song-review-links"></div>
+
+            <h3>Possible matches already in the catalog</h3>
+            <div id="new-song-review-fuzzy"></div>
+
+            <h3>Web search</h3>
+            <div id="new-song-review-web"></div>
+
+            <label>Message to the submitter
+                <textarea id="new-song-review-message" rows="2" placeholder="Required for either Accept or Reject"></textarea>
+            </label>
+            <div class="cred-form-buttons">
+                <button type="button" id="new-song-review-accept-btn">Accept</button>
+                <button type="button" id="new-song-review-reject-btn">Reject</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/assets/dataGrid.js"></script>
     <script src="/assets/superadmin.js"></script>
