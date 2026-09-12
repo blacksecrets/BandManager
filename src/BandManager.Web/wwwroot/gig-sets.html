@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="/assets/flyerEditor.css">
 <link rel="stylesheet" href="/assets/addGigModal.css">
 <link rel="stylesheet" href="/assets/dataGrid.css">
+<link rel="stylesheet" href="/assets/accounting.css">
 </head>
 <body>
     <header class="topbar">
@@ -55,6 +56,7 @@
                         <button type="button" id="gig-set-print-btn">Print Setlist</button>
                         <button type="button" id="gig-set-spotify-btn">Save as Spotify Playlist</button>
                         <button type="button" id="gig-set-prep-btn">Gig Prep</button>
+                        <button type="button" id="gig-set-accounting-btn">Accounting</button>
                         <button type="button" id="gig-set-archive-btn" class="gig-set-archive-btn">Archive</button>
                     </div>
 
@@ -275,6 +277,43 @@
          "choose a logo" step) - catalog.js's own page-mode wiring only runs
          if #catalog-grid exists, so including it here is a no-op beyond
          that export, same as how dashboard.html already does this. -->
+    <div id="gig-accounting-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal gig-payout-modal">
+            <button type="button" class="detail-modal-close" id="gig-accounting-modal-close">&times;</button>
+            <h2>Accounting</h2>
+            <p class="gig-payout-readonly-note" id="gig-payout-readonly-note" hidden>You can view this gig's accounting, but only a Band Admin can change it.</p>
+
+            <div class="gig-payout-section">
+                <form id="gig-payout-header-form" class="cred-form">
+                    <label>Payout amount
+                        <input type="number" name="amount" min="0" step="0.01" class="payout-amount-input" placeholder="0.00">
+                    </label>
+                    <label>Paid by - first name (required) <input type="text" name="paidByFirstName" maxlength="100"></label>
+                    <label>Paid by - last name <input type="text" name="paidByLastName" maxlength="100"></label>
+                    <label>Organization <input type="text" name="paidByOrganization" maxlength="200"></label>
+                    <label>Email <input type="email" name="paidByEmail" maxlength="200"></label>
+                    <label>Phone <input type="tel" name="paidByPhone" maxlength="30"></label>
+                    <fieldset class="ticket-mode-fieldset">
+                        <legend>Paid by</legend>
+                        <label class="radio-label"><input type="radio" name="payoutType" value="Cash"> Cash</label>
+                        <label class="radio-label"><input type="radio" name="payoutType" value="Check"> Check</label>
+                        <label class="radio-label"><input type="radio" name="payoutType" value="Electronic"> Electronic</label>
+                    </fieldset>
+                    <button type="submit" id="gig-payout-header-save-btn">Save</button>
+                    <p id="gig-payout-header-status" class="save-note"></p>
+                </form>
+            </div>
+
+            <div class="gig-payout-section">
+                <div id="gig-payout-recipients-grid"></div>
+                <div class="payout-grid-actions">
+                    <button type="button" id="gig-payout-recipients-save-btn">Save payout status</button>
+                </div>
+                <p id="gig-payout-recipients-status" class="save-note"></p>
+            </div>
+        </div>
+    </div>
+
     <div id="catalog-picker-modal-backdrop" class="detail-modal-backdrop" hidden>
         <div class="catalog-picker-modal">
             <button type="button" class="detail-modal-close" id="catalog-picker-close">&times;</button>

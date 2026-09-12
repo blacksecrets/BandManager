@@ -30,6 +30,7 @@
                 { href: '/cadence', label: 'Cadence' },
                 { href: '/repertoire', label: 'Repertoire' },
                 { href: '/catalog', label: 'Images and Flyers' },
+                { href: '/accounting', label: 'Accounting' },
             ]
         },
         {

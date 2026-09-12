@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accounting</title>
+<link rel="stylesheet" href="/assets/site-theme.css">
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
+<link rel="stylesheet" href="/assets/accounting.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Accounting</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main settings-main-wide">
+        <p id="accounting-no-band" class="save-note" hidden>Select a band from the switcher above to manage it.</p>
+
+        <section class="platform-card" id="accounting-content" hidden>
+            <h2>Receivables</h2>
+            <p class="save-note">Who gets paid, and how much of each gig's net payout they receive.</p>
+
+            <form id="payout-defaults-form" class="cred-form">
+                <label>Default recipient for gig payments
+                    <select name="defaultGigPayeeUserId"><option value="">(none selected)</option></select>
+                </label>
+                <label>Default recipient for merch payments
+                    <select name="defaultMerchPayeeUserId"><option value="">(none selected)</option></select>
+                </label>
+                <button type="submit">Save defaults</button>
+                <p id="payout-defaults-status" class="save-note"></p>
+            </form>
+
+            <div class="reuse-picker" id="payout-roster-picker">
+                <span class="field-hint">Who will receive a payout share for any gig:</span>
+                <div id="payout-roster-checkboxes" class="band-checkbox-list"></div>
+                <button type="button" id="payout-roster-save-btn">Save selection</button>
+                <p id="payout-roster-status" class="save-note"></p>
+            </div>
+
+            <div id="payout-percentages-grid"></div>
+            <div class="payout-grid-actions">
+                <button type="button" id="payout-percentages-save-btn" disabled>Save percentages</button>
+                <span id="payout-percentages-remaining" class="payout-remaining-note"></span>
+            </div>
+            <p id="payout-percentages-status" class="save-note"></p>
+        </section>
+    </main>
+
+    <script src="/assets/dataGrid.js"></script>
+    <script src="/assets/accounting.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/userAvatar.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

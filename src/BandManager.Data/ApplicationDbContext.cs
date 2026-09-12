@@ -74,6 +74,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Flyer> Flyers => Set<Flyer>();
     public DbSet<CustomFlyerFont> CustomFlyerFonts => Set<CustomFlyerFont>();
 
+    public DbSet<PayoutRecipient> PayoutRecipients => Set<PayoutRecipient>();
+    public DbSet<GigPayout> GigPayouts => Set<GigPayout>();
+    public DbSet<GigPayoutRecipient> GigPayoutRecipients => Set<GigPayoutRecipient>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -81,6 +85,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<Band>(b =>
         {
             b.HasIndex(x => x.Slug).IsUnique();
+            b.HasOne(x => x.DefaultGigPayee).WithMany().HasForeignKey(x => x.DefaultGigPayeeUserId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(x => x.DefaultMerchPayee).WithMany().HasForeignKey(x => x.DefaultMerchPayeeUserId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Act>(b =>
@@ -468,6 +474,28 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasConversion(JsonValueConverter.ForRequired<List<FlyerFieldDef>>(), JsonValueConverter.ComparerRequired<List<FlyerFieldDef>>())
                 .IsRequired();
             b.HasIndex(x => new { x.BandId, x.GigRef });
+        });
+
+        // --- Accounting ---
+
+        builder.Entity<PayoutRecipient>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.UserId }).IsUnique();
+        });
+
+        builder.Entity<GigPayout>(b =>
+        {
+            b.HasOne(x => x.Gig).WithMany().HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.GigId).IsUnique();
+        });
+
+        builder.Entity<GigPayoutRecipient>(b =>
+        {
+            b.HasOne(x => x.Gig).WithMany().HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.GigId, x.UserId }).IsUnique();
         });
     }
 }

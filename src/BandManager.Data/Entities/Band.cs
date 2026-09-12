@@ -73,5 +73,15 @@ public class Band
     // stub rows don't clutter real tenant management.
     public bool IsOnboarded { get; set; } = true;
 
+    // Accounting > Receivables' two independent dropdowns - who gets gig
+    // money and who gets merch money by default. Both nullable/unset until
+    // a BandAdmin picks someone; a band member, not a separate "account"
+    // entity of its own (this app has no standalone payment-account
+    // concept yet - simplest to build on what already exists).
+    public Guid? DefaultGigPayeeUserId { get; set; }
+    public ApplicationUser? DefaultGigPayee { get; set; }
+    public Guid? DefaultMerchPayeeUserId { get; set; }
+    public ApplicationUser? DefaultMerchPayee { get; set; }
+
     public ICollection<BandMembership> Memberships { get; set; } = new List<BandMembership>();
 }

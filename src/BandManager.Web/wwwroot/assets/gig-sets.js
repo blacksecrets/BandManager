@@ -927,4 +927,116 @@ document.getElementById('gig-prep-print-all-btn').addEventListener('click', () =
     window.open(`/print-gig-prep.html?${params.toString()}`, '_blank');
 });
 
+// --- Accounting (per-gig payout) - viewable by any band member, editable
+// by a BandAdmin/SuperAdmin only (AccountingController enforces this
+// server-side too; the form/grid here just disables itself so a viewer
+// isn't shown controls that would 403 on save). ---
+
+function closeGigAccountingModal() { document.getElementById('gig-accounting-modal-backdrop').hidden = true; }
+document.getElementById('gig-accounting-modal-close').addEventListener('click', closeGigAccountingModal);
+document.getElementById('gig-accounting-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'gig-accounting-modal-backdrop') closeGigAccountingModal(); });
+
+let gigPayoutRecipientsCache = [];
+
+document.getElementById('gig-set-accounting-btn').addEventListener('click', async () => {
+    if (!selectedGigRef) return;
+    document.getElementById('gig-accounting-modal-backdrop').hidden = false;
+
+    const [me, payout] = await Promise.all([
+        fetch('/api/profile/me').then((r) => r.json()),
+        fetch(`/api/accounting/gigs/${encodeURIComponent(selectedGigRef)}`).then((r) => (r.ok ? r.json() : null))
+    ]);
+    if (!payout) { closeGigAccountingModal(); alert('Could not load accounting for this gig.'); return; }
+
+    const isAdmin = !!me.isAdmin;
+    document.getElementById('gig-payout-readonly-note').hidden = isAdmin;
+
+    const form = document.getElementById('gig-payout-header-form');
+    form.amount.value = payout.amount ?? '';
+    form.paidByFirstName.value = payout.paidByFirstName || '';
+    form.paidByLastName.value = payout.paidByLastName || '';
+    form.paidByOrganization.value = payout.paidByOrganization || '';
+    form.paidByEmail.value = payout.paidByEmail || '';
+    form.paidByPhone.value = payout.paidByPhone || '';
+    form.querySelectorAll('input[name="payoutType"]').forEach((r) => { r.checked = r.value === payout.payoutType; });
+    form.querySelectorAll('input, button').forEach((el) => { el.disabled = !isAdmin; });
+
+    gigPayoutRecipientsCache = payout.recipients;
+    renderGigPayoutRecipientsGrid(isAdmin);
+    document.getElementById('gig-payout-recipients-save-btn').hidden = !isAdmin;
+    document.getElementById('gig-payout-header-status').textContent = '';
+    document.getElementById('gig-payout-recipients-status').textContent = '';
+});
+
+document.getElementById('gig-payout-header-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('gig-payout-header-status');
+    const payoutTypeInput = form.querySelector('input[name="payoutType"]:checked');
+    const res = await fetch(`/api/accounting/gigs/${encodeURIComponent(selectedGigRef)}/header`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            amount: form.amount.value === '' ? null : parseFloat(form.amount.value),
+            paidByFirstName: form.paidByFirstName.value.trim() || null,
+            paidByLastName: form.paidByLastName.value.trim() || null,
+            paidByOrganization: form.paidByOrganization.value.trim() || null,
+            paidByEmail: form.paidByEmail.value.trim() || null,
+            paidByPhone: form.paidByPhone.value.trim() || null,
+            payoutType: payoutTypeInput ? payoutTypeInput.value : null
+        })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { status.textContent = body.error || 'Could not save.'; return; }
+    status.textContent = 'Saved.';
+    // The recipients grid's Amount column depends on this amount - reload
+    // it so the numbers reflect what was just saved.
+    const payout = await fetch(`/api/accounting/gigs/${encodeURIComponent(selectedGigRef)}`).then((r) => r.json());
+    gigPayoutRecipientsCache = payout.recipients;
+    renderGigPayoutRecipientsGrid(true);
+});
+
+function renderGigPayoutRecipientsGrid(isAdmin) {
+    const container = document.getElementById('gig-payout-recipients-grid');
+    const columns = [
+        { key: 'firstName', label: 'First name', sortable: false },
+        { key: 'lastName', label: 'Last name', sortable: false },
+        { key: 'email', label: 'Email', sortable: false },
+        { key: 'amount', label: 'Amount', sortable: false, render: (r) => r.amount == null ? '—' : `$${r.amount.toFixed(2)}` },
+        {
+            key: 'isPaid', label: 'Paid', sortable: false,
+            render: (r) => `<input type="checkbox" class="gig-payout-paid-checkbox" data-user-id="${r.userId}" ${r.isPaid ? 'checked' : ''} ${isAdmin ? '' : 'disabled'}>`
+        },
+        {
+            key: 'payoutType', label: 'Paid via', sortable: false,
+            render: (r) => `
+                <select class="gig-payout-type-select" data-user-id="${r.userId}" ${isAdmin ? '' : 'disabled'}>
+                    <option value="">(not set)</option>
+                    <option value="Cash" ${r.payoutType === 'Cash' ? 'selected' : ''}>Cash</option>
+                    <option value="Check" ${r.payoutType === 'Check' ? 'selected' : ''}>Check</option>
+                    <option value="Electronic" ${r.payoutType === 'Electronic' ? 'selected' : ''}>Electronic</option>
+                </select>`
+        }
+    ];
+    DataGrid.render(container, {
+        columns, rows: gigPayoutRecipientsCache, getRowId: (r) => r.userId,
+        searchable: false, pageSize: 1000, emptyMessage: 'No payout recipients configured yet - set them up in Band Admin > Accounting.'
+    });
+}
+
+document.getElementById('gig-payout-recipients-save-btn').addEventListener('click', async () => {
+    const status = document.getElementById('gig-payout-recipients-status');
+    const rows = [...document.querySelectorAll('#gig-payout-recipients-grid tbody tr')];
+    const recipients = rows.map((row) => {
+        const checkbox = row.querySelector('.gig-payout-paid-checkbox');
+        const select = row.querySelector('.gig-payout-type-select');
+        return { userId: checkbox.dataset.userId, isPaid: checkbox.checked, payoutType: select.value || null };
+    });
+    const res = await fetch(`/api/accounting/gigs/${encodeURIComponent(selectedGigRef)}/recipients`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipients })
+    });
+    const body = await res.json().catch(() => ({}));
+    status.textContent = res.ok ? 'Saved - anyone whose paid status changed has been notified.' : (body.error || 'Could not save.');
+});
+
 init();

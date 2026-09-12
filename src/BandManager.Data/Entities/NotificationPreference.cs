@@ -8,7 +8,7 @@ namespace BandManager.Data.Entities;
 // needed.
 // OutboundEmailCopy appended, not reordered - see the ordinal note above,
 // same reasoning applies to every value already in real use.
-public enum NotificationKind { SongEditReviewed, GigReminder, RehearsalReminder, AvailabilityReminder, ResponsibilityChanged, OutboundEmailCopy }
+public enum NotificationKind { SongEditReviewed, GigReminder, RehearsalReminder, AvailabilityReminder, ResponsibilityChanged, OutboundEmailCopy, PayoutStatusChanged }
 
 /// <summary>
 /// One user's notification settings for one NotificationKind - global per
