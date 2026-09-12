@@ -180,7 +180,13 @@
         }
     }
 
-    // --- Repertoire panel (drag source) ---
+    // --- Repertoire panel: a DataGrid (same columns as repertoire.html's
+    // own grid), drag handle still the way to add a song, row click opens
+    // a read-only preview instead of the inline edit row repertoire.html
+    // itself opens (this panel has no business changing tuning/status/
+    // notes - it's just here to find a song and drag it in). ---
+    let repertoireGrid = null;
+
     async function loadRepertoireForPicker() {
         const res = await fetch('/api/repertoire');
         if (!res.ok) return;
@@ -189,26 +195,71 @@
     }
 
     function renderRepertoirePanel() {
-        const box = document.getElementById('gig-set-repertoire-list');
-        if (!box) return;
-        box.innerHTML = '';
+        const container = document.getElementById('gig-set-repertoire-grid');
+        if (!container) return;
         const inSetIds = new Set(currentSongs.filter((s) => s.songId).map((s) => s.songId));
         const available = repertoireSongs.filter((e) => !inSetIds.has(e.song.id));
-        if (available.length === 0) {
-            box.innerHTML = '<p class="save-note">Everything in the repertoire is already in this set.</p>';
-            return;
-        }
-        for (const entry of available) {
-            const row = document.createElement('div');
-            row.className = 'gig-set-repertoire-item';
-            row.innerHTML = `
-                <span class="drag-handle">⠿</span>
-                <span>${escapeHtmlSetlist(entry.song.title)}<small>${escapeHtmlSetlist(entry.song.originalArtist || '')}</small></span>
-            `;
-            row.querySelector('.drag-handle').addEventListener('pointerdown', (e) => startAddFromRepertoireDrag(e, row, entry.song));
-            box.appendChild(row);
+
+        const columns = [
+            {
+                key: 'title', label: 'Title',
+                sortValue: (e) => e.song.title, searchValue: (e) => e.song.title,
+                render: (e) => `<span class="drag-handle" data-song-id="${e.song.id}">⠿</span> ${escapeHtmlSetlist(e.song.title)}`
+            },
+            { key: 'artist', label: 'Artist', sortValue: (e) => e.song.originalArtist || '', searchValue: (e) => e.song.originalArtist || '', render: (e) => escapeHtmlSetlist(e.song.originalArtist || '—') },
+            { key: 'album', label: 'Album', sortValue: (e) => e.song.album || '', searchValue: (e) => e.song.album || '', render: (e) => escapeHtmlSetlist(e.song.album || '—') },
+            { key: 'key', label: 'Key', sortValue: (e) => e.song.key || '', render: (e) => escapeHtmlSetlist(e.song.key || '—') },
+            { key: 'length', label: 'Length', sortValue: (e) => e.song.lengthSeconds ?? -1, searchable: false, render: (e) => e.song.lengthSeconds != null ? formatLength(e.song.lengthSeconds) : '—' }
+        ];
+
+        if (repertoireGrid) {
+            repertoireGrid.setRows(available);
+        } else {
+            repertoireGrid = window.DataGrid.render(container, {
+                columns,
+                rows: available,
+                getRowId: (e) => e.song.id,
+                pageSize: 8,
+                searchPlaceholder: 'Search the repertoire...',
+                defaultSortKey: 'title',
+                emptyMessage: 'Everything in the repertoire is already in this set.',
+                onRowClick: (e) => openRepertoirePreview(e.song)
+            });
         }
     }
+
+    // Drag-to-add via delegation on the (stable) grid container - DataGrid
+    // re-renders its own <tbody> on every search/sort/page change, so a
+    // per-row pointerdown listener would be lost on the next render.
+    document.getElementById('gig-set-repertoire-grid')?.addEventListener('pointerdown', (e) => {
+        const handle = e.target.closest('.drag-handle');
+        if (!handle) return;
+        const entry = repertoireSongs.find((en) => en.song.id === handle.dataset.songId);
+        if (entry) startAddFromRepertoireDrag(e, handle.closest('tr') || handle, entry.song);
+    });
+
+    function openRepertoirePreview(song) {
+        document.getElementById('repertoire-preview-title').textContent = song.title;
+        document.getElementById('repertoire-preview-artist').textContent = song.originalArtist ? `by ${song.originalArtist}` : 'Original artist unknown';
+        document.getElementById('repertoire-preview-album').textContent = song.album || '—';
+        document.getElementById('repertoire-preview-key').textContent = song.key || '—';
+        document.getElementById('repertoire-preview-length').textContent = song.lengthSeconds != null ? formatLength(song.lengthSeconds) : '—';
+        const linksBox = document.getElementById('repertoire-preview-links');
+        linksBox.innerHTML = '';
+        for (const [label, url] of [['YouTube', song.youTubeUrl], ['Spotify', song.spotifyUrl], ['Songsterr', song.songsterrUrl]]) {
+            const el = document.createElement(url ? 'a' : 'span');
+            if (url) { el.href = url; el.target = '_blank'; el.rel = 'noopener'; } else { el.className = 'link-missing'; }
+            el.textContent = label;
+            linksBox.appendChild(el);
+        }
+        document.getElementById('repertoire-preview-modal-backdrop').hidden = false;
+    }
+    document.getElementById('repertoire-preview-close').addEventListener('click', () => {
+        document.getElementById('repertoire-preview-modal-backdrop').hidden = true;
+    });
+    document.getElementById('repertoire-preview-modal-backdrop').addEventListener('click', (e) => {
+        if (e.target.id === 'repertoire-preview-modal-backdrop') document.getElementById('repertoire-preview-modal-backdrop').hidden = true;
+    });
 
     function startAddFromRepertoireDrag(e, row, song) {
         e.preventDefault();
@@ -247,8 +298,25 @@
         document.addEventListener('pointercancel', onPointerUp);
     }
 
-    // --- Add manually (also used by "add from web search", which just
-    // prefills this same form - see useWebResult below) ---
+    // --- Add a song not in the repertoire (also used by "add from web
+    // search", which just prefills this same form - see useWebResult
+    // below). Same catalog-match-then-review question repertoire.js's own
+    // "New song details" form asks: a match offers using the catalog's
+    // version instead of a duplicate. Either way this now lands in the
+    // band's Repertoire, not just this one setlist (see
+    // GigSetsController.AddManualSong - a single BandMember-authorized
+    // action, since RepertoireController's own add-to-repertoire endpoint
+    // is BandAdmin-only and setlist-building deliberately isn't). ---
+    async function resolveSongPayload(fields) {
+        const matchRes = await fetch(`/api/songs/match?title=${encodeURIComponent(fields.title)}&artist=${encodeURIComponent(fields.originalArtist || '')}`);
+        const { match } = matchRes.ok ? await matchRes.json() : { match: null };
+        if (match) {
+            const useExisting = confirm(`"${match.title}"${match.originalArtist ? ' by ' + match.originalArtist : ''} is already in the shared catalog. Use that instead of creating a new entry?`);
+            if (useExisting) return { songId: match.id };
+        }
+        return fields;
+    }
+
     document.getElementById('gig-set-manual-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const form = e.target;
@@ -261,21 +329,28 @@
             return;
         }
 
+        const fields = {
+            title: form.title.value.trim(),
+            originalArtist: form.artist.value.trim() || null,
+            album: form.album.value.trim() || null,
+            key: form.key.value.trim() || null,
+            lengthSeconds,
+            youTubeUrl: form.youTubeUrl.value.trim() || null,
+            spotifyUrl: form.spotifyUrl.value.trim() || null,
+            songsterrUrl: form.songsterrUrl.value.trim() || null
+        };
+        const payload = await resolveSongPayload(fields);
+
         const res = await fetch(`/api/gig-sets/${encodeURIComponent(currentGigRef)}/manual-songs`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: form.title.value.trim(),
-                artist: form.artist.value.trim() || null,
-                lengthSeconds,
-                youTubeUrl: form.youTubeUrl.value || null,
-                spotifyUrl: form.spotifyUrl.value || null
-            })
+            body: JSON.stringify(payload)
         });
         const body = await res.json();
         if (res.ok) {
             status.textContent = '';
             form.reset();
+            await loadRepertoireForPicker();
             await loadSet();
             notifySaved();
         } else {

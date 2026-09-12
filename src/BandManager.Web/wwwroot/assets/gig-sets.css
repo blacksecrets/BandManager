@@ -22,34 +22,16 @@
 .gig-list-item .gig-meta { color: #999; font-size: 0.78rem; margin-top: 2px; }
 .gig-list-item .gig-song-count { color: #8fb4d9; font-size: 0.78rem; margin-top: 2px; }
 
-.gig-set-builder { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; margin-top: 14px; }
-@media (max-width: 900px) {
+.gig-set-builder { display: grid; grid-template-columns: 420px 1fr; gap: 20px; align-items: start; margin-top: 14px; }
+@media (max-width: 1000px) {
     .gig-set-builder { grid-template-columns: 1fr; }
 }
 
 .gig-set-repertoire-panel h3 { margin: 0 0 8px; font-size: 0.9rem; }
-.gig-set-repertoire-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    max-height: 320px;
-    overflow-y: auto;
-    margin-bottom: 12px;
-}
-.gig-set-repertoire-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 6px;
-    padding: 6px 10px;
-    font-size: 0.82rem;
-    color: #ddd;
-}
-.gig-set-repertoire-item .drag-handle { cursor: grab; color: #888; }
-.gig-set-repertoire-item .drag-handle:active { cursor: grabbing; }
-.gig-set-repertoire-item.dragging { opacity: 0.4; }
-.gig-set-repertoire-item small { display: block; color: #999; }
+#gig-set-repertoire-grid { margin-bottom: 12px; }
+#gig-set-repertoire-grid .drag-handle { cursor: grab; color: #888; }
+#gig-set-repertoire-grid .drag-handle:active { cursor: grabbing; }
+#gig-set-repertoire-grid tr.dragging { opacity: 0.4; }
 
 .gig-set-list-panel {
     border: 1px solid #333;

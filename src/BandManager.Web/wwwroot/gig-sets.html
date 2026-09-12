@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/assets/gig-sets.css">
 <link rel="stylesheet" href="/assets/flyerEditor.css">
 <link rel="stylesheet" href="/assets/addGigModal.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
 </head>
 <body>
     <header class="topbar">
@@ -108,17 +109,20 @@
 
             <div class="gig-set-builder">
                 <div class="gig-set-repertoire-panel">
-                    <h3>Repertoire <span class="save-note">(drag into the set)</span></h3>
-                    <div id="gig-set-repertoire-list" class="gig-set-repertoire-list"></div>
+                    <h3>Repertoire <span class="save-note">(drag into the set, or click a row for details)</span></h3>
+                    <div id="gig-set-repertoire-grid"></div>
 
                     <details class="manual-fallback">
-                        <summary>Add manually</summary>
+                        <summary>Add a song not in the repertoire</summary>
                         <form id="gig-set-manual-form" class="cred-form">
                             <label>Title <input type="text" name="title" required maxlength="300"></label>
-                            <label>Artist <input type="text" name="artist" maxlength="300"></label>
+                            <label>Original artist <input type="text" name="artist" maxlength="300"></label>
+                            <label>Album <input type="text" name="album" maxlength="300"></label>
+                            <label>Key <input type="text" name="key" placeholder="e.g. E minor"></label>
                             <label>Length (mm:ss) <input type="text" name="length" placeholder="4:32"></label>
-                            <input type="hidden" name="youTubeUrl">
-                            <input type="hidden" name="spotifyUrl">
+                            <label>YouTube URL <input type="url" name="youTubeUrl"></label>
+                            <label>Spotify URL <input type="url" name="spotifyUrl"></label>
+                            <label>Songsterr URL <input type="url" name="songsterrUrl"></label>
                             <button type="submit">Add to set</button>
                             <p id="gig-set-manual-status" class="save-note"></p>
                         </form>
@@ -140,6 +144,22 @@
                     <p id="gig-set-status" class="save-note"></p>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <!-- Read-only preview of a repertoire song, opened by clicking a row
+         in the Repertoire grid above - drag is still how you add it. -->
+    <div id="repertoire-preview-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="repertoire-preview-close">&times;</button>
+            <h2 id="repertoire-preview-title"></h2>
+            <p class="save-note" id="repertoire-preview-artist"></p>
+            <dl class="repertoire-detail-facts">
+                <div><dt>Album</dt><dd id="repertoire-preview-album"></dd></div>
+                <div><dt>Key</dt><dd id="repertoire-preview-key"></dd></div>
+                <div><dt>Length</dt><dd id="repertoire-preview-length"></dd></div>
+            </dl>
+            <div class="song-links" id="repertoire-preview-links"></div>
         </div>
     </div>
 
@@ -240,6 +260,7 @@
     <script src="/assets/catalog.js"></script>
     <script src="/assets/gigPrepShared.js"></script>
     <script src="/assets/addGigModal.js"></script>
+    <script src="/assets/dataGrid.js"></script>
     <script src="/assets/setlistEditor.js"></script>
     <script src="/assets/gig-sets.js"></script>
     <script src="/assets/flyerEditor.js"></script>
