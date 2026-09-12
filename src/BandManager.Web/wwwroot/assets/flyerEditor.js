@@ -214,8 +214,11 @@
                 <button type="button" id="flyer-add-presented-by-btn">+ Add another Presented By</button>
                 <button type="button" id="flyer-add-image-btn">+ Add an image</button>
                 ${gig ? `
+                <label class="checkbox-label" id="flyer-default-label">
+                    <input type="checkbox" id="flyer-default-checkbox" ${flyerInfo && flyerInfo.isWebLiveFlyer ? 'checked' : ''}> Save as Gig Default
+                </label>
                 <label class="checkbox-label" id="flyer-publish-label">
-                    <input type="checkbox" id="flyer-publish-checkbox"> Publish this flyer to the band's live website now
+                    <input type="checkbox" id="flyer-publish-checkbox"> Post it to the Live Site Now
                 </label>
                 <button type="button" id="flyer-save-btn">Save</button>` : ''}
                 <p id="flyer-editor-status" class="save-note"></p>
@@ -580,6 +583,21 @@
                 renderPreview();
             });
 
+            // Publishing always makes this the gig's default too (see
+            // FlyersController.SaveAndMaybePublishAsync) - reflect that
+            // here so the two checkboxes never visibly disagree, without
+            // taking away the choice to set the default WITHOUT publishing.
+            const defaultCheckbox = document.getElementById('flyer-default-checkbox');
+            const publishCheckbox = document.getElementById('flyer-publish-checkbox');
+            publishCheckbox?.addEventListener('change', () => {
+                if (publishCheckbox.checked) {
+                    defaultCheckbox.checked = true;
+                    defaultCheckbox.disabled = true;
+                } else {
+                    defaultCheckbox.disabled = false;
+                }
+            });
+
             document.getElementById('flyer-save-btn')?.addEventListener('click', async () => {
                 const status = document.getElementById('flyer-editor-status');
 
@@ -595,6 +613,7 @@
                 }
 
                 const publish = document.getElementById('flyer-publish-checkbox').checked;
+                const setAsDefault = document.getElementById('flyer-default-checkbox').checked;
                 status.textContent = publish
                     ? 'Saving... this can take several seconds while it publishes to the site.'
                     : 'Saving to your Catalog...';
@@ -602,6 +621,7 @@
                     sourceCatalogItemId: catalogItemId,
                     gigRef,
                     publish,
+                    setAsDefault,
                     fields: fields.map((f) => ({
                         key: f.key, label: f.label, type: f.type, x: f.x, y: f.y,
                         fontSize: f.fontSize, fontFamily: f.fontFamily, color: f.color,

@@ -11,7 +11,7 @@ namespace BandManager.Web.Controllers;
 public record SaveFlyerFieldDto(
     string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool Included, string? Value,
     bool Bold = false, bool Italic = false, bool Underline = false, double Rotation = 0, bool Skew = false);
-public record SaveFlyerRequest(Guid SourceCatalogItemId, string? GigRef, List<SaveFlyerFieldDto> Fields, bool Publish = false);
+public record SaveFlyerRequest(Guid SourceCatalogItemId, string? GigRef, List<SaveFlyerFieldDto> Fields, bool Publish = false, bool SetAsDefault = false);
 public record SetFlyerGigRequest(string? GigRef);
 
 /// <summary>
@@ -288,27 +288,30 @@ public class FlyersController(
     // live. Unpublished/unconfigured saves still persist normally - the
     // Flyer/Catalog rows are never gated behind the publish checkbox, only
     // the live push is.
-    private async Task<IActionResult> SaveAndMaybePublishAsync(Band band, Flyer flyer, Gig gig, byte[] rendered, CatalogItem catalogItem, bool publish)
+    private async Task<IActionResult> SaveAndMaybePublishAsync(Band band, Flyer flyer, Gig gig, byte[] rendered, CatalogItem catalogItem, bool publish, bool setAsDefault)
     {
+        // Independent of Publish below - "the gig's default flyer" is a
+        // bookkeeping concept (which one to reach for), not a live-site
+        // action, so it's allowed to change with no push involved. Kept as
+        // its own statement (not folded into the publish branch) so
+        // checking it alone, with the site push failing or skipped
+        // entirely, still sticks.
+        if (setAsDefault) gig.SelectedFlyerId = flyer.Id;
+
         if (!publish || !await bandSiteConnection.HasSiteConfiguredAsync(band))
         {
             await db.SaveChangesAsync();
-            return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = false });
+            return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = false, isDefault = setAsDefault });
         }
 
         try
         {
             await gigsSiteEditor.PushFlyerImageAsync(band, gig, rendered, string.IsNullOrEmpty(gig.FlyerMain) ? $"Add flyer for {gig.Title}" : $"Update flyer for {gig.Title}");
 
-            // A publish here means this flyer's bytes are now what's
-            // actually live at FlyerMain's path - keep SelectedFlyerId in
-            // sync so "Select Flyer"'s Current badge (and the live-site
-            // badge the flyer grid shows) reflects reality even when this
-            // flyer was published straight from Create/Update rather than
-            // through the Select Flyer picker. Previously only
-            // GigsController.SetSelectedFlyer ever touched this field, so
-            // publishing a new flyer directly left it pointing at whatever
-            // was last explicitly selected (or null).
+            // Publishing always makes this the default too, regardless of
+            // the checkbox - a flyer that's actually live on the site
+            // can't simultaneously not be "the" flyer for this gig, that
+            // would be a contradiction between the two indicators.
             gig.SelectedFlyerId = flyer.Id;
             await db.SaveChangesAsync();
 
@@ -326,7 +329,7 @@ public class FlyersController(
             return StatusCode(502, new { error = $"Flyer saved to Catalog, but could not push it live: {ex.Message}", flyerId = flyer.Id, catalogItemId = catalogItem.Id });
         }
 
-        return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = true });
+        return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = true, isDefault = true });
     }
 
     [HttpPost]
@@ -354,7 +357,7 @@ public class FlyersController(
         };
         db.Flyers.Add(flyer);
 
-        return await SaveAndMaybePublishAsync(band, flyer, gig, rendered, catalogItem, request.Publish);
+        return await SaveAndMaybePublishAsync(band, flyer, gig, rendered, catalogItem, request.Publish, request.SetAsDefault);
     }
 
     // Editing an already-generated flyer (opened via "Edit" on its viewer
@@ -373,6 +376,7 @@ public class FlyersController(
 
         var flyer = await db.Flyers.FirstOrDefaultAsync(f => f.Id == id && f.BandId == band.Id);
         if (flyer is null) return NotFound(new { error = "Flyer not found" });
+        var previousCatalogItemId = flyer.GeneratedCatalogItemId;
 
         var (result, renderErr) = await RenderFlyerFromRequestAsync(band, request);
         if (renderErr is not null) return renderErr;
@@ -388,6 +392,23 @@ public class FlyersController(
         flyer.GigRef = gig.Ref;
         flyer.Fields = fields;
 
-        return await SaveAndMaybePublishAsync(band, flyer, gig, rendered, catalogItem, request.Publish);
+        var response = await SaveAndMaybePublishAsync(band, flyer, gig, rendered, catalogItem, request.Publish, request.SetAsDefault);
+
+        // Editing a flyer re-renders a brand-new CatalogItem (RegisterCatalogItemAsync
+        // always creates, it doesn't overwrite in place) - without this, the
+        // previous render is left behind as an orphaned Catalog row with no
+        // Flyer pointing to it anymore, showing up in the Flyers grid as a
+        // confusing duplicate with no Gig info (nothing computes flyer_info
+        // for a CatalogItem no Flyer references - see CatalogController's
+        // LoadFlyerInfoAsync). This is genuinely different from a brand-new
+        // flyer for the same gig, which intentionally keeps old ones for
+        // history (see Flyer.cs's own doc comment) - here it's the same
+        // logical flyer, just edited, so its old image is superseded, not
+        // historical. Best-effort delete, same as everywhere else this
+        // codebase cleans up a file it no longer needs.
+        if (previousCatalogItemId != catalogItem.Id)
+            await catalogStore.DeleteCatalogItemsAsync(band.Id, [previousCatalogItemId]);
+
+        return response;
     }
 }

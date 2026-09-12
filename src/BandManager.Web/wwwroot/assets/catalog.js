@@ -164,6 +164,9 @@ if (document.getElementById('catalog-grid')) {
         if (showBadge && item.used_in_flyers && item.used_in_flyers.length > 0) {
             tile.insertAdjacentHTML('beforeend', flyerBadgeHtml('flyer-usage-badge-tile'));
         }
+        if (item.category === 'flyer' && item.flyer_info && item.flyer_info.isWebLiveFlyer) {
+            tile.insertAdjacentHTML('beforeend', '<span class="catalog-tile-default-badge">Default</span>');
+        }
 
         const label = document.createElement('div');
         const isFlyerLabel = item.category === 'flyer' && item.flyer_info;
@@ -231,6 +234,7 @@ if (document.getElementById('catalog-grid')) {
         if (currentPage > totalPages) currentPage = totalPages;
         const pageItems = sorted.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
+        const showFlyerCols = activeImageCategory === 'flyers';
         detailsBox.innerHTML = `
             <table class="catalog-details-table">
                 <thead><tr>
@@ -238,13 +242,14 @@ if (document.getElementById('catalog-grid')) {
                     ${sortHeaderHtml('name', 'Name')}
                     ${sortHeaderHtml('date', 'Date')}
                     ${showBadge ? sortHeaderHtml('flyer', 'Flyer') : ''}
+                    ${showFlyerCols ? '<th>Gig</th><th>Default</th>' : ''}
                 </tr></thead>
                 <tbody></tbody>
             </table>
         `;
         const tbody = detailsBox.querySelector('tbody');
         if (pageItems.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="${showBadge ? 4 : 3}" class="catalog-empty-note">Nothing here yet.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="${showBadge ? 4 : showFlyerCols ? 5 : 3}" class="catalog-empty-note">Nothing here yet.</td></tr>`;
         }
         for (const item of pageItems) {
             const row = document.createElement('tr');
@@ -255,6 +260,7 @@ if (document.getElementById('catalog-grid')) {
                 <td>${escapeHtmlCatalog(itemName(item))}</td>
                 <td>${new Date(item.created_at).toLocaleDateString()}</td>
                 ${showBadge ? `<td>${item.used_in_flyers && item.used_in_flyers.length > 0 ? flyerBadgeHtml() : ''}</td>` : ''}
+                ${showFlyerCols ? `<td>${item.flyer_info && item.flyer_info.gigTitle ? escapeHtmlCatalog(item.flyer_info.gigTitle) : '<span class="save-note">No gig</span>'}</td><td>${item.flyer_info && item.flyer_info.isWebLiveFlyer ? '<span class="catalog-tile-default-badge catalog-details-default-badge">Default</span>' : ''}</td>` : ''}
             `;
             row.addEventListener('click', () => openCatalogViewer(item));
             tbody.appendChild(row);
