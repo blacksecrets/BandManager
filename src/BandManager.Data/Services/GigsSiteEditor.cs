@@ -20,7 +20,7 @@ namespace BandManager.Data.Services;
 /// never silently drift from the database now that the database is
 /// authoritative.
 /// </summary>
-public class GigsSiteEditor(GitHubSiteClient gitHub, FlyerCache flyerCache)
+public class GigsSiteEditor(GitHubSiteClient gitHub, FlyerCache flyerCache) : IGigSitePublisher
 {
     private const string FilePath = "js/calendar.js";
 

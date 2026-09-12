@@ -13,7 +13,7 @@ namespace BandManager.Data.Services;
 /// reusable helper - a gallery entry needs both a full-size photo and a
 /// thumbnail, generated rather than asking for two uploads.
 /// </summary>
-public class GallerySiteEditor(GitHubSiteClient gitHub)
+public class GallerySiteEditor(GitHubSiteClient gitHub) : IGallerySitePublisher
 {
     private const string FilePath = "js/gallery.js";
     private const int ThumbMaxWidth = 200; // matches every existing hand-made thumbnail

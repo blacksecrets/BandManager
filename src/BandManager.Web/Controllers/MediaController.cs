@@ -26,10 +26,10 @@ namespace BandManager.Web.Controllers;
 public class MediaController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
-    MediaSiteEditor mediaSiteEditor,
+    IMediaSitePublisher mediaSiteEditor,
+    IBandSiteConnection bandSiteConnection,
     GitHubSiteClient gitHub,
     CatalogStore catalogStore,
-    CredentialStore credentialStore,
     FlyerCache flyerCache,
     Scheduler scheduler) : ControllerBase
 {
@@ -44,13 +44,9 @@ public class MediaController(
         return (band, null);
     }
 
-    private async Task<bool> HasSiteConfiguredAsync(Band band) =>
-        !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
-        && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
-
     private async Task<string?> TryPublishAsync(Band band, MediaItem item)
     {
-        if (!await HasSiteConfiguredAsync(band)) return null;
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band)) return null;
         try { await mediaSiteEditor.PublishMediaItemAsync(band, item); return null; }
         catch (InvalidOperationException ex) { return ex.Message; }
     }
@@ -123,7 +119,7 @@ public class MediaController(
         if (embed is null) return BadRequest(new { error = "That link doesn't look like a YouTube or SoundCloud URL." });
 
         var hasArtInput = form.Files.GetFile("art") is not null || !string.IsNullOrEmpty(form["catalogItemId"]) || !string.IsNullOrEmpty(form["url"]);
-        if (hasArtInput && !await HasSiteConfiguredAsync(band))
+        if (hasArtInput && !await bandSiteConnection.HasSiteConfiguredAsync(band))
             return BadRequest(new { error = "Uploading custom tile art needs this band's website connected first (Configure Web Presence). You can create the item without it now - a thumbnail auto-derives from the link." });
 
         ResolvedMedia? resolved = null;
@@ -189,7 +185,7 @@ public class MediaController(
         if (err is not null) return err;
         var item = await db.MediaItems.FirstOrDefaultAsync(m => m.BandId == band.Id && m.Ref == mediaRef);
         if (item is null) return NotFound(new { error = "Media item not found" });
-        if (!await HasSiteConfiguredAsync(band))
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band))
             return BadRequest(new { error = "This band's website isn't connected yet - add it under Configure Web Presence first." });
         if (!Request.HasFormContentType) return BadRequest(new { error = "Expected form data" });
         var form = await Request.ReadFormAsync();
@@ -250,7 +246,7 @@ public class MediaController(
         if (item is null) return NotFound(new { error = "Media item not found" });
 
         string? pushError = null;
-        if (await HasSiteConfiguredAsync(band))
+        if (await bandSiteConnection.HasSiteConfiguredAsync(band))
         {
             try { await mediaSiteEditor.UnpublishMediaItemAsync(band, item.Ref, item.Title); }
             catch (InvalidOperationException ex) { pushError = ex.Message; }

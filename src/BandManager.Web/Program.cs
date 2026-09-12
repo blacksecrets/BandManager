@@ -126,10 +126,18 @@ builder.Services.AddHttpClient<BandManager.Data.Services.GitHubSiteClient>();
 builder.Services.AddScoped<BandManager.Data.Services.FlyerCache>(sp =>
     new BandManager.Data.Services.FlyerCache(sp.GetRequiredService<IHttpClientFactory>().CreateClient(), flyerCacheRootPath));
 
-builder.Services.AddScoped<BandManager.Data.Services.GigsSiteEditor>();
-builder.Services.AddScoped<BandManager.Data.Services.TechRiderSiteEditor>();
-builder.Services.AddScoped<BandManager.Data.Services.MediaSiteEditor>();
-builder.Services.AddScoped<BandManager.Data.Services.GallerySiteEditor>();
+// Registered by interface, not concrete type - see SitePublishing.cs.
+// Controllers depend on IGigSitePublisher/IGallerySitePublisher/
+// IMediaSitePublisher/ITechRiderSitePublisher/IBandSiteConnection so a
+// future site format can be swapped in here later without touching any
+// controller. The concrete *SiteEditor classes' own static helpers
+// (GenerateThumbnail, ToEmbedUrl, PdfPath - pure computation, no site
+// I/O) are still called by their concrete type name where needed.
+builder.Services.AddScoped<BandManager.Data.Services.IBandSiteConnection, BandManager.Data.Services.BandSiteConnection>();
+builder.Services.AddScoped<BandManager.Data.Services.IGigSitePublisher, BandManager.Data.Services.GigsSiteEditor>();
+builder.Services.AddScoped<BandManager.Data.Services.ITechRiderSitePublisher, BandManager.Data.Services.TechRiderSiteEditor>();
+builder.Services.AddScoped<BandManager.Data.Services.IMediaSitePublisher, BandManager.Data.Services.MediaSiteEditor>();
+builder.Services.AddScoped<BandManager.Data.Services.IGallerySitePublisher, BandManager.Data.Services.GallerySiteEditor>();
 
 builder.Services.AddScoped<BandManager.Data.Services.Scheduler>(sp =>
     new BandManager.Data.Services.Scheduler(

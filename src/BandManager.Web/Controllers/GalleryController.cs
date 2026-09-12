@@ -29,10 +29,10 @@ public record UpdateGalleryImageRequest(string Alt);
 public class GalleryController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
-    GallerySiteEditor gallerySiteEditor,
+    IGallerySitePublisher gallerySiteEditor,
+    IBandSiteConnection bandSiteConnection,
     GitHubSiteClient gitHub,
     CatalogStore catalogStore,
-    CredentialStore credentialStore,
     FlyerCache flyerCache,
     Scheduler scheduler) : ControllerBase
 {
@@ -47,13 +47,9 @@ public class GalleryController(
         return (band, null);
     }
 
-    private async Task<bool> HasSiteConfiguredAsync(Band band) =>
-        !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
-        && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
-
     private async Task<string?> TryPublishAsync(Band band, GalleryImage item)
     {
-        if (!await HasSiteConfiguredAsync(band)) return null;
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band)) return null;
         try { await gallerySiteEditor.PublishGalleryImageAsync(band, item); return null; }
         catch (InvalidOperationException ex) { return ex.Message; }
     }
@@ -103,7 +99,7 @@ public class GalleryController(
     {
         var (band, err) = await RequireActiveBandAsync();
         if (err is not null) return err;
-        if (!await HasSiteConfiguredAsync(band))
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band))
             return BadRequest(new { error = "This band's website isn't connected yet - add it under Configure Web Presence first." });
         if (!Request.HasFormContentType) return BadRequest(new { error = "Expected form data" });
         var form = await Request.ReadFormAsync();
@@ -165,7 +161,7 @@ public class GalleryController(
         if (err is not null) return err;
         var item = await db.GalleryImages.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == galleryRef);
         if (item is null) return NotFound(new { error = "Gallery image not found" });
-        if (!await HasSiteConfiguredAsync(band))
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band))
             return BadRequest(new { error = "This band's website isn't connected yet - add it under Configure Web Presence first." });
         if (!Request.HasFormContentType) return BadRequest(new { error = "Expected form data" });
         var form = await Request.ReadFormAsync();
@@ -214,7 +210,7 @@ public class GalleryController(
         if (item is null) return NotFound(new { error = "Gallery image not found" });
 
         string? pushError = null;
-        if (await HasSiteConfiguredAsync(band))
+        if (await bandSiteConnection.HasSiteConfiguredAsync(band))
         {
             try { await gallerySiteEditor.UnpublishGalleryImageAsync(band, item.Ref, item.Alt); }
             catch (InvalidOperationException ex) { pushError = ex.Message; }

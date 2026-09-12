@@ -22,7 +22,7 @@ namespace BandManager.Data.Services;
 /// site already links to today. A second Act's name is appended the same
 /// way (doc/BlackSecretsUnpluggedTechRider.pdf for an "Unplugged" Act).
 /// </summary>
-public class TechRiderSiteEditor(GitHubSiteClient gitHub)
+public class TechRiderSiteEditor(GitHubSiteClient gitHub) : ITechRiderSitePublisher
 {
     private static string AlphaNumeric(string text) => Regex.Replace(text, "[^A-Za-z0-9]", "");
 

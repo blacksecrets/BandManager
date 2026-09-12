@@ -29,13 +29,9 @@ public class TechRiderController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
     TechRiderPdfService pdfService,
-    TechRiderSiteEditor siteEditor,
-    CredentialStore credentialStore) : ControllerBase
+    ITechRiderSitePublisher siteEditor,
+    IBandSiteConnection bandSiteConnection) : ControllerBase
 {
-    private async Task<bool> HasSiteConfiguredAsync(Band band) =>
-        !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
-        && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
-
     private async Task<byte[]> GeneratePdfBytesAsync(Guid actId)
     {
         const string internalHost = "localhost";
@@ -157,7 +153,7 @@ public class TechRiderController(
         var act = await db.Acts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == actId && a.BandId == bandId);
         if (act is null) return NotFound(new { error = "Act not found" });
 
-        if (!await HasSiteConfiguredAsync(band))
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band))
             return Ok(new { ok = true, published = false, reason = "This band has no website connected - nothing to publish to." });
 
         byte[] pdf;

@@ -42,10 +42,10 @@ public record SetSelectedFlyerRequest(Guid FlyerId);
 public class GigsController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
-    GigsSiteEditor gigsSiteEditor,
+    IGigSitePublisher gigsSiteEditor,
+    IBandSiteConnection bandSiteConnection,
     GitHubSiteClient gitHub,
     CatalogStore catalogStore,
-    CredentialStore credentialStore,
     FlyerCache flyerCache,
     Scheduler scheduler,
     GoogleCalendarPushService googleCalendarPush,
@@ -114,10 +114,6 @@ public class GigsController(
         return null;
     }
 
-    private async Task<bool> HasSiteConfiguredAsync(Band band) =>
-        !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
-        && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
-
     // Resolves each input to a real Band row - either the picked existing
     // with-band, or a freshly-created stub (Name given, no Id - "there may
     // be more than one with the same name" means typing a name always
@@ -154,7 +150,7 @@ public class GigsController(
     /// what to do with it), or null on success/skip.</summary>
     private async Task<string?> TryPublishAsync(Band band, Gig gig)
     {
-        if (!await HasSiteConfiguredAsync(band)) return null;
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band)) return null;
         try
         {
             var withActs = await ToSiteWithActsAsync(db, gig.Id);
@@ -394,11 +390,11 @@ public class GigsController(
 
         // Flyer at creation time still requires a site - see class doc
         // comment's "known interim limitation."
-        if ((form.Files.GetFile("flyer") is not null || !string.IsNullOrEmpty(form["catalogItemId"]) || !string.IsNullOrEmpty(form["url"])) && !await HasSiteConfiguredAsync(band))
+        if ((form.Files.GetFile("flyer") is not null || !string.IsNullOrEmpty(form["catalogItemId"]) || !string.IsNullOrEmpty(form["url"])) && !await bandSiteConnection.HasSiteConfiguredAsync(band))
             return BadRequest(new { error = "Attaching a flyer at creation needs this band's website connected first (Configure Web Presence). You can add one later once a flyer template is set up, or create the gig without one now." });
 
         ResolvedMedia? resolved = null;
-        if (await HasSiteConfiguredAsync(band))
+        if (await bandSiteConnection.HasSiteConfiguredAsync(band))
         {
             try
             {
@@ -451,7 +447,7 @@ public class GigsController(
         if (err is not null) return err;
         var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
         if (gig is null) return NotFound(new { error = "Gig not found" });
-        if (!await HasSiteConfiguredAsync(band))
+        if (!await bandSiteConnection.HasSiteConfiguredAsync(band))
             return BadRequest(new { error = "This band's website isn't connected yet - add it under Configure Web Presence first." });
         if (!Request.HasFormContentType) return BadRequest(new { error = "Expected form data" });
         var form = await Request.ReadFormAsync();
@@ -628,7 +624,7 @@ public class GigsController(
 
         gig.SelectedFlyerId = flyer.Id;
 
-        if (await HasSiteConfiguredAsync(band))
+        if (await bandSiteConnection.HasSiteConfiguredAsync(band))
         {
             try
             {
@@ -661,7 +657,7 @@ public class GigsController(
         if (gig is null) return NotFound(new { error = "Gig not found" });
 
         string? pushError = null;
-        if (await HasSiteConfiguredAsync(band))
+        if (await bandSiteConnection.HasSiteConfiguredAsync(band))
         {
             try { await gigsSiteEditor.UnpublishGigAsync(band, gig.Ref, gig.Title); }
             catch (InvalidOperationException ex) { pushError = ex.Message; }

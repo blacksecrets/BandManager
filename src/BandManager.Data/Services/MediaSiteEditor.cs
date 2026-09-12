@@ -14,7 +14,7 @@ namespace BandManager.Data.Services;
 /// media-specific business logic, independent of whether a site push
 /// happens.
 /// </summary>
-public class MediaSiteEditor(GitHubSiteClient gitHub, HttpClient http)
+public class MediaSiteEditor(GitHubSiteClient gitHub, HttpClient http) : IMediaSitePublisher
 {
     private const string FilePath = "js/media.js";
 
