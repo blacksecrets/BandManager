@@ -210,11 +210,15 @@ public class GigPrepController(ApplicationDbContext db) : ControllerBase
     }
 
     // Replaces this gig's ENTIRE checklist (all three list types) with
-    // the person's current effective defaults for this gig's Act - an
-    // explicit, confirmed action from the UI, not something that happens
-    // automatically after the first bootstrap (see GetChecklist).
+    // the effective defaults for either this gig's own Act (the plain
+    // "Load your default" button), or - when fromActId is given - any
+    // other Act from any Band the person belongs to (the "Copy from
+    // another Act or Band" flow: ListCopySources/GetActDefault below
+    // populate that picker and its read-only preview). Either way this
+    // is an explicit, confirmed action from the UI, not something that
+    // happens automatically after the first bootstrap (see GetChecklist).
     [HttpPost("{gigRef}/load-default")]
-    public async Task<IActionResult> LoadDefault(string gigRef)
+    public async Task<IActionResult> LoadDefault(string gigRef, [FromQuery] Guid? fromActId)
     {
         var userId = User.GetUserId();
         if (userId is null) return Unauthorized();
@@ -222,10 +226,20 @@ public class GigPrepController(ApplicationDbContext db) : ControllerBase
         var gig = await db.Gigs.AsNoTracking().FirstOrDefaultAsync(g => g.Ref == gigRef);
         if (gig is null) return NotFound(new { error = "Gig not found" });
 
+        var sourceActId = gig.ActId;
+        if (fromActId is { } requestedActId)
+        {
+            var sourceAct = await db.Acts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == requestedActId);
+            if (sourceAct is null) return NotFound(new { error = "Source Act not found" });
+            if (!await db.BandMemberships.AnyAsync(m => m.UserId == userId && m.BandId == sourceAct.BandId))
+                return Forbid();
+            sourceActId = requestedActId;
+        }
+
         var existing = await db.GigPrepChecklistItems.Where(i => i.GigId == gig.Id && i.UserId == userId).ToListAsync();
         db.GigPrepChecklistItems.RemoveRange(existing);
 
-        var defaults = await GetEffectiveDefaultsAsync(userId.Value, gig.ActId);
+        var defaults = await GetEffectiveDefaultsAsync(userId.Value, sourceActId);
         foreach (var group in defaults.GroupBy(d => d.ListType))
         {
             var sort = 0;
@@ -239,6 +253,46 @@ public class GigPrepController(ApplicationDbContext db) : ControllerBase
             .OrderBy(i => i.SortOrder)
             .ToListAsync();
         return Ok(items.Select(SerializeItem));
+    }
+
+    // Every (Band, Act) pair the person belongs to - populates the "Copy
+    // from another Act or Band" grid. Includes every Band they're a
+    // member of, not just the currently active one, per that feature's
+    // whole point (their Unplugged Act's Packing list living on a
+    // different Band than the gig they're prepping right now).
+    [HttpGet("copy-sources")]
+    public async Task<IActionResult> ListCopySources()
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var acts = await db.Acts.AsNoTracking()
+            .Where(a => db.BandMemberships.Any(m => m.UserId == userId && m.BandId == a.BandId))
+            .Include(a => a.Band)
+            .OrderBy(a => a.Band.Name).ThenByDescending(a => a.IsDefault).ThenBy(a => a.Name)
+            .ToListAsync();
+        return Ok(acts.Select(a => new { bandId = a.BandId, bandName = a.Band.Name, actId = a.Id, actName = a.Name }));
+    }
+
+    // Read-only preview of one Act's effective default checklist (same
+    // Act-scoped-with-global-fallback resolution as LoadDefault) - the
+    // "Copy from another Act or Band" picker's row-click preview, before
+    // committing via LoadDefault's fromActId. 403s for an Act on a Band
+    // the person isn't actually a member of, same check LoadDefault
+    // itself makes before using a foreign fromActId.
+    [HttpGet("act-default/{actId:guid}")]
+    public async Task<IActionResult> GetActDefault(Guid actId)
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var act = await db.Acts.AsNoTracking().FirstOrDefaultAsync(a => a.Id == actId);
+        if (act is null) return NotFound(new { error = "Act not found" });
+        if (!await db.BandMemberships.AnyAsync(m => m.UserId == userId && m.BandId == act.BandId))
+            return Forbid();
+
+        var defaults = await GetEffectiveDefaultsAsync(userId.Value, actId);
+        return Ok(defaults.Select(SerializeDefault));
     }
 
     [HttpPut("{gigRef}/items/{id:guid}/check")]

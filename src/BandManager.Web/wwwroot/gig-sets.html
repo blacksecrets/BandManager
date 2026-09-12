@@ -233,8 +233,34 @@
 
             <div class="gig-set-actions">
                 <button type="button" id="gig-prep-load-default-btn">Load your default</button>
+                <button type="button" id="gig-prep-copy-btn">Copy from another Act or Band</button>
                 <button type="button" id="gig-prep-print-one-btn">Print this list</button>
                 <button type="button" id="gig-prep-print-all-btn">Print all three</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="gig-prep-copy-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="gig-prep-copy-close">&times;</button>
+            <h2>Copy from another Act or Band</h2>
+            <p class="save-note">Pick an Act to preview its default checklist - you'll get a chance to review it before anything changes here.</p>
+            <div id="gig-prep-copy-grid"></div>
+        </div>
+    </div>
+
+    <div id="gig-prep-copy-preview-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal gig-prep-modal">
+            <button type="button" class="detail-modal-close" id="gig-prep-copy-preview-close">&times;</button>
+            <h2 id="gig-prep-copy-preview-title">Default checklist</h2>
+            <p class="save-note">View only - pick "Use this one" to copy it into the checklist you're editing.</p>
+
+            <div class="gig-prep-tabs" id="gig-prep-copy-preview-tabs"></div>
+            <ol class="gig-prep-list" id="gig-prep-copy-preview-list"></ol>
+
+            <div class="cred-form-buttons">
+                <button type="button" id="gig-prep-copy-preview-use-btn"></button>
+                <button type="button" id="gig-prep-copy-preview-cancel-btn">Cancel</button>
             </div>
         </div>
     </div>

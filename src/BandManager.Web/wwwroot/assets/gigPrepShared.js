@@ -30,7 +30,10 @@ function renderGigPrepTabs(tabsEl, activeType, onSwitch) {
 }
 
 // items: this tab's items only, in order: [{id, text, isChecked?}]
-// options: { showCheckbox, onToggle(id, checked), onRemove(id), onReorder(idsInNewOrder) }
+// options: { showCheckbox, onToggle(id, checked), onRemove(id), onReorder(idsInNewOrder), readOnly? }
+// readOnly (used by the "Copy from another Act or Band" preview) drops
+// the drag handle and Remove button entirely - just the text, nothing
+// that could mutate what's meant to be a look-before-you-copy view.
 function renderGigPrepList(listEl, items, options) {
     listEl.innerHTML = '';
     if (items.length === 0) {
@@ -42,11 +45,13 @@ function renderGigPrepList(listEl, items, options) {
         li.className = 'gig-prep-item';
         li.dataset.id = item.id;
 
-        const handle = document.createElement('span');
-        handle.className = 'drag-handle';
-        handle.textContent = '⠿';
-        handle.addEventListener('pointerdown', (e) => startGigPrepReorderDrag(e, li, item, listEl, items, options));
-        li.appendChild(handle);
+        if (!options.readOnly) {
+            const handle = document.createElement('span');
+            handle.className = 'drag-handle';
+            handle.textContent = '⠿';
+            handle.addEventListener('pointerdown', (e) => startGigPrepReorderDrag(e, li, item, listEl, items, options));
+            li.appendChild(handle);
+        }
 
         if (options.showCheckbox) {
             const cb = document.createElement('input');
@@ -62,12 +67,14 @@ function renderGigPrepList(listEl, items, options) {
         if (options.showCheckbox && item.isChecked) text.classList.add('gig-prep-item-done');
         li.appendChild(text);
 
-        const removeBtn = document.createElement('button');
-        removeBtn.type = 'button';
-        removeBtn.className = 'remove-btn';
-        removeBtn.textContent = 'Remove';
-        removeBtn.addEventListener('click', () => options.onRemove(item.id));
-        li.appendChild(removeBtn);
+        if (!options.readOnly) {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', () => options.onRemove(item.id));
+            li.appendChild(removeBtn);
+        }
 
         listEl.appendChild(li);
     }

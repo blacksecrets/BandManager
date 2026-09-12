@@ -819,6 +819,84 @@ document.getElementById('gig-prep-load-default-btn').addEventListener('click', a
     }
 });
 
+// --- Copy from another Act or Band: pick any Act from any Band the
+// person is a member of, preview its default checklist read-only, then
+// commit via the same load-default endpoint LoadDefault uses, just with
+// an explicit fromActId instead of this gig's own Act. ---
+let gigPrepCopyGrid = null;
+
+document.getElementById('gig-prep-copy-btn').addEventListener('click', async () => {
+    document.getElementById('gig-prep-copy-modal-backdrop').hidden = false;
+    const res = await fetch('/api/gig-prep/copy-sources');
+    const sources = res.ok ? await res.json() : [];
+
+    const columns = [
+        { key: 'bandName', label: 'Band' },
+        { key: 'actName', label: 'Act' }
+    ];
+    const container = document.getElementById('gig-prep-copy-grid');
+    if (gigPrepCopyGrid) {
+        gigPrepCopyGrid.setRows(sources);
+    } else {
+        gigPrepCopyGrid = window.DataGrid.render(container, {
+            columns,
+            rows: sources,
+            getRowId: (s) => s.actId,
+            defaultSortKey: 'bandName',
+            emptyMessage: "You're not a member of any band with an Act yet.",
+            onRowClick: (s) => openGigPrepCopyPreview(s)
+        });
+    }
+});
+
+function closeGigPrepCopyModal() { document.getElementById('gig-prep-copy-modal-backdrop').hidden = true; }
+document.getElementById('gig-prep-copy-close').addEventListener('click', closeGigPrepCopyModal);
+document.getElementById('gig-prep-copy-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'gig-prep-copy-modal-backdrop') closeGigPrepCopyModal(); });
+
+let gigPrepCopySource = null;
+let gigPrepCopyPreviewItems = [];
+let gigPrepCopyPreviewActiveType = 0;
+
+async function openGigPrepCopyPreview(source) {
+    gigPrepCopySource = source;
+    gigPrepCopyPreviewActiveType = 0;
+    document.getElementById('gig-prep-copy-preview-title').textContent = `${source.bandName}: ${source.actName}`;
+    document.getElementById('gig-prep-copy-preview-use-btn').textContent = `Use this one for ${source.bandName}: ${source.actName}`;
+    document.getElementById('gig-prep-copy-preview-modal-backdrop').hidden = false;
+
+    const res = await fetch(`/api/gig-prep/act-default/${source.actId}`);
+    gigPrepCopyPreviewItems = res.ok ? await res.json() : [];
+    renderGigPrepCopyPreview();
+}
+
+function renderGigPrepCopyPreview() {
+    renderGigPrepTabs(document.getElementById('gig-prep-copy-preview-tabs'), gigPrepCopyPreviewActiveType, (type) => {
+        gigPrepCopyPreviewActiveType = type;
+        renderGigPrepCopyPreview();
+    });
+    const items = gigPrepCopyPreviewItems.filter((i) => i.listType === gigPrepCopyPreviewActiveType);
+    renderGigPrepList(document.getElementById('gig-prep-copy-preview-list'), items, { readOnly: true });
+}
+
+function closeGigPrepCopyPreviewModal() { document.getElementById('gig-prep-copy-preview-modal-backdrop').hidden = true; }
+document.getElementById('gig-prep-copy-preview-close').addEventListener('click', closeGigPrepCopyPreviewModal);
+document.getElementById('gig-prep-copy-preview-cancel-btn').addEventListener('click', closeGigPrepCopyPreviewModal);
+document.getElementById('gig-prep-copy-preview-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'gig-prep-copy-preview-modal-backdrop') closeGigPrepCopyPreviewModal(); });
+
+document.getElementById('gig-prep-copy-preview-use-btn').addEventListener('click', async () => {
+    if (!selectedGigRef || !gigPrepCopySource) return;
+    const res = await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/load-default?fromActId=${gigPrepCopySource.actId}`, { method: 'POST' });
+    if (res.ok) {
+        gigPrepItems = await res.json();
+        closeGigPrepCopyPreviewModal();
+        closeGigPrepCopyModal();
+        await renderGigPrepTabsAndList();
+    } else {
+        const result = await res.json().catch(() => ({}));
+        alert(result.error || 'Could not copy that checklist.');
+    }
+});
+
 document.getElementById('gig-prep-print-one-btn').addEventListener('click', () => {
     const params = new URLSearchParams({ gigRef: selectedGigRef, listType: gigPrepActiveType });
     window.open(`/print-gig-prep.html?${params.toString()}`, '_blank');
