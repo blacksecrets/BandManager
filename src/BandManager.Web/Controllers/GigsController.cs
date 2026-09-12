@@ -209,6 +209,37 @@ public class GigsController(
         return Ok(await SerializeGigAsync(gig));
     }
 
+    // Narrower than the full Update below - date/time only, and open to
+    // any BandMember rather than BandAdmin-only, specifically so dragging
+    // a Calendar entry to reschedule (calendar.js) doesn't require opening
+    // up the rest of Update's fields (title, address, tickets, with-acts,
+    // ...) to non-admins, which nothing asked for.
+    public record RescheduleGigRequest(string Date, string? Time);
+
+    [HttpPut("{gigRef}/reschedule")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> Reschedule(string gigRef, [FromBody] RescheduleGigRequest request)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        if (!DateTime.TryParse(request.Date, out var parsedDate))
+            return BadRequest(new { error = "A valid date is required" });
+        gig.Date = DateOnly.FromDateTime(parsedDate);
+        if (request.Time is not null) gig.Time = request.Time.Trim().Length > 0 ? request.Time.Trim() : null;
+
+        gig.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        await PushGigToExternalCalendarsAsync(gig);
+
+        var pushError = await TryPublishAsync(band, gig);
+        if (pushError is not null) return StatusCode(502, new { error = $"Rescheduled, but could not push to the site: {pushError}" });
+        return Ok(new { ok = true, date = GigDateTimeFormatting.FormatDate(gig.Date) });
+    }
+
     [HttpPut("{gigRef}")]
     public async Task<IActionResult> Update(string gigRef, [FromBody] JsonElement body)
     {

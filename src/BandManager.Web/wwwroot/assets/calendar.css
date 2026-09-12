@@ -79,6 +79,10 @@
 .calendar-entry-rehearsal { background: #2d6a4f; }
 .calendar-entry-more { font-size: 0.68rem; color: #999; }
 
+.calendar-entry-draggable { cursor: grab; touch-action: none; }
+.calendar-entry-dragging { opacity: 0.4; cursor: grabbing; }
+.calendar-drop-target { outline: 2px dashed #c0392b; outline-offset: -2px; }
+
 .calendar-day-entry-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .calendar-day-entry {
     padding: 10px 12px;

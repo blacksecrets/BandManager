@@ -16,6 +16,81 @@ function escapeHtml(str) {
 function pad2(n) { return String(n).padStart(2, '0'); }
 function isoDate(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
+// Drag a gig's chip (Month/Week view only - Day view has no drop target
+// of its own) onto a different day cell to reschedule it - same
+// pointer-events mechanic as flyerEditor.js/stagePlotEditor.js, which
+// gets touch support for free. Date-only: neither view lays entries out
+// on an hour grid, so there's no "time slot" to drop onto - only the day
+// changes, matching PUT /api/gigs/{gigRef}/reschedule's own scope.
+// Rehearsals aren't draggable here - nothing asked for that, and they're
+// edited through their own modal already.
+function startGigDrag(e, chip, entry) {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX, startY = e.clientY;
+    let dragged = false;
+    let currentCell = null;
+
+    function onPointerMove(ev) {
+        if (!dragged && Math.hypot(ev.clientX - startX, ev.clientY - startY) > 5) {
+            dragged = true;
+            chip.classList.add('calendar-entry-dragging');
+        }
+        if (!dragged) return;
+        const el = document.elementFromPoint(ev.clientX, ev.clientY);
+        const cell = el?.closest('.calendar-day-cell') || null;
+        if (cell !== currentCell) {
+            if (currentCell) currentCell.classList.remove('calendar-drop-target');
+            currentCell = cell;
+            if (currentCell) currentCell.classList.add('calendar-drop-target');
+        }
+    }
+
+    async function onPointerUp() {
+        cleanup();
+        if (!dragged) return; // a plain click - let it bubble to the cell's own click-to-open-modal handler
+        if (currentCell) {
+            // A click event fires right after pointerup on most browsers -
+            // swallow just this one so it doesn't also open the day modal
+            // for the drop-target cell.
+            currentCell.addEventListener('click', (ce) => { ce.stopPropagation(); ce.preventDefault(); }, { capture: true, once: true });
+        }
+        if (!currentCell || !currentCell.dataset.date || currentCell.dataset.date === entry.date) return;
+        const newDate = currentCell.dataset.date;
+        const friendly = new Date(newDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+        if (!confirm(`Move "${entry.title}" to ${friendly}?`)) return;
+        const res = await fetch(`/api/gigs/${encodeURIComponent(entry.id)}/reschedule`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: newDate })
+        });
+        // A 502 here still means the date was saved - only the live-site
+        // push failed (see GigsController.Reschedule) - so the calendar
+        // must refresh either way, then surface the push warning on top
+        // rather than silently leaving stale tiles on screen.
+        if (res.status === 404 || res.status === 400) {
+            const body = await res.json().catch(() => ({}));
+            alert(body.error || 'Could not reschedule that gig.');
+            return;
+        }
+        await render();
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            alert(body.error || 'Rescheduled, but could not push the change to the site.');
+        }
+    }
+
+    function cleanup() {
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointercancel', cleanup);
+        chip.classList.remove('calendar-entry-dragging');
+        if (currentCell) currentCell.classList.remove('calendar-drop-target');
+    }
+
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp);
+    document.addEventListener('pointercancel', cleanup);
+}
+
 async function init() {
     const res = await fetch('/api/profile/me');
     me = await res.json();
@@ -186,6 +261,7 @@ async function renderMonthView() {
 
         const cell = document.createElement('div');
         cell.className = 'calendar-day-cell' + (inMonth ? '' : ' calendar-day-outside') + (dateStr === today ? ' calendar-day-today' : '');
+        cell.dataset.date = dateStr;
 
         const dayNum = document.createElement('div');
         dayNum.className = 'calendar-day-num';
@@ -197,6 +273,10 @@ async function renderMonthView() {
             const chip = document.createElement('div');
             chip.className = `calendar-entry-chip calendar-entry-${entry.kind}`;
             chip.textContent = entry.kind === 'gig' ? entry.title : (entry.title || 'Rehearsal');
+            if (entry.kind === 'gig') {
+                chip.classList.add('calendar-entry-draggable');
+                chip.addEventListener('pointerdown', (e) => startGigDrag(e, chip, entry));
+            }
             cell.appendChild(chip);
         }
         if (dayEntries.length > 3) {
@@ -244,6 +324,7 @@ async function renderWeekView() {
 
         const cell = document.createElement('div');
         cell.className = 'calendar-day-cell' + (dateStr === today ? ' calendar-day-today' : '');
+        cell.dataset.date = dateStr;
 
         const dayNum = document.createElement('div');
         dayNum.className = 'calendar-day-num';
@@ -257,6 +338,10 @@ async function renderWeekView() {
             const chip = document.createElement('div');
             chip.className = `calendar-entry-chip calendar-entry-${entry.kind}`;
             chip.textContent = entry.kind === 'gig' ? entry.title : (entry.title || 'Rehearsal');
+            if (entry.kind === 'gig') {
+                chip.classList.add('calendar-entry-draggable');
+                chip.addEventListener('pointerdown', (e) => startGigDrag(e, chip, entry));
+            }
             cell.appendChild(chip);
         }
 
