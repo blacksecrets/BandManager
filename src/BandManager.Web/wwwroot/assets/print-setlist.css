@@ -56,8 +56,12 @@ body {
     padding: 40px;
     color: #000;
 }
-.print-setlist-sheet h1 { margin: 0 0 4px; font-size: 1.6em; }
-.print-setlist-meta { margin: 0 0 24px; color: #444; }
+/* Margins scale with the chosen font size (print-setlist.js sets it on
+   .print-setlist-sheet itself) via em, not a fixed px value - at a large
+   chosen size the header's own rendered height used to exceed a fixed
+   margin and the first setlist line would overlap it. */
+.print-setlist-sheet h1 { margin: 0 0 0.15em; font-size: 1.6em; }
+.print-setlist-meta { margin: 0 0 1.2em; color: #444; }
 
 .print-setlist-list { padding-left: 1.6em; margin: 0; }
 .print-setlist-list.no-numbers { list-style: none; padding-left: 0; }
