@@ -75,6 +75,10 @@
             <h2>Edit Gig</h2>
             <form id="edit-gig-form" class="adhoc-form">
                 <label>Title <input type="text" name="title" maxlength="500" required></label>
+                <p id="edit-gig-flyer-sync-note" class="save-note" hidden></p>
+                <label class="checkbox-label" id="edit-gig-flyer-sync-row" hidden>
+                    <input type="checkbox" name="syncTitleToFlyers"> <span id="edit-gig-flyer-sync-label"></span>
+                </label>
                 <label>Venue <input type="text" name="venue" maxlength="500" required></label>
                 <label>Venue link (optional) <input type="url" name="venueUrl" placeholder="https://" maxlength="500"></label>
                 <label>Address <input type="text" name="address" maxlength="500" required></label>
@@ -292,6 +296,7 @@
     <script src="/assets/gig-sets.js"></script>
     <script src="/assets/flyerEditor.js"></script>
     <script src="/assets/branding.js"></script>
+    <script src="/assets/userAvatar.js"></script>
     <script src="/assets/topNav.js"></script>
     <script src="/assets/testModeBanner.js"></script>
 </body>

@@ -169,6 +169,23 @@ public class GigsController(
             .OrderBy(w => w.SortOrder)
             .Select(w => new { withBandId = w.WithBandId, name = w.WithBand.Name, url = w.Url })
             .ToListAsync();
+
+        // Flyer titles are a separate, independently-owned value (see
+        // Flyer.Fields) that can drift from this Gig's own Title once
+        // either side is edited on its own - flyerEditor.js already lets a
+        // flyer push its title INTO the gig (the "Save this to the Gig"
+        // checkbox), but there was no way back, and no visibility here of
+        // whether they currently agree. Null when no associated flyer has
+        // a title field at all, so the Edit Gig UI can skip the section
+        // entirely rather than show an empty/pointless checkbox.
+        var flyerTitles = (await db.Flyers.AsNoTracking()
+            .Where(f => f.BandId == gig.BandId && f.GigRef == gig.Ref && !f.IsArchived)
+            .ToListAsync())
+            .Select(f => f.Fields.FirstOrDefault(fl => fl.Key == "title"))
+            .Where(f => f is not null)
+            .Select(f => new { title = f!.Value, matchesGigTitle = f.Value == gig.Title })
+            .ToList();
+
         return new
         {
             id = gig.Ref,
@@ -193,7 +210,13 @@ public class GigsController(
             flyerMain = gig.FlyerMain,
             freeAdmission = gig.FreeAdmission,
             customTicketsText = gig.CustomTicketsText,
-            ticketMode = gig.TicketMode
+            ticketMode = gig.TicketMode,
+            flyerTitleSync = flyerTitles.Count == 0 ? null : new
+            {
+                count = flyerTitles.Count,
+                allMatch = flyerTitles.All(f => f.matchesGigTitle),
+                titles = flyerTitles.Select(f => f.title).Distinct().ToList()
+            }
         };
     }
 
@@ -254,7 +277,28 @@ public class GigsController(
 
         // title/address: only applied if non-empty - a blank submission
         // here only ever means nothing was typed yet, never "clear it."
-        if (S("title") is { Length: > 0 } title) gig.Title = title.Trim()[..Math.Min(title.Trim().Length, 500)];
+        if (S("title") is { Length: > 0 } title)
+        {
+            gig.Title = title.Trim()[..Math.Min(title.Trim().Length, 500)];
+
+            // Opt-in, evaluated fresh on this save only - same pattern as
+            // flyerEditor.js's own per-field "Save this to the Gig"
+            // checkbox, just running the other direction. Only touches the
+            // stored field VALUE, not the already-rendered flyer image -
+            // that still only changes when the flyer is next opened and
+            // saved in the flyer editor (and only goes live then if its
+            // own Publish checkbox is checked), so this can never silently
+            // push a changed image to a band's real site.
+            if (body.TryGetProperty("syncTitleToFlyers", out var syncEl) && syncEl.ValueKind == JsonValueKind.True)
+            {
+                var flyersToSync = await db.Flyers.Where(f => f.BandId == band.Id && f.GigRef == gig.Ref && !f.IsArchived).ToListAsync();
+                foreach (var flyer in flyersToSync)
+                {
+                    if (flyer.Fields.Any(f => f.Key == "title"))
+                        flyer.Fields = flyer.Fields.Select(f => f.Key == "title" ? f with { Value = gig.Title } : f).ToList();
+                }
+            }
+        }
         if (S("address") is { Length: > 0 } address) gig.Address = address.Trim()[..Math.Min(address.Trim().Length, 500)];
 
         // Everything else can be legitimately cleared - a blank value is

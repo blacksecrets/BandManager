@@ -372,6 +372,26 @@ document.getElementById('gig-set-edit-btn').addEventListener('click', async () =
 
     editGigWithRows = (gig.with || []).map((w) => ({ name: w.name || '', url: w.url || '' }));
     renderEditGigWithRows();
+
+    const syncNote = document.getElementById('edit-gig-flyer-sync-note');
+    const syncRow = document.getElementById('edit-gig-flyer-sync-row');
+    const syncLabel = document.getElementById('edit-gig-flyer-sync-label');
+    const syncCheckbox = syncRow.querySelector('input[type="checkbox"]');
+    if (gig.flyerTitleSync) {
+        const { count, allMatch, titles } = gig.flyerTitleSync;
+        const flyerWord = count === 1 ? 'flyer' : 'flyers';
+        syncNote.hidden = false;
+        syncNote.textContent = allMatch
+            ? `${count} ${flyerWord} for this gig already use this title.`
+            : `${count} ${flyerWord} for this gig - title${titles.length > 1 ? 's' : ''} there: ${titles.map((t) => `"${t}"`).join(', ')}.`;
+        syncRow.hidden = false;
+        syncLabel.textContent = `Also update the title on ${count} ${flyerWord} when I save`;
+        syncCheckbox.checked = false;
+    } else {
+        syncNote.hidden = true;
+        syncRow.hidden = true;
+        syncCheckbox.checked = false;
+    }
 });
 
 document.querySelectorAll('#edit-gig-form input[name="ticketMode"]').forEach((r) => {
@@ -404,7 +424,8 @@ document.getElementById('edit-gig-form').addEventListener('submit', async (e) =>
         ticketMode: form.ticketMode.value,
         ticketsUrl: form.ticketsUrl.value.trim(),
         customTicketsText: form.customTicketsText.value.trim(),
-        with: JSON.stringify(editGigWithRows.filter((r) => r.name.trim() || r.url.trim()).map((r) => ({ name: r.name.trim(), url: r.url.trim() })))
+        with: JSON.stringify(editGigWithRows.filter((r) => r.name.trim() || r.url.trim()).map((r) => ({ name: r.name.trim(), url: r.url.trim() }))),
+        syncTitleToFlyers: form.syncTitleToFlyers.checked
     };
     const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
