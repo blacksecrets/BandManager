@@ -79,20 +79,25 @@ async function loadPendingReviews() {
 }
 
 let notificationsGrid = null;
+let notificationsRows = [];
+
+function fullNotificationText(n) {
+    return n.songTitle ? `${n.songTitle}: ${n.message}` : n.message;
+}
 
 async function loadNotifications() {
     const res = await fetch('/api/notifications');
     if (!res.ok) return;
-    const notifications = await res.json();
+    notificationsRows = await res.json();
 
     const columns = [
-        { key: 'unread', label: '', sortable: false, className: 'notification-dot-col', render: (n) => n.isRead ? '' : '●' },
         {
-            key: 'message', label: 'Message',
-            searchValue: (n) => `${n.songTitle ? n.songTitle + ': ' : ''}${n.message}`,
-            render: (n) => `${escapeHtml(n.songTitle ? `${n.songTitle}: ` : '')}${escapeHtml(n.message)}`
+            key: 'summary', label: 'Summary', className: 'notification-summary-cell',
+            searchValue: (n) => fullNotificationText(n),
+            render: (n) => escapeHtml(fullNotificationText(n))
         },
-        { key: 'createdAt', label: 'When', sortValue: (n) => new Date(n.createdAt).getTime(), render: (n) => timeAgo(n.createdAt) }
+        { key: 'fromLabel', label: 'From', render: (n) => escapeHtml(n.fromLabel) },
+        { key: 'createdAt', label: 'Received', sortValue: (n) => new Date(n.createdAt).getTime(), render: (n) => timeAgo(n.createdAt) }
     ];
 
     async function bulkAction(url, ids) {
@@ -102,27 +107,22 @@ async function loadNotifications() {
     }
 
     if (notificationsGrid) {
-        notificationsGrid.setRows(notifications);
+        notificationsGrid.setRows(notificationsRows);
     } else {
         notificationsGrid = window.DataGrid.render(document.getElementById('notifications-grid'), {
             columns,
-            rows: notifications,
+            rows: notificationsRows,
             getRowId: (n) => n.id,
             checkboxes: true,
             defaultSortKey: 'createdAt',
             defaultSortDir: 'desc',
             searchPlaceholder: 'Search notifications...',
             emptyMessage: 'No notifications yet.',
-            rowClassName: (n) => n.isRead ? '' : 'notification-unread',
-            onRowClick: async (n) => {
-                if (n.isRead) return;
-                await fetch(`/api/notifications/${n.id}/read`, { method: 'POST' });
-                await loadNotifications();
-                window.dispatchEvent(new CustomEvent('notif-changed'));
-            },
+            rowClassName: (n) => n.isRead ? 'notification-read' : 'notification-unread',
+            onRowClick: (n) => openNotificationDetail(n),
             bulkActions: [
-                { label: 'Mark as read', onClick: (ids) => bulkAction('/api/notifications/mark-read', ids) },
-                { label: 'Mark as unread', onClick: (ids) => bulkAction('/api/notifications/mark-unread', ids) },
+                { label: 'Mark as Read', onClick: (ids) => bulkAction('/api/notifications/mark-read', ids) },
+                { label: 'Mark as Unread', onClick: (ids) => bulkAction('/api/notifications/mark-unread', ids) },
                 {
                     label: 'Delete', onClick: async (ids) => {
                         if (!confirm(`Delete ${ids.length} notification(s)? This can't be undone.`)) return;
@@ -133,5 +133,45 @@ async function loadNotifications() {
         });
     }
 }
+
+// --- Notification detail modal ---
+let notificationDetailCurrent = null;
+
+function openNotificationDetail(n) {
+    notificationDetailCurrent = n;
+    document.getElementById('notification-detail-from').textContent = `From: ${n.fromLabel}`;
+    document.getElementById('notification-detail-received').textContent = `Received: ${new Date(n.createdAt).toLocaleString()}`;
+    document.getElementById('notification-detail-message').textContent = fullNotificationText(n);
+    document.getElementById('notification-detail-modal-backdrop').hidden = false;
+}
+
+function closeNotificationDetail() { document.getElementById('notification-detail-modal-backdrop').hidden = true; }
+document.getElementById('notification-detail-close').addEventListener('click', closeNotificationDetail);
+document.getElementById('notification-detail-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'notification-detail-modal-backdrop') closeNotificationDetail(); });
+
+document.getElementById('notification-detail-close-btn').addEventListener('click', async () => {
+    if (!notificationDetailCurrent) return;
+    if (!notificationDetailCurrent.isRead) {
+        await fetch(`/api/notifications/${notificationDetailCurrent.id}/read`, { method: 'POST' });
+        window.dispatchEvent(new CustomEvent('notif-changed'));
+    }
+    closeNotificationDetail();
+    await loadNotifications();
+});
+
+document.getElementById('notification-detail-delete-btn').addEventListener('click', () => {
+    document.getElementById('notification-delete-confirm-modal-backdrop').hidden = false;
+});
+document.getElementById('notification-delete-confirm-no-btn').addEventListener('click', () => {
+    document.getElementById('notification-delete-confirm-modal-backdrop').hidden = true;
+});
+document.getElementById('notification-delete-confirm-yes-btn').addEventListener('click', async () => {
+    if (!notificationDetailCurrent) return;
+    await fetch(`/api/notifications/${notificationDetailCurrent.id}`, { method: 'DELETE' });
+    document.getElementById('notification-delete-confirm-modal-backdrop').hidden = true;
+    closeNotificationDetail();
+    await loadNotifications();
+    window.dispatchEvent(new CustomEvent('notif-changed'));
+});
 
 init();

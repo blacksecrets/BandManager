@@ -131,7 +131,8 @@ public partial class ScheduleItemsController(
             {
                 UserId = newId,
                 Message = $"You've been assigned to \"{item.ContentType} - {item.Category}\".",
-                Kind = NotificationKind.ResponsibilityChanged
+                Kind = NotificationKind.ResponsibilityChanged,
+                BandId = item.BandId
             });
         }
         await db.SaveChangesAsync();

@@ -30,6 +30,30 @@
         </section>
     </main>
 
+    <div id="notification-detail-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="notification-detail-close">&times;</button>
+            <p class="save-note" id="notification-detail-from"></p>
+            <p class="save-note" id="notification-detail-received"></p>
+            <p id="notification-detail-message"></p>
+            <div class="cred-form-buttons">
+                <button type="button" id="notification-detail-delete-btn" class="remove-btn">Delete</button>
+                <button type="button" id="notification-detail-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="notification-delete-confirm-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <h2>Delete this notification?</h2>
+            <p class="save-note">This can't be undone.</p>
+            <div class="cred-form-buttons">
+                <button type="button" id="notification-delete-confirm-yes-btn">Yes</button>
+                <button type="button" id="notification-delete-confirm-no-btn">No</button>
+            </div>
+        </div>
+    </div>
+
     <script src="/assets/dataGrid.js"></script>
     <script src="/assets/notifications.js"></script>
     <script src="/assets/songReview.js"></script>

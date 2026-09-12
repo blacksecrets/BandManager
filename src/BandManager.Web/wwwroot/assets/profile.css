@@ -38,7 +38,8 @@
 }
 
 .notification-unread { cursor: pointer; font-weight: bold; }
-.notification-unread td:first-child { color: #c0392b; }
+.notification-read { cursor: pointer; font-weight: normal; }
+.notification-summary-cell { max-width: 1px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .user-table .remove-btn:hover { background: #3a1a1a; border-color: #c00; }
 
 .branding-row {

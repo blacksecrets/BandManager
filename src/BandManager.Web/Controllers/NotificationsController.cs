@@ -1,4 +1,5 @@
 using BandManager.Data;
+using BandManager.Data.Entities;
 using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,6 +29,7 @@ public class NotificationsController(ApplicationDbContext db) : ControllerBase
 
         var notifications = await db.Notifications.AsNoTracking()
             .Include(n => n.SongEditRequest).ThenInclude(r => r!.Song)
+            .Include(n => n.Band)
             .Where(n => n.UserId == userId)
             .OrderByDescending(n => n.CreatedAt)
             .Select(n => new
@@ -36,7 +38,16 @@ public class NotificationsController(ApplicationDbContext db) : ControllerBase
                 message = n.Message,
                 isRead = n.IsRead,
                 createdAt = n.CreatedAt,
-                songTitle = n.SongEditRequest != null ? n.SongEditRequest.Song.Title : null
+                songTitle = n.SongEditRequest != null ? n.SongEditRequest.Song.Title : null,
+                // A SongEditReviewed notification is a SuperAdmin action,
+                // not really "from" any one Band - every other Kind is
+                // written with a BandId at creation time (see
+                // NotificationReminderService/ScheduleItemsController),
+                // so this only falls through to the bare "Band Manager+"
+                // for one that somehow has neither.
+                fromLabel = n.Kind == NotificationKind.SongEditReviewed
+                    ? "SuperAdmin, Band Manager+"
+                    : n.Band != null ? $"Band Manager+, {n.Band.Name}" : "Band Manager+"
             })
             .ToListAsync();
         return Ok(notifications);

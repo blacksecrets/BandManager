@@ -69,11 +69,11 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
         return (true, true, DefaultLeadTimeDays[kind]);
     }
 
-    private async Task NotifyAsync(ApplicationUser user, NotificationKind kind, string message, bool email, bool inApp, Guid? gigId = null, Guid? rehearsalId = null)
+    private async Task NotifyAsync(ApplicationUser user, NotificationKind kind, string message, bool email, bool inApp, Guid? gigId = null, Guid? rehearsalId = null, Guid? bandId = null)
     {
         if (inApp)
         {
-            db.Notifications.Add(new Notification { UserId = user.Id, Message = message, Kind = kind, GigId = gigId, RehearsalId = rehearsalId });
+            db.Notifications.Add(new Notification { UserId = user.Id, Message = message, Kind = kind, GigId = gigId, RehearsalId = rehearsalId, BandId = bandId });
         }
         if (email && !string.IsNullOrWhiteSpace(user.Email))
         {
@@ -94,7 +94,7 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
             if (await db.Notifications.AnyAsync(n => n.UserId == userId && n.Kind == NotificationKind.GigReminder && n.GigId == gig.Id))
                 continue;
 
-            await NotifyAsync(user, NotificationKind.GigReminder, $"Upcoming gig: {gig.Title} on {GigDateTimeFormatting.FormatDate(gig.Date)}.", p.Email, p.InApp, gigId: gig.Id);
+            await NotifyAsync(user, NotificationKind.GigReminder, $"Upcoming gig: {gig.Title} on {GigDateTimeFormatting.FormatDate(gig.Date)}.", p.Email, p.InApp, gigId: gig.Id, bandId: gig.BandId);
         }
         await db.SaveChangesAsync();
     }
@@ -113,7 +113,7 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
                 continue;
 
             var when = rehearsal.StartsAt.ToString("dddd h:mm tt");
-            await NotifyAsync(user, NotificationKind.RehearsalReminder, $"Upcoming rehearsal: {rehearsal.Title ?? "Rehearsal"} - {when}.", p.Email, p.InApp, rehearsalId: rehearsal.Id);
+            await NotifyAsync(user, NotificationKind.RehearsalReminder, $"Upcoming rehearsal: {rehearsal.Title ?? "Rehearsal"} - {when}.", p.Email, p.InApp, rehearsalId: rehearsal.Id, bandId: rehearsal.BandId);
         }
         await db.SaveChangesAsync();
     }
@@ -147,7 +147,7 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
             if (!relevantDates.Contains(date) || answeredSet.Contains(date)) continue;
             if (await db.Notifications.AnyAsync(n => n.UserId == userId && n.Kind == NotificationKind.AvailabilityReminder && n.GigId == gig.Id))
                 continue;
-            await NotifyAsync(user, NotificationKind.AvailabilityReminder, $"Set your availability for {gig.Title} on {GigDateTimeFormatting.FormatDate(gig.Date)}.", p.Email, p.InApp, gigId: gig.Id);
+            await NotifyAsync(user, NotificationKind.AvailabilityReminder, $"Set your availability for {gig.Title} on {GigDateTimeFormatting.FormatDate(gig.Date)}.", p.Email, p.InApp, gigId: gig.Id, bandId: gig.BandId);
         }
         foreach (var (rehearsal, date) in upcomingRehearsals)
         {
@@ -155,7 +155,7 @@ public class NotificationReminderService(ApplicationDbContext db, IEmailSender e
             if (await db.Notifications.AnyAsync(n => n.UserId == userId && n.Kind == NotificationKind.AvailabilityReminder && n.RehearsalId == rehearsal.Id))
                 continue;
             var when = rehearsal.StartsAt.ToString("dddd");
-            await NotifyAsync(user, NotificationKind.AvailabilityReminder, $"Set your availability for the {when} rehearsal.", p.Email, p.InApp, rehearsalId: rehearsal.Id);
+            await NotifyAsync(user, NotificationKind.AvailabilityReminder, $"Set your availability for the {when} rehearsal.", p.Email, p.InApp, rehearsalId: rehearsal.Id, bandId: rehearsal.BandId);
         }
         await db.SaveChangesAsync();
     }

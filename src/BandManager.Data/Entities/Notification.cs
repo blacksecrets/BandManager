@@ -30,6 +30,16 @@ public class Notification
     public Guid? RehearsalId { get; set; }
     public Rehearsal? Rehearsal { get; set; }
 
+    // The Band this notification is about, when it's about one - every
+    // Kind except SongEditReviewed (a SuperAdmin action, shown as
+    // "SuperAdmin, Band Manager+" instead) sets this at creation time,
+    // so the notification detail view can show "Band Manager+,
+    // <Band Name>" rather than nothing. Set directly rather than derived
+    // from Gig/Rehearsal at read time since ResponsibilityChanged has no
+    // ref of its own to derive it from.
+    public Guid? BandId { get; set; }
+    public Band? Band { get; set; }
+
     public bool IsRead { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
