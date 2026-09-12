@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/profile.css">
 <link rel="stylesheet" href="/assets/repertoire.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
 </head>
 <body>
     <header class="topbar">
@@ -62,6 +63,25 @@
                 <div id="repertoire-import-errors"></div>
             </section>
 
+            <section class="platform-card" id="spotify-playlists-section">
+                <h2>Spotify Playlists</h2>
+                <p class="save-note" id="spotify-not-connected-note" hidden>Not connected yet - a Band Admin can connect Spotify under Band Admin &gt; Configure Web Presence.</p>
+
+                <div id="spotify-playlists-content" hidden>
+                    <div id="spotify-playlist-list" class="spotify-playlist-list"></div>
+
+                    <details class="manual-fallback">
+                        <summary>New playlist</summary>
+                        <form id="spotify-create-playlist-form" class="cred-form">
+                            <label>Name <input type="text" name="name" required maxlength="100"></label>
+                            <label>Description <input type="text" name="description" maxlength="300"></label>
+                            <button type="submit">Create playlist</button>
+                            <p id="spotify-create-playlist-status" class="save-note"></p>
+                        </form>
+                    </details>
+                </div>
+            </section>
+
             <section class="platform-card">
                 <h2>Add a song</h2>
                 <label>Search the shared catalog <input type="search" id="song-db-search" placeholder="Title, artist, or album..." autocomplete="off"></label>
@@ -94,38 +114,54 @@
                 </details>
             </section>
 
-            <section class="platform-card" id="spotify-playlists-section">
-                <h2>Spotify Playlists</h2>
-                <p class="save-note" id="spotify-not-connected-note" hidden>Not connected yet - a Band Admin can connect Spotify under Band Admin &gt; Configure Web Presence.</p>
-
-                <div id="spotify-playlists-content" hidden>
-                    <div id="spotify-playlist-list" class="spotify-playlist-list"></div>
-
-                    <details class="manual-fallback">
-                        <summary>New playlist</summary>
-                        <form id="spotify-create-playlist-form" class="cred-form">
-                            <label>Name <input type="text" name="name" required maxlength="100"></label>
-                            <label>Description <input type="text" name="description" maxlength="300"></label>
-                            <button type="submit">Create playlist</button>
-                            <p id="spotify-create-playlist-status" class="save-note"></p>
-                        </form>
-                    </details>
-                </div>
-            </section>
-
             <section class="platform-card">
-                <h2>Repertoire</h2>
-                <div class="repertoire-table-wrap">
-                    <table class="user-table repertoire-table" id="repertoire-table">
-                        <thead><tr id="repertoire-head-row"></tr></thead>
-                        <tbody id="repertoire-body"></tbody>
-                    </table>
+                <h2 id="repertoire-heading">Repertoire</h2>
+                <div class="repertoire-filter-row">
+                    <label class="checkbox-label"><input type="checkbox" id="repertoire-filter-new" value="New"> New</label>
+                    <label class="checkbox-label"><input type="checkbox" id="repertoire-filter-inprogress" value="InProgress"> In Progress</label>
+                    <label class="checkbox-label"><input type="checkbox" id="repertoire-filter-ready" value="Ready"> Ready</label>
+                    <span class="save-note">(none checked shows all)</span>
                 </div>
+                <div id="repertoire-grid"></div>
             </section>
 
         </div>
     </main>
 
+    <div id="repertoire-detail-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="repertoire-detail-close">&times;</button>
+            <h2 id="repertoire-detail-title"></h2>
+            <p class="save-note" id="repertoire-detail-artist"></p>
+
+            <dl class="repertoire-detail-facts">
+                <div><dt>Album</dt><dd id="repertoire-detail-album"></dd></div>
+                <div><dt>Key</dt><dd id="repertoire-detail-key"></dd></div>
+                <div><dt>Length</dt><dd id="repertoire-detail-length"></dd></div>
+            </dl>
+            <div class="song-links" id="repertoire-detail-links"></div>
+
+            <label>Status
+                <select id="repertoire-detail-status" class="status-select">
+                    <option value="New">New</option>
+                    <option value="InProgress">In Progress</option>
+                    <option value="Ready">Ready</option>
+                </select>
+            </label>
+
+            <div id="repertoire-detail-tunings"></div>
+
+            <label>My note <span class="save-note">(only you see this, until you choose to print it on a setlist)</span>
+                <input type="text" id="repertoire-detail-note" placeholder="e.g. capo 3, watch the key change...">
+            </label>
+
+            <div class="adhoc-form-buttons">
+                <button type="button" id="repertoire-detail-remove-btn" class="remove-btn">Remove from repertoire</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/dataGrid.js"></script>
     <script src="/assets/repertoire.js"></script>
     <script src="/assets/songReview.js"></script>
     <script src="/assets/branding.js"></script>

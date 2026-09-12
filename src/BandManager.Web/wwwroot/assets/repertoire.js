@@ -37,9 +37,11 @@ async function init() {
     document.getElementById('repertoire-content').hidden = !hasBand;
     if (!hasBand) return;
 
+    document.getElementById('repertoire-heading').textContent = me.activeBandName ? `${me.activeBandName} Repertoire` : 'Repertoire';
+
     if (!isAdmin) {
         document.getElementById('repertoire-instruments-section').querySelector('form').hidden = true;
-        document.querySelector('.repertoire-main section:nth-of-type(2)').hidden = true; // "Add a song"
+        document.querySelector('.repertoire-main section:nth-of-type(4)').hidden = true; // "Add a song" (now the 4th section - see repertoire.html)
     }
 
     await loadInstruments();
@@ -169,13 +171,12 @@ async function loadInstruments() {
         }
         list.appendChild(chip);
     }
-    renderTableHeader();
 }
 
 async function removeInstrument(id, name) {
     if (!confirm(`Stop tracking tuning for "${name}"? Any tunings already saved for it stay on the songs, just hidden here.`)) return;
     const res = await fetch(`/api/repertoire/instruments/${id}`, { method: 'DELETE' });
-    if (res.ok) { await loadInstruments(); renderRepertoireBody(); }
+    if (res.ok) await loadInstruments();
 }
 
 const addInstrumentForm = document.getElementById('add-instrument-form');
@@ -213,22 +214,64 @@ if (addInstrumentForm) {
             addInstrumentCustomName.hidden = true;
             addInstrumentCustomName.required = false;
             await loadInstruments();
-            renderRepertoireBody();
         } else {
             status.textContent = body.error || 'Could not add that instrument.';
         }
     });
 }
 
-// --- Repertoire table ---
-function renderTableHeader() {
-    const row = document.getElementById('repertoire-head-row');
-    row.innerHTML = '';
-    const labels = ['Title', 'Original Artist', ...instruments.map((i) => i.name), 'Key', 'Length', 'Links', 'Status', 'My Note', ''];
-    for (const label of labels) {
-        const th = document.createElement('th');
-        th.textContent = label;
-        row.appendChild(th);
+// --- Repertoire grid (DataGrid) ---
+let repertoireGrid = null;
+const repertoireFilterCheckboxes = ['repertoire-filter-new', 'repertoire-filter-inprogress', 'repertoire-filter-ready']
+    .map((id) => document.getElementById(id));
+
+function checkedStatuses() {
+    const map = { 'repertoire-filter-new': 'New', 'repertoire-filter-inprogress': 'InProgress', 'repertoire-filter-ready': 'Ready' };
+    return repertoireFilterCheckboxes.filter((cb) => cb.checked).map((cb) => map[cb.id]);
+}
+
+function filteredRepertoire() {
+    const statuses = checkedStatuses();
+    return statuses.length === 0 ? repertoire : repertoire.filter((e) => statuses.includes(e.status));
+}
+
+for (const cb of repertoireFilterCheckboxes) cb.addEventListener('change', renderRepertoireGrid);
+
+function renderRepertoireGrid() {
+    const rows = filteredRepertoire();
+    const columns = [
+        { key: 'title', label: 'Title', sortValue: (e) => e.song.title, searchValue: (e) => e.song.title, render: (e) => escapeHtml(e.song.title) },
+        { key: 'artist', label: 'Original Artist', sortValue: (e) => e.song.originalArtist || '', searchValue: (e) => e.song.originalArtist || '', render: (e) => escapeHtml(e.song.originalArtist || '—') },
+        { key: 'album', label: 'Album', sortValue: (e) => e.song.album || '', searchValue: (e) => e.song.album || '', render: (e) => escapeHtml(e.song.album || '—') },
+        { key: 'key', label: 'Key', sortValue: (e) => e.song.key || '', searchValue: (e) => e.song.key || '', render: (e) => escapeHtml(e.song.key || '—') },
+        { key: 'length', label: 'Length', sortValue: (e) => e.song.lengthSeconds ?? -1, searchable: false, render: (e) => e.song.lengthSeconds != null ? formatLength(e.song.lengthSeconds) : '—' },
+        {
+            key: 'links', label: 'Links', sortable: false, searchable: false,
+            render: (e) => `<div class="song-links">${['YouTube', 'Spotify', 'Songsterr'].map((label, i) => {
+                const url = [e.song.youTubeUrl, e.song.spotifyUrl, e.song.songsterrUrl][i];
+                return url ? `<a href="${url}" target="_blank" rel="noopener">${label}</a>` : `<span class="link-missing">${label}</span>`;
+            }).join('')}</div>`
+        },
+        { key: 'status', label: 'Status', searchValue: (e) => e.status, render: (e) => e.status === 'InProgress' ? 'In Progress' : e.status }
+    ];
+
+    if (repertoireGrid) {
+        repertoireGrid.setRows(rows);
+    } else {
+        repertoireGrid = window.DataGrid.render(document.getElementById('repertoire-grid'), {
+            columns,
+            rows,
+            getRowId: (e) => e.id,
+            searchPlaceholder: 'Search title, artist, album, key, or status...',
+            defaultSortKey: 'title',
+            emptyMessage: 'Nothing in the repertoire yet - add a song above to get started.',
+            rowClassName: (e) => e.status === 'New' ? 'repertoire-row-new' : e.status === 'InProgress' ? 'repertoire-row-inprogress' : '',
+            onRowClick: openRepertoireDetail,
+            renderFooter: (filtered) => {
+                const totalSeconds = filtered.reduce((sum, e) => sum + (e.song.lengthSeconds || 0), 0);
+                return `<tr><td colspan="${columns.length}">Total: ${formatLength(totalSeconds)} across ${filtered.length} song${filtered.length === 1 ? '' : 's'}</td></tr>`;
+            }
+        });
     }
 }
 
@@ -243,148 +286,108 @@ async function loadRepertoire() {
     if (notesRes.ok) {
         for (const n of await notesRes.json()) myNotes[n.repertoireEntryId] = n.text;
     }
-    renderRepertoireBody();
+    renderRepertoireGrid();
 }
 
-function renderRepertoireBody() {
-    const tbody = document.getElementById('repertoire-body');
-    tbody.innerHTML = '';
-    for (const entry of repertoire) {
-        tbody.appendChild(renderRepertoireRow(entry));
-    }
-    if (repertoire.length === 0) {
-        const tr = document.createElement('tr');
-        const td = document.createElement('td');
-        td.colSpan = 7 + instruments.length;
-        td.textContent = 'Nothing in the repertoire yet - add a song above to get started.';
-        tr.appendChild(td);
-        tbody.appendChild(tr);
-    }
-}
+// --- Repertoire detail/edit modal (opened by clicking a grid row) ---
+let detailEntry = null;
+let detailNoteSaveTimer = null;
 
-function renderRepertoireRow(entry) {
+function openRepertoireDetail(entry) {
+    detailEntry = entry;
     const song = entry.song;
-    const tr = document.createElement('tr');
+    document.getElementById('repertoire-detail-title').textContent = song.title;
+    document.getElementById('repertoire-detail-artist').textContent = song.originalArtist ? `by ${song.originalArtist}` : 'Original artist unknown';
+    document.getElementById('repertoire-detail-album').textContent = song.album || '—';
+    document.getElementById('repertoire-detail-key').textContent = song.key || '—';
+    document.getElementById('repertoire-detail-length').textContent = song.lengthSeconds != null ? formatLength(song.lengthSeconds) : '—';
 
-    const titleTd = document.createElement('td');
-    titleTd.textContent = song.title;
-    tr.appendChild(titleTd);
+    const linksBox = document.getElementById('repertoire-detail-links');
+    linksBox.innerHTML = '';
+    for (const [label, url] of [['YouTube', song.youTubeUrl], ['Spotify', song.spotifyUrl], ['Songsterr', song.songsterrUrl]]) {
+        const el = document.createElement(url ? 'a' : 'span');
+        if (url) { el.href = url; el.target = '_blank'; el.rel = 'noopener'; } else { el.className = 'link-missing'; }
+        el.textContent = label;
+        linksBox.appendChild(el);
+    }
 
-    const artistTd = document.createElement('td');
-    artistTd.textContent = song.originalArtist || '—';
-    tr.appendChild(artistTd);
+    const statusSelect = document.getElementById('repertoire-detail-status');
+    statusSelect.value = entry.status;
+    statusSelect.disabled = !isAdmin;
 
+    const tuningsBox = document.getElementById('repertoire-detail-tunings');
+    tuningsBox.innerHTML = '';
     for (const inst of instruments) {
-        const td = document.createElement('td');
+        const label = document.createElement('label');
+        const current = song.tunings[inst.name] || '';
         if (isAdmin) {
-            const input = document.createElement('input');
-            input.className = 'tuning-input';
-            input.type = 'text';
-            input.value = song.tunings[inst.name] || '';
-            input.placeholder = '—';
-            input.addEventListener('change', async () => {
-                await fetch(`/api/songs/${song.id}/tuning`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ instrument: inst.name, tuning: input.value.trim() })
-                });
-            });
-            td.appendChild(input);
+            label.innerHTML = `${escapeHtml(inst.name)} <input type="text" class="tuning-input" data-instrument="${escapeHtml(inst.name)}" value="${escapeHtml(current)}" placeholder="—">`;
         } else {
-            td.textContent = song.tunings[inst.name] || '—';
+            label.innerHTML = `${escapeHtml(inst.name)} <span>${escapeHtml(current || '—')}</span>`;
         }
-        tr.appendChild(td);
+        tuningsBox.appendChild(label);
     }
 
-    const keyTd = document.createElement('td');
-    keyTd.textContent = song.key || '—';
-    tr.appendChild(keyTd);
-
-    const lengthTd = document.createElement('td');
-    lengthTd.textContent = song.lengthSeconds != null ? formatLength(song.lengthSeconds) : '—';
-    tr.appendChild(lengthTd);
-
-    const linksTd = document.createElement('td');
-    const linksBox = document.createElement('div');
-    linksBox.className = 'song-links';
-    const linkDefs = [['YouTube', song.youTubeUrl], ['Spotify', song.spotifyUrl], ['Songsterr', song.songsterrUrl]];
-    for (const [label, url] of linkDefs) {
-        if (url) {
-            const a = document.createElement('a');
-            a.href = url;
-            a.target = '_blank';
-            a.rel = 'noopener';
-            a.textContent = label;
-            linksBox.appendChild(a);
-        } else {
-            const span = document.createElement('span');
-            span.className = 'link-missing';
-            span.textContent = label;
-            linksBox.appendChild(span);
-        }
-    }
-    linksTd.appendChild(linksBox);
-    tr.appendChild(linksTd);
-
-    const statusTd = document.createElement('td');
-    if (isAdmin) {
-        const select = document.createElement('select');
-        select.className = 'status-select';
-        select.innerHTML = `<option value="New">New</option><option value="InProgress">In Progress</option><option value="Ready">Ready</option>`;
-        select.value = entry.status;
-        select.addEventListener('change', async () => {
-            await fetch(`/api/repertoire/${entry.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: select.value })
-            });
-            entry.status = select.value;
-        });
-        statusTd.appendChild(select);
-    } else {
-        statusTd.textContent = entry.status === 'InProgress' ? 'In Progress' : entry.status;
-    }
-    tr.appendChild(statusTd);
-
-    const noteTd = document.createElement('td');
-    const noteInput = document.createElement('input');
-    noteInput.type = 'text';
-    noteInput.className = 'song-note-input';
-    noteInput.placeholder = 'e.g. capo 3, watch the key change...';
+    const noteInput = document.getElementById('repertoire-detail-note');
     noteInput.value = myNotes[entry.id] || '';
-    noteInput.title = 'Only you see this note (until you choose to print it on a setlist)';
-    let noteSaveTimer = null;
-    noteInput.addEventListener('input', () => {
-        clearTimeout(noteSaveTimer);
-        noteSaveTimer = setTimeout(async () => {
-            const text = noteInput.value.trim();
-            await fetch(`/api/song-notes/${entry.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
-            });
-            myNotes[entry.id] = text;
-        }, 500);
-    });
-    noteTd.appendChild(noteInput);
-    tr.appendChild(noteTd);
 
-    const actionsTd = document.createElement('td');
-    if (isAdmin) {
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-btn';
-        removeBtn.textContent = 'Remove';
-        removeBtn.addEventListener('click', async () => {
-            if (!confirm(`Remove "${song.title}" from the repertoire?`)) return;
-            const res = await fetch(`/api/repertoire/${entry.id}`, { method: 'DELETE' });
-            if (res.ok) loadRepertoire();
-        });
-        actionsTd.appendChild(removeBtn);
-    }
-    tr.appendChild(actionsTd);
-
-    return tr;
+    document.getElementById('repertoire-detail-remove-btn').hidden = !isAdmin;
+    document.getElementById('repertoire-detail-modal-backdrop').hidden = false;
 }
+
+document.getElementById('repertoire-detail-close').addEventListener('click', () => {
+    document.getElementById('repertoire-detail-modal-backdrop').hidden = true;
+});
+document.getElementById('repertoire-detail-modal-backdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'repertoire-detail-modal-backdrop') document.getElementById('repertoire-detail-modal-backdrop').hidden = true;
+});
+
+document.getElementById('repertoire-detail-status').addEventListener('change', async (e) => {
+    if (!detailEntry) return;
+    await fetch(`/api/repertoire/${detailEntry.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: e.target.value })
+    });
+    detailEntry.status = e.target.value;
+    renderRepertoireGrid();
+});
+
+document.getElementById('repertoire-detail-tunings').addEventListener('change', async (e) => {
+    const input = e.target.closest('.tuning-input');
+    if (!input || !detailEntry) return;
+    await fetch(`/api/songs/${detailEntry.song.id}/tuning`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instrument: input.dataset.instrument, tuning: input.value.trim() })
+    });
+    detailEntry.song.tunings[input.dataset.instrument] = input.value.trim();
+});
+
+document.getElementById('repertoire-detail-note').addEventListener('input', (e) => {
+    if (!detailEntry) return;
+    const entryId = detailEntry.id;
+    clearTimeout(detailNoteSaveTimer);
+    detailNoteSaveTimer = setTimeout(async () => {
+        const text = e.target.value.trim();
+        await fetch(`/api/song-notes/${entryId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        myNotes[entryId] = text;
+    }, 500);
+});
+
+document.getElementById('repertoire-detail-remove-btn').addEventListener('click', async () => {
+    if (!detailEntry) return;
+    if (!confirm(`Remove "${detailEntry.song.title}" from the repertoire?`)) return;
+    const res = await fetch(`/api/repertoire/${detailEntry.id}`, { method: 'DELETE' });
+    if (res.ok) {
+        document.getElementById('repertoire-detail-modal-backdrop').hidden = true;
+        await loadRepertoire();
+    }
+});
 
 // --- Add a song: search the shared catalog ---
 let dbSearchTimeout = null;
@@ -503,7 +506,34 @@ function useWebResult(item, urlField) {
     details.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// --- Add a song: create new ---
+// --- Add a song: create new, via the catalog-match-then-review workflow ---
+// On submit: check the shared catalog for an exact title+artist match
+// first (the same check the "Add to set" manual form in setlistEditor.js
+// makes). A match offers using the catalog's version instead of creating
+// a duplicate; no match (or "keep mine" over a match) offers submitting
+// the new song to Band Manager+ for review by other bands - either way
+// it's usable in this band's own repertoire immediately (see
+// SongsController.ProposeNew's own doc comment).
+async function resolveAndCreateSong(fields) {
+    const matchRes = await fetch(`/api/songs/match?title=${encodeURIComponent(fields.title)}&artist=${encodeURIComponent(fields.originalArtist || '')}`);
+    const { match } = matchRes.ok ? await matchRes.json() : { match: null };
+
+    if (match) {
+        const useExisting = confirm(`"${match.title}"${match.originalArtist ? ' by ' + match.originalArtist : ''} is already in the shared catalog. Use that instead of creating a new entry?`);
+        if (useExisting) return match;
+    }
+
+    const submitForReview = confirm(`Submit "${fields.title}" to Band Manager+ for review, so other bands can find it in the shared catalog too?\n\nEither way you can use it in this band's own repertoire right away - "Cancel" just adds it here without flagging it for other bands yet.`);
+    const res = await fetch(submitForReview ? '/api/songs/propose-new' : '/api/songs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fields)
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || 'Could not create song.');
+    return body;
+}
+
 const newSongForm = document.getElementById('new-song-form');
 if (newSongForm) {
     newSongForm.addEventListener('submit', async (e) => {
@@ -516,30 +546,32 @@ if (newSongForm) {
             return;
         }
 
-        const createRes = await fetch('/api/songs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: form.title.value.trim(),
-                originalArtist: form.originalArtist.value.trim() || null,
-                album: form.album.value.trim() || null,
-                key: form.key.value.trim() || null,
-                lengthSeconds,
-                youTubeUrl: form.youTubeUrl.value.trim() || null,
-                spotifyUrl: form.spotifyUrl.value.trim() || null,
-                songsterrUrl: form.songsterrUrl.value.trim() || null
-            })
-        });
-        const created = await createRes.json();
-        if (!createRes.ok) { status.textContent = created.error || 'Could not create song.'; return; }
+        const fields = {
+            title: form.title.value.trim(),
+            originalArtist: form.originalArtist.value.trim() || null,
+            album: form.album.value.trim() || null,
+            key: form.key.value.trim() || null,
+            lengthSeconds,
+            youTubeUrl: form.youTubeUrl.value.trim() || null,
+            spotifyUrl: form.spotifyUrl.value.trim() || null,
+            songsterrUrl: form.songsterrUrl.value.trim() || null
+        };
+
+        let song;
+        try {
+            song = await resolveAndCreateSong(fields);
+        } catch (err) {
+            status.textContent = err.message;
+            return;
+        }
 
         const addRes = await fetch('/api/repertoire', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ songId: created.id })
+            body: JSON.stringify({ songId: song.id })
         });
         const addBody = await addRes.json();
-        if (!addRes.ok) { status.textContent = addBody.error || 'Song created, but could not add it to the repertoire.'; return; }
+        if (!addRes.ok) { status.textContent = addBody.error || 'Could not add it to the repertoire.'; return; }
 
         status.textContent = '';
         form.reset();

@@ -76,10 +76,7 @@
     .song-web-results { grid-template-columns: 1fr; }
 }
 
-.repertoire-table-wrap { overflow-x: auto; }
-.repertoire-table { white-space: nowrap; }
-.repertoire-table th, .repertoire-table td { padding: 8px 10px; }
-.repertoire-table .tuning-input {
+.tuning-input {
     width: 90px;
     padding: 5px 6px;
     border-radius: 4px;
@@ -88,7 +85,7 @@
     color: #eee;
     font-size: 0.82rem;
 }
-.repertoire-table select.status-select {
+select.status-select {
     padding: 5px 6px;
     border-radius: 4px;
     border: 1px solid #444;
@@ -96,17 +93,16 @@
     color: #eee;
     font-size: 0.82rem;
 }
-.repertoire-table .song-links, .catalog-table .song-links { display: flex; gap: 8px; }
-.repertoire-table .song-links a, .catalog-table .song-links a { color: #8fb4d9; font-size: 0.8rem; text-decoration: none; }
-.repertoire-table .song-links a:hover, .catalog-table .song-links a:hover { text-decoration: underline; }
-.repertoire-table .song-links .link-missing, .catalog-table .song-links .link-missing { color: #555; font-size: 0.8rem; }
+.song-links, .catalog-table .song-links { display: flex; gap: 8px; }
+.song-links a, .catalog-table .song-links a { color: #8fb4d9; font-size: 0.8rem; text-decoration: none; }
+.song-links a:hover, .catalog-table .song-links a:hover { text-decoration: underline; }
+.song-links .link-missing, .catalog-table .song-links .link-missing { color: #555; font-size: 0.8rem; }
 
 .catalog-table { white-space: nowrap; }
 .catalog-table th, .catalog-table td { padding: 8px 10px; }
 .catalog-table .drag-handle { cursor: grab; }
 .catalog-table .drag-handle:active { cursor: grabbing; }
 .catalog-table tr.dragging { opacity: 0.4; }
-.repertoire-table-wrap.drag-over { outline: 2px dashed #4a6fa5; outline-offset: -2px; }
 
 .under-review-badge {
     display: inline-block;
@@ -165,3 +161,20 @@
     padding: 4px 6px;
     font-size: 0.8rem;
 }
+
+.repertoire-filter-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 12px; }
+.repertoire-filter-row .checkbox-label { flex-direction: row; align-items: center; gap: 6px; margin: 0; }
+
+/* Faded status glow on each grid row - set as rowClassName by
+   DataGrid's render, same faded-color intent whether the underlying
+   status text sits on a dark or light row background. */
+tr.repertoire-row-new { background: rgba(220, 60, 60, 0.10); }
+tr.repertoire-row-inprogress { background: rgba(220, 190, 60, 0.10); }
+
+.repertoire-detail-facts { display: flex; gap: 24px; margin: 10px 0; }
+.repertoire-detail-facts div { display: flex; flex-direction: column; gap: 2px; }
+.repertoire-detail-facts dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: #999; }
+.repertoire-detail-facts dd { margin: 0; color: #eee; }
+#repertoire-detail-links.song-links { margin-bottom: 14px; }
+#repertoire-detail-tunings { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+#repertoire-detail-tunings label { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; margin: 0; }

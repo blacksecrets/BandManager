@@ -94,6 +94,25 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         return Ok(songs.Select(s => Serialize(s)));
     }
 
+    // Exact (case-insensitive) title+artist duplicate check - the "does
+    // this already exist in the shared catalog" question the New Song
+    // forms ask before creating anything, same matching rule
+    // RepertoireController.Import already uses for CSV rows. Not the
+    // same job as Search above (free-text, up to 25 loose matches) - this
+    // is a single yes/no lookup for one specific pair.
+    [HttpGet("match")]
+    public async Task<IActionResult> Match([FromQuery] string title, [FromQuery] string? artist)
+    {
+        var titleTrimmed = title?.Trim() ?? "";
+        if (titleTrimmed.Length == 0) return Ok(new { match = (object?)null });
+        var artistTrimmed = artist?.Trim();
+
+        var song = await db.Songs.AsNoTracking().FirstOrDefaultAsync(s =>
+            s.Title.ToLower() == titleTrimmed.ToLower()
+            && ((s.OriginalArtist == null && artistTrimmed == null) || (s.OriginalArtist != null && artistTrimmed != null && s.OriginalArtist.ToLower() == artistTrimmed.ToLower())));
+        return Ok(new { match = song is null ? null : Serialize(song) });
+    }
+
     // Live YouTube + Spotify lookup - Songsterr has no API to call (see
     // SongSearchService's doc comment), so it's never part of this result
     // set; the songsterrUrl field is always filled in by hand.
