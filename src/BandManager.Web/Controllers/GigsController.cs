@@ -182,6 +182,11 @@ public class GigsController(
             venue = gig.Venue,
             venueUrl = gig.VenueUrl,
             date = FormatDate(gig.Date),
+            // ISO alongside the display string above - lets a client-side
+            // <input type="date"> prefill correctly without parsing the
+            // display text back apart (same reasoning GigSetsController's
+            // sortDate already established for its own gig list).
+            dateIso = gig.Date.ToString("yyyy-MM-dd"),
             time = gig.Time,
             doorsTime = FormatTime(gig.DoorsTime),
             openerTime = FormatTime(gig.OpenerTime),

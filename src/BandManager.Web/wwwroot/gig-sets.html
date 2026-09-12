@@ -46,6 +46,7 @@
                     <p id="gig-set-meta" class="save-note"></p>
 
                     <div class="gig-set-actions">
+                        <button type="button" id="gig-set-edit-btn">Edit Gig</button>
                         <button type="button" id="gig-set-import-btn">Copy or Assign a Setlist</button>
                         <button type="button" id="gig-set-flyer-btn">Create/Edit Flyer</button>
                         <button type="button" id="gig-set-select-flyer-btn">Select Flyer</button>
@@ -65,6 +66,40 @@
             </div>
         </div>
     </main>
+
+    <div id="edit-gig-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="edit-gig-modal-close">&times;</button>
+            <h2>Edit Gig</h2>
+            <form id="edit-gig-form" class="adhoc-form">
+                <label>Title <input type="text" name="title" maxlength="500" required></label>
+                <label>Venue <input type="text" name="venue" maxlength="500" required></label>
+                <label>Venue link (optional) <input type="url" name="venueUrl" placeholder="https://" maxlength="500"></label>
+                <label>Address <input type="text" name="address" maxlength="500" required></label>
+                <label>Date <input type="date" name="date" required></label>
+                <label>Time (optional) <input type="text" name="time" placeholder="e.g. Doors: 7PM - Show: 8PM" maxlength="100"></label>
+                <label>Doors time (optional) <input type="text" name="doorsTime" placeholder="e.g. 7:00 PM" maxlength="60"></label>
+                <label>Opener start time (optional) <input type="text" name="openerTime" placeholder="e.g. 8:00 PM" maxlength="60"></label>
+                <label>Headliner start time (optional) <input type="text" name="headlinerTime" placeholder="e.g. 9:00 PM" maxlength="60"></label>
+                <label>With / Openers (optional)</label>
+                <div class="with-acts-list" data-with-list></div>
+                <button type="button" id="edit-gig-add-with-btn">+ Add another "With"</button>
+                <fieldset class="ticket-mode-fieldset">
+                    <legend>Ticket info (optional)</legend>
+                    <label class="radio-label"><input type="radio" name="ticketMode" value="url"> Tickets URL</label>
+                    <input type="text" name="ticketsUrl" maxlength="500" placeholder="https://...">
+                    <label class="radio-label"><input type="radio" name="ticketMode" value="free"> Free Admission</label>
+                    <label class="radio-label"><input type="radio" name="ticketMode" value="custom"> Custom Tickets Button text</label>
+                    <input type="text" name="customTicketsText" maxlength="60" placeholder='e.g. "$5 Door Cover"'>
+                </fieldset>
+                <div class="adhoc-form-buttons">
+                    <button type="submit">Save</button>
+                    <button type="button" id="edit-gig-cancel-btn">Cancel</button>
+                </div>
+                <p id="edit-gig-status" class="save-note"></p>
+            </form>
+        </div>
+    </div>
 
     <div id="setlist-modal-backdrop" class="detail-modal-backdrop" hidden>
         <div class="detail-modal setlist-modal">

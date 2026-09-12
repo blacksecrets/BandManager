@@ -72,7 +72,7 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         var band = await db.Bands.AsNoTracking().FirstOrDefaultAsync(b => b.Id == bandId);
         if (band is null) return NotFound();
 
-        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && !g.IsArchived).ToListAsync();
+        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && !g.IsArchived).OrderBy(g => g.Date).ToListAsync();
         var sets = await db.GigSets.AsNoTracking().Include(s => s.Songs).ThenInclude(gs => gs.Song)
             .Where(s => s.BandId == bandId && !s.IsFloating)
             .ToListAsync();

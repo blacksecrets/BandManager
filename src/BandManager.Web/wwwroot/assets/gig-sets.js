@@ -313,6 +313,121 @@ async function renderImportGigPreview() {
     });
 }
 
+// --- Edit Gig (covers everything the Flyer Editor can also set on this
+// same Gig - title/venue/address/date/times/with-acts/tickets) ---
+let editGigWithRows = [];
+
+function renderEditGigWithRows() {
+    const container = document.querySelector('#edit-gig-form [data-with-list]');
+    container.innerHTML = '';
+    if (editGigWithRows.length === 0) editGigWithRows = [{ name: '', url: '' }];
+    editGigWithRows.forEach((row, i) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'with-act-row';
+        rowEl.innerHTML = `
+            <input type="text" class="with-act-name" placeholder="e.g. Attica - A Nirvana Tribute" maxlength="200" value="${escapeHtml(row.name)}">
+            <input type="text" class="with-act-url" placeholder="https:// (optional)" maxlength="500" value="${escapeHtml(row.url)}">
+            <button type="button" class="remove-with-act-btn" ${editGigWithRows.length === 1 ? 'disabled' : ''}>&times;</button>
+        `;
+        rowEl.querySelector('.with-act-name').addEventListener('input', (e) => { editGigWithRows[i].name = e.target.value; });
+        rowEl.querySelector('.with-act-url').addEventListener('input', (e) => { editGigWithRows[i].url = e.target.value; });
+        rowEl.querySelector('.remove-with-act-btn').addEventListener('click', () => { editGigWithRows.splice(i, 1); renderEditGigWithRows(); });
+        container.appendChild(rowEl);
+    });
+}
+document.getElementById('edit-gig-add-with-btn').addEventListener('click', () => { editGigWithRows.push({ name: '', url: '' }); renderEditGigWithRows(); });
+
+function closeEditGigModal() { document.getElementById('edit-gig-modal-backdrop').hidden = true; }
+document.getElementById('edit-gig-modal-close').addEventListener('click', closeEditGigModal);
+document.getElementById('edit-gig-cancel-btn').addEventListener('click', closeEditGigModal);
+document.getElementById('edit-gig-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'edit-gig-modal-backdrop') closeEditGigModal(); });
+
+document.getElementById('gig-set-edit-btn').addEventListener('click', async () => {
+    if (!selectedGigRef) return;
+    const status = document.getElementById('edit-gig-status');
+    status.textContent = 'Loading...';
+    document.getElementById('edit-gig-modal-backdrop').hidden = false;
+
+    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}`);
+    if (!res.ok) { status.textContent = 'Could not load this gig.'; return; }
+    const gig = await res.json();
+    status.textContent = '';
+
+    const form = document.getElementById('edit-gig-form');
+    form.title.value = gig.title || '';
+    form.venue.value = gig.venue || '';
+    form.venueUrl.value = gig.venueUrl || '';
+    form.address.value = gig.address || '';
+    form.date.value = gig.dateIso || '';
+    form.time.value = gig.time || '';
+    form.doorsTime.value = gig.doorsTime || '';
+    form.openerTime.value = gig.openerTime || '';
+    form.headlinerTime.value = gig.headlinerTime || '';
+    form.ticketsUrl.value = gig.ticketsUrl || '';
+    form.customTicketsText.value = gig.customTicketsText || '';
+    const mode = gig.ticketMode || 'url';
+    form.querySelectorAll('input[name="ticketMode"]').forEach((r) => { r.checked = r.value === mode; });
+    form.ticketsUrl.disabled = mode !== 'url';
+    form.customTicketsText.disabled = mode !== 'custom';
+
+    editGigWithRows = (gig.with || []).map((w) => ({ name: w.name || '', url: w.url || '' }));
+    renderEditGigWithRows();
+});
+
+document.querySelectorAll('#edit-gig-form input[name="ticketMode"]').forEach((r) => {
+    r.addEventListener('change', () => {
+        const form = document.getElementById('edit-gig-form');
+        form.ticketsUrl.disabled = form.ticketMode.value !== 'url';
+        form.customTicketsText.disabled = form.ticketMode.value !== 'custom';
+    });
+});
+
+document.getElementById('edit-gig-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!selectedGigRef) return;
+    const form = e.target;
+    const status = document.getElementById('edit-gig-status');
+
+    if (!confirm('Save these changes to the gig? This updates the gig everywhere it appears (Calendar, the connected site, flyers built from it).')) return;
+
+    status.textContent = 'Saving...';
+    const payload = {
+        title: form.title.value.trim(),
+        venue: form.venue.value.trim(),
+        venueUrl: form.venueUrl.value.trim(),
+        address: form.address.value.trim(),
+        date: form.date.value,
+        time: form.time.value.trim(),
+        doorsTime: form.doorsTime.value.trim(),
+        openerTime: form.openerTime.value.trim(),
+        headlinerTime: form.headlinerTime.value.trim(),
+        ticketMode: form.ticketMode.value,
+        ticketsUrl: form.ticketsUrl.value.trim(),
+        customTicketsText: form.customTicketsText.value.trim(),
+        with: JSON.stringify(editGigWithRows.filter((r) => r.name.trim() || r.url.trim()).map((r) => ({ name: r.name.trim(), url: r.url.trim() })))
+    };
+    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const body = await res.json().catch(() => ({}));
+    // A 502 here still means the gig itself was saved - only the live-site
+    // push failed (GigsController.Update saves before attempting that) -
+    // so the UI must still refresh to the new values, same fix as
+    // calendar.js's drag-reschedule needed for the identical situation.
+    // A genuine validation failure (400) or a gig that's disappeared out
+    // from under this modal (404) is the only case worth leaving open.
+    if (res.status === 400 || res.status === 404) {
+        status.textContent = body.error || 'Could not save the gig.';
+        return;
+    }
+    closeEditGigModal();
+    const savedRef = selectedGigRef;
+    await loadGigs();
+    const updated = gigs.find((g) => g.gigRef === savedRef);
+    if (updated) await selectGig(updated);
+    if (!res.ok) alert(body.error || 'Saved, but could not push the change to the site.');
+});
+
 document.getElementById('gig-set-import-btn').addEventListener('click', async () => {
     importGigSortKey = 'date';
     importGigSortDir = 'asc';
