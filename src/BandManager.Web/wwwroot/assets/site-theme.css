@@ -1,0 +1,191 @@
+/* Shared design tokens + app shell (sidebar/topbar) for every authenticated
+   page. Loaded before each page's own CSS so page styles can still layer
+   on top. See topNav.js, which builds the #app-shell/#app-sidebar DOM this
+   file styles - no page markup changes needed, same self-injecting pattern
+   as branding.js/bandSwitcher.js/testModeBanner.js already used here. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+    --bg-page: #17161a;
+    --bg-surface: #1f1e24;
+    --bg-raised: #29282f;
+    --bg-hover: #322f38;
+    --border: #38363f;
+    --border-strong: #4a4750;
+    --text-primary: #f3f1ec;
+    --text-secondary: #b4b0a8;
+    --text-muted: #7a776f;
+    --accent: #d9a54a;
+    --accent-hover: #e6b563;
+    --accent-ink: #1a1408;
+    --structure: #6fa8a0;
+    --structure-ink: #0e211f;
+    --success: #7bae6f;
+    --success-ink: #16210f;
+    --danger: #c97158;
+    --danger-ink: #2a140c;
+    --radius: 10px;
+    --sidebar-width: 248px;
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-sans: 'IBM Plex Sans', 'Segoe UI', Arial, sans-serif;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg-page); color: var(--text-primary); font-family: var(--font-sans); }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; }
+a { color: var(--accent); }
+button, input, select, textarea { font-family: inherit; }
+
+.test-mode-banner {
+    background: var(--accent);
+    color: var(--accent-ink);
+    text-align: center;
+    font-weight: 600;
+    font-size: 0.8rem;
+    letter-spacing: 0.05em;
+    padding: 3px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+}
+
+/* App shell: sidebar + main content column. topNav.js moves every
+   existing body child (the page's .topbar plus its own content) into
+   #app-main, then inserts #app-sidebar alongside it - this file styles
+   that structure without any page needing its own markup changed. */
+#app-shell { display: grid; grid-template-columns: var(--sidebar-width) 1fr; min-height: 100vh; align-items: start; }
+#app-sidebar {
+    background: var(--bg-surface);
+    border-right: 0.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 20px 14px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+}
+#app-main { min-width: 0; }
+
+.sidebar-wordmark { font-family: var(--font-display); font-weight: 600; font-size: 19px; padding: 4px 8px; display: flex; align-items: baseline; gap: 3px; }
+.sidebar-wordmark .plus { color: var(--accent); }
+
+.sidebar-band-switcher { position: relative; }
+.sidebar-band-switcher-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-raised);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    cursor: pointer;
+    color: var(--text-primary);
+    text-align: left;
+}
+.sidebar-band-switcher-btn:hover { background: var(--bg-hover); }
+.sidebar-band-avatar { width: 32px; height: 32px; border-radius: 8px; background: var(--structure); color: var(--structure-ink); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+.sidebar-band-meta { flex: 1; min-width: 0; }
+.sidebar-band-name { font-size: 13.5px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-band-role { font-size: 11.5px; color: var(--text-muted); }
+.sidebar-band-switcher-btn .chevron { flex-shrink: 0; color: var(--text-muted); font-size: 0.7em; }
+.sidebar-band-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: var(--bg-raised);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    padding: 4px;
+}
+.sidebar-band-menu[hidden] { display: none; }
+.sidebar-band-item { display: block; width: 100%; text-align: left; background: none; border: none; color: var(--text-secondary); padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.sidebar-band-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-band-item.active { color: var(--text-primary); font-weight: 500; }
+.sidebar-band-item .role-tag { color: var(--text-muted); font-weight: normal; font-size: 0.85em; margin-left: 6px; }
+.sidebar-band-empty { color: var(--text-muted); padding: 8px 10px; font-size: 0.8rem; }
+
+nav.sidebar-nav { display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.sidebar-section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 12px 10px 4px; }
+.sidebar-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    font-size: 13.5px;
+    text-decoration: none;
+    border-left: 2px solid transparent;
+}
+.sidebar-link:hover { background: var(--bg-hover); color: var(--text-primary); }
+.sidebar-link.active { background: var(--bg-raised); color: var(--text-primary); font-weight: 500; border-left: 2px solid var(--accent); }
+.sidebar-link.nav-link-inactive { color: var(--text-muted); cursor: default; pointer-events: none; }
+
+.sidebar-footer { margin-top: auto; display: flex; flex-direction: column; gap: 6px; padding-top: 12px; border-top: 0.5px solid var(--border); }
+.sidebar-footer-row { display: flex; align-items: center; gap: 10px; }
+.sidebar-user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 12px; flex-shrink: 0; }
+.sidebar-user-meta { flex: 1; min-width: 0; }
+.sidebar-user-name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#role-badge {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: none;
+    padding: 0;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: normal;
+}
+#role-badge[hidden] { display: none; }
+.sidebar-footer form[action="/logout"] { margin: 0; }
+.logout-btn { width: 100%; background: none; border: 0.5px solid var(--border-strong); color: var(--text-secondary); padding: 7px 10px; border-radius: 7px; cursor: pointer; font-size: 12.5px; }
+.logout-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* .topbar keeps its existing per-page markup (h1, brand-logo-slot) but is
+   now a slim strip at the top of #app-main rather than the full nav bar -
+   the nav itself lives in the sidebar. */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 24px;
+    background: var(--bg-page);
+    border-bottom: 0.5px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.topbar h1 { font-size: 18px; margin: 0; font-weight: 500; }
+.brand-logo-slot:empty { display: none; }
+.brand-logo { height: 28px; width: auto; display: block; }
+.main-nav { display: none; }
+
+.notif-bell { position: relative; background: none; border: none; color: var(--text-secondary); font-size: 1.1rem; cursor: pointer; padding: 4px 6px; line-height: 1; margin-left: auto; }
+.notif-bell:hover { color: var(--text-primary); }
+.notif-badge {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    background: var(--danger);
+    color: #fff;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: bold;
+    line-height: 1;
+    padding: 2px 5px;
+    min-width: 14px;
+    text-align: center;
+}
+.notif-badge[hidden] { display: none; }
+
+@media (max-width: 880px) {
+    #app-shell { grid-template-columns: 1fr; }
+    #app-sidebar { display: none; }
+}
