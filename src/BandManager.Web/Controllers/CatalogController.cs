@@ -56,7 +56,7 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
             .ToListAsync();
         if (flyers.Count == 0) return [];
 
-        var gigRefs = flyers.Select(f => f.GigRef).Distinct().ToList();
+        var gigRefs = flyers.Where(f => f.GigRef != null).Select(f => f.GigRef!).Distinct().ToList();
         var gigTitlesByRef = await db.Gigs.AsNoTracking()
             .Where(g => g.BandId == bandId && gigRefs.Contains(g.Ref))
             .ToDictionaryAsync(g => g.Ref, g => g.Title);
@@ -69,7 +69,7 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
             {
                 flyerId = f.Id,
                 gigRef = f.GigRef,
-                gigTitle = gigTitlesByRef.GetValueOrDefault(f.GigRef, f.GigRef),
+                gigTitle = f.GigRef is { } gr ? gigTitlesByRef.GetValueOrDefault(gr, gr) : null,
                 renderedFilePath = f.GeneratedCatalogItem.FilePath
             };
             if (!byItem.TryGetValue(catalogItemId, out var list)) byItem[catalogItemId] = list = [];
@@ -101,24 +101,24 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         var flyers = await query.ToListAsync();
         if (flyers.Count == 0) return [];
 
-        var gigRefs = flyers.Select(f => f.GigRef).Distinct().ToList();
+        var gigRefs = flyers.Where(f => f.GigRef != null).Select(f => f.GigRef!).Distinct().ToList();
         var gigsByRef = await db.Gigs.AsNoTracking()
             .Where(g => g.BandId == bandId && gigRefs.Contains(g.Ref))
-            .ToDictionaryAsync(g => g.Ref, g => new { g.Title, g.Date });
+            .ToDictionaryAsync(g => g.Ref, g => new { g.Title, g.Date, g.SelectedFlyerId });
         var countByGigRef = await db.Flyers.AsNoTracking()
-            .Where(f => f.BandId == bandId && gigRefs.Contains(f.GigRef))
+            .Where(f => f.BandId == bandId && f.GigRef != null && gigRefs.Contains(f.GigRef!))
             .GroupBy(f => f.GigRef)
-            .ToDictionaryAsync(g => g.Key, g => g.Count());
+            .ToDictionaryAsync(g => g.Key!, g => g.Count());
 
         var result = new Dictionary<Guid, object>();
         foreach (var f in flyers)
         {
-            var gig = gigsByRef.GetValueOrDefault(f.GigRef);
+            var gig = f.GigRef is { } gigRef ? gigsByRef.GetValueOrDefault(gigRef) : null;
             result[f.GeneratedCatalogItemId] = new
             {
                 flyerId = f.Id,
                 gigRef = f.GigRef,
-                gigTitle = gig?.Title ?? f.GigRef,
+                gigTitle = gig?.Title,
                 // Distinguishes flyers for a gig at the same venue on a
                 // different date, e.g. two "Live at Taylor Pavilion" gigs -
                 // the label alone (Flyer - <title>) can't tell those apart.
@@ -126,7 +126,13 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
                 // as every other DateOnly the app hands to a client, so
                 // there's no client-side timezone re-parsing to get wrong.
                 gigDate = gig is null ? null : GigDateTimeFormatting.FormatDate(gig.Date),
-                isLastFlyerForGig = countByGigRef.GetValueOrDefault(f.GigRef, 1) <= 1
+                isLastFlyerForGig = f.GigRef is { } gr2 && countByGigRef.GetValueOrDefault(gr2, 1) <= 1,
+                // Whether this specific flyer is its (old) gig's current
+                // live pick - flyerEditor.js warns separately before
+                // disassociating one of these, since the gig would lose
+                // its live flyer with no automatic fallback if this was
+                // also the last one (see FlyersController.Update).
+                isWebLiveFlyer = gig is not null && gig.SelectedFlyerId == f.Id
             };
         }
         return result;

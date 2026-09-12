@@ -31,6 +31,24 @@
     position: relative;
 }
 
+.flyer-gig-picker {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+.flyer-gig-picker label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #ccc; }
+.flyer-gig-picker select {
+    padding: 6px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #eee;
+    min-width: 220px;
+}
+.flyer-gig-picker .save-note { margin: 0; }
+
 .flyer-editor-layout {
     display: flex;
     flex-direction: column;
@@ -40,11 +58,16 @@
 
 .flyer-preview-wrap {
     position: relative;
-    width: 100%;
-    max-width: 1200px;
+    width: fit-content;
+    max-width: 100%;
     margin: 0 auto;
 }
-.flyer-preview-wrap img { display: block; width: 100%; border-radius: 6px; }
+/* Largest size that fits both the available width and a height budget
+   that leaves room to see the field list/buttons below without the
+   image alone forcing a scroll - max-width/max-height together (rather
+   than a flat width:100%) is what actually respects screen HEIGHT too,
+   which the old fixed 1200px cap never accounted for. */
+.flyer-preview-wrap img { display: block; max-width: 100%; max-height: 70vh; width: auto; height: auto; border-radius: 6px; }
 #flyer-preview-fields {
     position: absolute;
     inset: 0;

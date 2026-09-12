@@ -269,13 +269,21 @@
     text-overflow: ellipsis;
 }
 
-/* A flyer's label carries the gig date too (see catalog.js) - long enough
-   that ellipsis-truncating would usually hide exactly that suffix, so it
-   wraps onto a second line instead. */
+/* A flyer's label can wrap (see catalog.js) - its own text is usually
+   shorter than a filename, and unlike a generic upload's label, hiding
+   part of it via ellipsis is more likely to hide something that matters. */
 .catalog-tile-label-flyer {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
+    line-height: 1.3;
+}
+
+.catalog-tile-gig-line {
+    padding: 0 8px 6px;
+    font-size: 0.72rem;
+    color: #8fb4d9;
+    white-space: normal;
     line-height: 1.3;
 }
 

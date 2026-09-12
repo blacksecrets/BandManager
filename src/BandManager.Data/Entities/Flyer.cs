@@ -40,14 +40,15 @@ public record FlyerFieldDef(
     // Image field has no separate bold/underline concept of its own.
     bool Skew = false);
 
-/// <summary>A generated flyer image, keyed to exactly one gig ("one each" -
-/// re-flyering a gig just adds a new row, old ones kept for history rather
-/// than being deleted). SourceCatalogItemId is nullable and SetNull-deleted:
-/// deleting the background image a flyer was built from is allowed (with a
-/// warning shown first - see CatalogController/catalog.js), not blocked -
-/// the flyer just loses its source and can no longer be re-opened in the
-/// editor, while its already-rendered image (GeneratedCatalogItem, a
-/// separate Catalog row) stays completely intact.</summary>
+/// <summary>A generated flyer image, usually (not always - see GigRef)
+/// keyed to one gig ("one each" - re-flyering a gig just adds a new row,
+/// old ones kept for history rather than being deleted). SourceCatalogItemId
+/// is nullable and SetNull-deleted: deleting the background image a flyer
+/// was built from is allowed (with a warning shown first - see
+/// CatalogController/catalog.js), not blocked - the flyer just loses its
+/// source and can no longer be re-opened in the editor, while its
+/// already-rendered image (GeneratedCatalogItem, a separate Catalog row)
+/// stays completely intact.</summary>
 public class Flyer
 {
     public Guid Id { get; set; } = Guid.NewGuid();
@@ -62,8 +63,14 @@ public class Flyer
 
     // SiteContentRef.GigRef(gig) - the same stable ref ScheduleItem/GigSet
     // already key off, so a Flyer is correlatable with everything else
-    // tied to a gig without a new join concept.
-    public required string GigRef { get; set; }
+    // tied to a gig without a new join concept. Nullable so a flyer can be
+    // explicitly disassociated from any gig (FlyersController.Update's
+    // "blank" choice in the Gig dropdown) - a reusable/generic flyer, or
+    // just a gig's last flyer being removed so that gig has none. Clearing
+    // this also clears the old Gig's SelectedFlyerId if this flyer was its
+    // live pick (see Update) - a flyer no longer tied to a gig can't stay
+    // that gig's "current" one.
+    public string? GigRef { get; set; }
 
     public required List<FlyerFieldDef> Fields { get; set; } = [];
 

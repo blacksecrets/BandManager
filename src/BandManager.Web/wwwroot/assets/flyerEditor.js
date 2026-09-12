@@ -142,6 +142,7 @@
             backdrop.hidden = false;
 
             let existingFields = null;
+            let flyerInfo = null; // {gigTitle, isLastFlyerForGig, isWebLiveFlyer} - null gigRef flyers only
             if (flyerId) {
                 const flyerRes = await fetch(`/api/flyers/${flyerId}`);
                 if (!flyerRes.ok) {
@@ -153,27 +154,36 @@
                 catalogItemId = flyer.sourceCatalogItemId;
                 gigRef = flyer.gigRef;
                 existingFields = flyer.fields;
+                flyerInfo = { gigTitle: flyer.gigTitle, isLastFlyerForGig: flyer.isLastFlyerForGig, isWebLiveFlyer: flyer.isWebLiveFlyer };
             }
 
-            const [imageRes, gigRes, fontsRes, knownFieldsRes] = await Promise.all([
+            const fetches = [
                 fetch(`/api/catalog/${catalogItemId}`),
-                fetch(`/api/gigs/${encodeURIComponent(gigRef)}`),
                 fetch('/api/flyers/fonts'),
                 fetch('/api/flyers/known-fields')
-            ]);
-            if (!imageRes.ok || !gigRes.ok || !knownFieldsRes.ok) {
+            ];
+            // A flyer disassociated from any gig (GigRef null) has nothing
+            // to fetch here - the editor still opens (view the image, pick
+            // a new gig via the dropdown below) but can't be re-saved
+            // until it's re-associated, since saving needs a gig to render
+            // against (title, publish target - see FlyersController).
+            if (gigRef) fetches.push(fetch(`/api/gigs/${encodeURIComponent(gigRef)}`));
+            const [imageRes, fontsRes, knownFieldsRes, gigRes] = await Promise.all(fetches);
+            if (!imageRes.ok || !knownFieldsRes.ok || (gigRef && !gigRes.ok)) {
                 body.innerHTML = '<p class="save-note">Could not load the image or gig.</p>';
                 return;
             }
             const image = await imageRes.json();
-            const gig = await gigRes.json();
+            const gig = gigRef ? await gigRes.json() : null;
 
             // Sticky "current gig" - opening the editor for a gig (fresh,
             // or via editing an existing flyer) makes it the most
             // recently referenced one everywhere else too.
-            fetch('/api/profile/last-selected-gig', {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gigRef })
-            }).catch(() => {});
+            if (gigRef) {
+                fetch('/api/profile/last-selected-gig', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gigRef })
+                }).catch(() => {});
+            }
 
             const fonts = fontsRes.ok ? await fontsRes.json() : [];
             fonts.forEach(ensureCustomFontFace);
@@ -183,7 +193,16 @@
             await Promise.all(fields.filter((f) => f.type === 'Image' && f.value).map(resolveImageFieldUrl));
 
             body.innerHTML = `
-                <h2>${flyerId ? 'Edit Flyer' : 'Create Flyer'}: ${escapeHtml(gig.title)}</h2>
+                <h2>${flyerId ? 'Edit Flyer' : 'Create Flyer'}${gig ? ': ' + escapeHtml(gig.title) : ''}</h2>
+                ${flyerId ? `
+                <div class="flyer-gig-picker">
+                    <label>Associated gig
+                        <select id="flyer-gig-select"><option value="">Loading...</option></select>
+                    </label>
+                    <button type="button" id="flyer-gig-save-btn">Save</button>
+                    <p id="flyer-gig-status" class="save-note"></p>
+                </div>` : ''}
+                ${!gig ? '<p class="save-note">This flyer isn\'t associated with a gig, so it can\'t be edited/saved until you pick one above.</p>' : ''}
                 <div class="flyer-editor-layout">
                     <div class="flyer-preview-wrap">
                         <img id="flyer-preview-bg" src="${catalogFileUrl(image.file_path)}" alt="Flyer background">
@@ -194,12 +213,66 @@
                 <button type="button" id="flyer-add-with-btn">+ Add another "With"</button>
                 <button type="button" id="flyer-add-presented-by-btn">+ Add another Presented By</button>
                 <button type="button" id="flyer-add-image-btn">+ Add an image</button>
+                ${gig ? `
                 <label class="checkbox-label" id="flyer-publish-label">
                     <input type="checkbox" id="flyer-publish-checkbox"> Publish this flyer to the band's live website now
                 </label>
-                <button type="button" id="flyer-save-btn">Save</button>
+                <button type="button" id="flyer-save-btn">Save</button>` : ''}
                 <p id="flyer-editor-status" class="save-note"></p>
             `;
+
+            // Populates and wires the "Associated gig" dropdown - its own
+            // Save, deliberately separate from the main flyer Save below
+            // (reassigning a flyer's gig has nothing to do with its image/
+            // fields - see FlyersController.SetGig). A successful change
+            // just closes this session (resolving the caller with null, as
+            // if cancelled - a gig reassignment isn't "a saved render" the
+            // way the main Save's result is) and reopens fresh, since
+            // nearly everything on screen (heading, Publish/Save
+            // visibility, per-field "sync to Gig" checkboxes) depends on
+            // which gig this flyer is associated with.
+            async function wireGigPicker() {
+                const select = document.getElementById('flyer-gig-select');
+                const saveBtn = document.getElementById('flyer-gig-save-btn');
+                const status = document.getElementById('flyer-gig-status');
+
+                const gigsRes = await fetch('/api/flyers/upcoming-gigs');
+                const upcoming = gigsRes.ok ? await gigsRes.json() : [];
+                let options = upcoming;
+                if (gigRef && !options.some((g) => g.gigRef === gigRef)) {
+                    // The current gig isn't "upcoming" (e.g. it already
+                    // happened) - still needs to appear, selected, rather
+                    // than the dropdown silently showing something else.
+                    options = [{ gigRef, title: (flyerInfo && flyerInfo.gigTitle) || gigRef, date: '' }, ...upcoming];
+                }
+                select.innerHTML = '<option value="">(none)</option>' +
+                    options.map((g) => `<option value="${escapeHtml(g.gigRef)}" ${g.gigRef === gigRef ? 'selected' : ''}>${escapeHtml(g.title)}${g.date ? ', ' + escapeHtml(g.date) : ''}</option>`).join('');
+
+                saveBtn.addEventListener('click', async () => {
+                    const newGigRef = select.value || null;
+                    if (newGigRef === (gigRef || null)) { status.textContent = 'No change.'; return; }
+
+                    if (gigRef) {
+                        const gigLabel = (flyerInfo && flyerInfo.gigTitle) || gigRef;
+                        if (flyerInfo && flyerInfo.isLastFlyerForGig) {
+                            if (!confirm(`This is the last flyer for "${gigLabel}" - removing it will leave that gig with no flyer. Continue?`)) return;
+                        }
+                        if (flyerInfo && flyerInfo.isWebLiveFlyer) {
+                            if (!confirm(`This flyer is currently live on the site for "${gigLabel}". Removing it will affect current and scheduled Web Presence tasks that use it. Continue?`)) return;
+                        }
+                    }
+
+                    status.textContent = 'Saving...';
+                    const setRes = await fetch(`/api/flyers/${flyerId}/gig`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ gigRef: newGigRef })
+                    });
+                    const setBody = await setRes.json().catch(() => ({}));
+                    if (!setRes.ok) { status.textContent = setBody.error || 'Could not change the associated gig.'; return; }
+                    close(null);
+                    window.openFlyerEditor({ flyerId });
+                });
+            }
+            if (flyerId) await wireGigPicker();
 
             const bgImg = document.getElementById('flyer-preview-bg');
             const previewFields = document.getElementById('flyer-preview-fields');
@@ -507,7 +580,7 @@
                 renderPreview();
             });
 
-            document.getElementById('flyer-save-btn').addEventListener('click', async () => {
+            document.getElementById('flyer-save-btn')?.addEventListener('click', async () => {
                 const status = document.getElementById('flyer-editor-status');
 
                 // Collect which eligible fields are both checked and

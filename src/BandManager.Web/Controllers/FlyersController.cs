@@ -11,7 +11,8 @@ namespace BandManager.Web.Controllers;
 public record SaveFlyerFieldDto(
     string Key, string Label, string Type, double X, double Y, double? FontSize, string? FontFamily, string? Color, bool Included, string? Value,
     bool Bold = false, bool Italic = false, bool Underline = false, double Rotation = 0, bool Skew = false);
-public record SaveFlyerRequest(Guid SourceCatalogItemId, string GigRef, List<SaveFlyerFieldDto> Fields, bool Publish = false);
+public record SaveFlyerRequest(Guid SourceCatalogItemId, string? GigRef, List<SaveFlyerFieldDto> Fields, bool Publish = false);
+public record SetFlyerGigRequest(string? GigRef);
 
 /// <summary>
 /// Builds a final flyer image from an existing Catalog image + typed field
@@ -32,9 +33,9 @@ public record SaveFlyerRequest(Guid SourceCatalogItemId, string GigRef, List<Sav
 public class FlyersController(
     ApplicationDbContext db,
     IActiveBandAccessor activeBand,
-    GigsSiteEditor gigsSiteEditor,
+    IGigSitePublisher gigsSiteEditor,
+    IBandSiteConnection bandSiteConnection,
     CatalogStore catalogStore,
-    CredentialStore credentialStore,
     IWebHostEnvironment env) : ControllerBase
 {
     // Resolved from the standard ASP.NET Core IWebHostEnvironment rather
@@ -79,10 +80,6 @@ public class FlyersController(
         if (band is null) return (null!, BadRequest(new { error = "No active band selected." }));
         return (band, null);
     }
-
-    private async Task<bool> HasSiteConfiguredAsync(Band band) =>
-        !string.IsNullOrWhiteSpace(band.SiteBaseUrl) && !string.IsNullOrWhiteSpace(band.GitHubOwner) && !string.IsNullOrWhiteSpace(band.GitHubRepo)
-        && await credentialStore.GetCredentialAsync(band.Id, "website") is not null;
 
     [HttpGet("fonts")]
     [Authorize(Policy = "BandMember")]
@@ -149,11 +146,21 @@ public class FlyersController(
         if (flyer.SourceCatalogItemId is null)
             return BadRequest(new { error = "This flyer's original background image was deleted, so it can't be reopened for editing." });
 
+        Gig? currentGig = flyer.GigRef is null ? null : await db.Gigs.AsNoTracking().FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == flyer.GigRef);
+        var isLastFlyerForGig = flyer.GigRef is not null && await db.Flyers.CountAsync(f => f.BandId == band.Id && f.GigRef == flyer.GigRef) <= 1;
+        var isWebLiveFlyer = currentGig is not null && currentGig.SelectedFlyerId == flyer.Id;
+
         return Ok(new
         {
             id = flyer.Id,
             sourceCatalogItemId = flyer.SourceCatalogItemId,
             gigRef = flyer.GigRef,
+            gigTitle = currentGig?.Title,
+            // Both drive the two separate "are you sure" warnings the Gig
+            // dropdown's own Save shows before disassociating this flyer -
+            // see SetGig below.
+            isLastFlyerForGig,
+            isWebLiveFlyer,
             fields = flyer.Fields.Select(f => new
             {
                 key = f.Key,
@@ -173,6 +180,62 @@ public class FlyersController(
                 skew = f.Skew
             })
         });
+    }
+
+    // The Gig dropdown's own data source - upcoming (not archived, not
+    // already past) gigs for the active band, since that's realistically
+    // what a flyer would ever be (re)associated with. The currently
+    // associated gig is included separately by the client if it isn't in
+    // this list (e.g. a past gig) - see flyerEditor.js.
+    [HttpGet("upcoming-gigs")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> UpcomingGigs()
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var gigs = await db.Gigs.AsNoTracking()
+            .Where(g => g.BandId == band.Id && !g.IsArchived && g.Date >= today)
+            .OrderBy(g => g.Date)
+            .Select(g => new { gigRef = g.Ref, title = g.Title, date = g.Date })
+            .ToListAsync();
+        return Ok(gigs.Select(g => new { g.gigRef, g.title, date = GigDateTimeFormatting.FormatDate(g.date) }));
+    }
+
+    // Changes (or clears) which gig this flyer is associated with -
+    // deliberately separate from Update above: reassigning a flyer's gig
+    // has nothing to do with its image or field layout, and a gig-less
+    // flyer has no publish target to re-render/push to anyway. Clearing
+    // the old gig's SelectedFlyerId when this flyer was its live pick is
+    // the one required side effect - a flyer no longer associated with a
+    // gig can't stay that gig's "current" one (the two "are you sure"
+    // warnings this can trigger - last flyer for the gig, or this being
+    // the live one - are shown client-side using Get's isLastFlyerForGig/
+    // isWebLiveFlyer, before this is ever called).
+    [HttpPut("{id:guid}/gig")]
+    public async Task<IActionResult> SetGig(Guid id, [FromBody] SetFlyerGigRequest request)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var flyer = await db.Flyers.FirstOrDefaultAsync(f => f.Id == id && f.BandId == band.Id);
+        if (flyer is null) return NotFound(new { error = "Flyer not found" });
+
+        var newGigRef = string.IsNullOrWhiteSpace(request.GigRef) ? null : request.GigRef.Trim();
+        if (newGigRef is not null && !await db.Gigs.AnyAsync(g => g.BandId == band.Id && g.Ref == newGigRef))
+            return NotFound(new { error = "Gig not found" });
+
+        if (flyer.GigRef is { } oldGigRef && oldGigRef != newGigRef)
+        {
+            var oldGig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == oldGigRef);
+            if (oldGig is not null && oldGig.SelectedFlyerId == flyer.Id)
+                oldGig.SelectedFlyerId = null;
+        }
+
+        flyer.GigRef = newGigRef;
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, gigRef = flyer.GigRef });
     }
 
     // Shared by Create and Update - resolves the gig/source image, parses
@@ -227,7 +290,7 @@ public class FlyersController(
     // the live push is.
     private async Task<IActionResult> SaveAndMaybePublishAsync(Band band, Flyer flyer, Gig gig, byte[] rendered, CatalogItem catalogItem, bool publish)
     {
-        if (!publish || !await HasSiteConfiguredAsync(band))
+        if (!publish || !await bandSiteConnection.HasSiteConfiguredAsync(band))
         {
             await db.SaveChangesAsync();
             return Ok(new { ok = true, flyerId = flyer.Id, catalogItemId = catalogItem.Id, published = false });

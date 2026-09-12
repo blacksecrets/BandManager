@@ -166,17 +166,26 @@ if (document.getElementById('catalog-grid')) {
         }
 
         const label = document.createElement('div');
-        // A flyer's label alone ("Flyer - <title>") can't tell apart two
-        // gigs with the same title/venue at different dates - suffix with
-        // the gig date, and let it wrap instead of ellipsis-truncating
-        // (that's exactly what usually hides the distinguishing part).
         const isFlyerLabel = item.category === 'flyer' && item.flyer_info;
         label.className = 'catalog-tile-label' + (isFlyerLabel ? ' catalog-tile-label-flyer' : '');
         const baseLabel = item.label || item.original_filename || `#${item.id}`;
-        label.textContent = isFlyerLabel && item.flyer_info.gigDate
-            ? `${baseLabel}, ${item.flyer_info.gigDate}`
-            : baseLabel;
+        label.textContent = baseLabel;
         tile.appendChild(label);
+
+        // The gig association shown here is always the *current* one
+        // (fresh from Flyer.GigRef, not the label text above - which is
+        // just a snapshot of the gig's title baked in at creation time
+        // and can go stale once a flyer is edited to a different gig or
+        // disassociated entirely). This is the "obvious, not just the
+        // name on the flyer" association display.
+        if (isFlyerLabel) {
+            const gigLine = document.createElement('div');
+            gigLine.className = 'catalog-tile-gig-line';
+            gigLine.textContent = item.flyer_info.gigTitle
+                ? `Gig: ${item.flyer_info.gigTitle}${item.flyer_info.gigDate ? ', ' + item.flyer_info.gigDate : ''}`
+                : 'No gig associated';
+            tile.appendChild(gigLine);
+        }
 
         tile.addEventListener('click', () => openCatalogViewer(item));
 
@@ -706,7 +715,7 @@ if (document.getElementById('catalog-grid')) {
             let warning;
             if (item.category === 'flyer') {
                 const info = item.flyer_info;
-                warning = info
+                warning = info && info.gigTitle
                     ? `Remove this flyer from "${info.gigTitle}"?`
                     : 'Remove this flyer?';
                 if (info && info.isLastFlyerForGig) {
@@ -716,7 +725,7 @@ if (document.getElementById('catalog-grid')) {
                 warning = 'Delete this item from the Catalog? This can\'t be undone.';
             }
             if (usedInFlyers.length > 0) {
-                const gigNames = usedInFlyers.map((f) => f.gigTitle).join(', ');
+                const gigNames = usedInFlyers.map((f) => f.gigTitle || '(no gig associated)').join(', ');
                 warning += `\n\nThis image is used as the background for these flyers - they will no longer be accessible for editing afterward: ${gigNames}.`;
             }
             if (!confirm(warning)) return;
