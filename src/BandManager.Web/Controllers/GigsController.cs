@@ -578,19 +578,31 @@ public class GigsController(
         });
     }
 
+    public record ArchiveGigRequest(bool RemoveFromWebsiteCalendar = false);
+
     // Idempotent, mirrors SuperAdminController.ArchiveBand exactly -
     // cascades the same archive to every currently-non-archived
-    // ScheduleItem/Flyer sharing this GigRef. Never touches a connected
-    // site's live listing (see the tranche plan's explicit non-goal) -
-    // purely an in-app visibility toggle.
+    // ScheduleItem/Flyer sharing this GigRef. Still never touches a
+    // connected site's live listing BY DEFAULT (the tranche plan's
+    // original non-goal) - purely an in-app visibility toggle unless the
+    // confirm modal's own checkbox explicitly opts into also removing it
+    // from the site, same "opt in every time" pattern as everything else
+    // that pushes live (flyer publish, gig-title-to-flyer sync, ...).
     [HttpPost("{gigRef}/archive")]
     [Authorize(Policy = "BandAdmin")]
-    public async Task<IActionResult> Archive(string gigRef)
+    public async Task<IActionResult> Archive(string gigRef, [FromBody] ArchiveGigRequest? request)
     {
         var (band, err) = await RequireActiveBandAsync();
         if (err is not null) return err;
         var gig = await db.Gigs.FirstOrDefaultAsync(g => g.BandId == band.Id && g.Ref == gigRef);
         if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        string? pushError = null;
+        if (request?.RemoveFromWebsiteCalendar == true && await bandSiteConnection.HasSiteConfiguredAsync(band))
+        {
+            try { await gigsSiteEditor.UnpublishGigAsync(band, gig.Ref, gig.Title); }
+            catch (InvalidOperationException ex) { pushError = ex.Message; }
+        }
 
         if (!gig.IsArchived)
         {
@@ -603,16 +615,37 @@ public class GigsController(
                 .ExecuteUpdateAsync(f => f.SetProperty(x => x.IsArchived, true).SetProperty(x => x.ArchivedAt, now));
             await db.SaveChangesAsync();
         }
+
+        if (pushError is not null) return StatusCode(502, new { error = $"Archived, but could not remove it from the site: {pushError}" });
         return Ok(new { ok = true });
     }
+
+    // What unarchiving this gig would restore - mirrors ArchivePreview's
+    // shape for the confirm modal's bulleted list, but counts currently-
+    // archived rows under this GigRef instead (the ones Unarchive is about
+    // to bring back).
+    [HttpGet("{gigRef}/unarchive-preview")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> UnarchivePreview(string gigRef)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var scheduleItems = await db.ScheduleItems.CountAsync(s => s.BandId == band.Id && s.GigRef == gigRef && s.IsArchived);
+        var flyers = await db.Flyers.CountAsync(f => f.BandId == band.Id && f.GigRef == gigRef && f.IsArchived);
+        return Ok(new { scheduleItems, flyers });
+    }
+
+    public record UnarchiveGigRequest(bool AddToWebsiteCalendar = false);
 
     // The precise reverse of Archive - clears Gig.IsArchived, and clears
     // it only on ScheduleItem/Flyer rows for this GigRef that are
     // currently archived (safe since nothing else can independently
-    // archive either today).
+    // archive either today). Still never touches the live site by default -
+    // same opt-in checkbox pattern as Archive above.
     [HttpPost("{gigRef}/unarchive")]
     [Authorize(Policy = "BandAdmin")]
-    public async Task<IActionResult> Unarchive(string gigRef)
+    public async Task<IActionResult> Unarchive(string gigRef, [FromBody] UnarchiveGigRequest? request)
     {
         var (band, err) = await RequireActiveBandAsync();
         if (err is not null) return err;
@@ -629,6 +662,9 @@ public class GigsController(
                 .ExecuteUpdateAsync(f => f.SetProperty(x => x.IsArchived, false).SetProperty(x => x.ArchivedAt, (DateTime?)null));
             await db.SaveChangesAsync();
         }
+
+        string? pushError = request?.AddToWebsiteCalendar == true ? await TryPublishAsync(band, gig) : null;
+        if (pushError is not null) return StatusCode(502, new { error = $"Unarchived, but could not add it back to the site: {pushError}" });
         return Ok(new { ok = true });
     }
 

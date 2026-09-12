@@ -183,9 +183,24 @@
             <h2>Archive This Gig?</h2>
             <p class="save-note">This also archives everything tied to it - it'll all come back together if you unarchive later.</p>
             <ul id="archive-gig-preview-list"></ul>
+            <label class="checkbox-label"><input type="checkbox" id="archive-gig-remove-from-calendar"> Remove this gig from the Website Calendar</label>
             <div class="cred-form-buttons">
                 <button type="button" id="archive-gig-cancel-btn">Cancel</button>
                 <button type="button" id="archive-gig-ok-btn">Ok</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="unarchive-gig-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="unarchive-gig-modal-close">&times;</button>
+            <h2>Unarchive This Gig?</h2>
+            <p class="save-note">This also restores everything that was archived along with it.</p>
+            <ul id="unarchive-gig-preview-list"></ul>
+            <label class="checkbox-label"><input type="checkbox" id="unarchive-gig-add-to-calendar"> Put this gig back on the Website Calendar</label>
+            <div class="cred-form-buttons">
+                <button type="button" id="unarchive-gig-cancel-btn">Cancel</button>
+                <button type="button" id="unarchive-gig-ok-btn">Ok</button>
             </div>
         </div>
     </div>

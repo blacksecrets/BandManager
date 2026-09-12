@@ -544,14 +544,27 @@ document.getElementById('gig-set-select-flyer-btn').addEventListener('click', as
 });
 
 // --- Archive / Unarchive ---
+// Both flows always confirm - even with nothing else tied to the gig, the
+// checkbox to touch the Website Calendar still needs an explicit yes/no,
+// so the "skip the modal when there's nothing to warn about" shortcut this
+// used to take no longer applies.
 function closeArchiveGigModal() { document.getElementById('archive-gig-modal-backdrop').hidden = true; }
 document.getElementById('archive-gig-modal-close').addEventListener('click', closeArchiveGigModal);
 document.getElementById('archive-gig-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'archive-gig-modal-backdrop') closeArchiveGigModal(); });
 document.getElementById('archive-gig-cancel-btn').addEventListener('click', closeArchiveGigModal);
 
 async function doArchiveGig() {
-    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/archive`, { method: 'POST' });
-    if (!res.ok) { alert('Could not archive this gig.'); return; }
+    const removeFromWebsiteCalendar = document.getElementById('archive-gig-remove-from-calendar').checked;
+    const res = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ removeFromWebsiteCalendar })
+    });
+    if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        alert(body?.error || 'Could not archive this gig.');
+        if (res.status !== 502) return;
+    }
     closeArchiveGigModal();
     document.getElementById('gig-set-detail').hidden = true;
     selectedGigRef = null;
@@ -569,17 +582,66 @@ document.getElementById('gig-set-archive-btn').addEventListener('click', async (
     if (preview.setlistSongs > 0) bullets.push(`${preview.setlistSongs} song${preview.setlistSongs === 1 ? '' : 's'} in the setlist`);
     if (preview.gigPrepItems > 0) bullets.push(`${preview.gigPrepItems} gig prep item${preview.gigPrepItems === 1 ? '' : 's'}`);
 
-    if (bullets.length === 0) { await doArchiveGig(); return; }
-
-    document.getElementById('archive-gig-preview-list').innerHTML = bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join('');
+    document.getElementById('archive-gig-preview-list').innerHTML = bullets.length === 0
+        ? '<li>Nothing else is tied to this gig.</li>'
+        : bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join('');
+    document.getElementById('archive-gig-remove-from-calendar').checked = false;
     document.getElementById('archive-gig-modal-backdrop').hidden = false;
 });
 
 document.getElementById('archive-gig-ok-btn').addEventListener('click', doArchiveGig);
 
+// Unarchive mirrors Archive exactly - always confirms, and its own
+// checkbox opts into re-adding the gig to the Website Calendar (default
+// unchecked, same "ask every time" rule as everywhere else that pushes
+// live).
+function closeUnarchiveGigModal() { document.getElementById('unarchive-gig-modal-backdrop').hidden = true; }
+document.getElementById('unarchive-gig-modal-close').addEventListener('click', closeUnarchiveGigModal);
+document.getElementById('unarchive-gig-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'unarchive-gig-modal-backdrop') closeUnarchiveGigModal(); });
+document.getElementById('unarchive-gig-cancel-btn').addEventListener('click', closeUnarchiveGigModal);
+
+let unarchiveGigRef = null;
+
+async function doUnarchiveGig() {
+    if (!unarchiveGigRef) return;
+    const addToWebsiteCalendar = document.getElementById('unarchive-gig-add-to-calendar').checked;
+    const res = await fetch(`/api/gigs/${encodeURIComponent(unarchiveGigRef)}/unarchive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addToWebsiteCalendar })
+    });
+    if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        alert(body?.error || 'Could not unarchive that gig.');
+        if (res.status !== 502) return;
+    }
+    archivedGigs = archivedGigs.filter((g) => g.gigRef !== unarchiveGigRef);
+    closeUnarchiveGigModal();
+    renderArchivedGigsModal();
+    await loadGigs();
+}
+
+document.getElementById('unarchive-gig-ok-btn').addEventListener('click', doUnarchiveGig);
+
+async function openUnarchiveGigModal(gigRef) {
+    unarchiveGigRef = gigRef;
+    const res = await fetch(`/api/gigs/${encodeURIComponent(gigRef)}/unarchive-preview`);
+    const preview = res.ok ? await res.json() : { scheduleItems: 0, flyers: 0 };
+
+    const bullets = [];
+    if (preview.scheduleItems > 0) bullets.push(`${preview.scheduleItems} scheduled post${preview.scheduleItems === 1 ? '' : 's'} (Web Presence)`);
+    if (preview.flyers > 0) bullets.push(`${preview.flyers} flyer${preview.flyers === 1 ? '' : 's'}`);
+
+    document.getElementById('unarchive-gig-preview-list').innerHTML = bullets.length === 0
+        ? '<li>Nothing else was archived along with this gig.</li>'
+        : bullets.map((b) => `<li>${escapeHtml(b)}</li>`).join('');
+    document.getElementById('unarchive-gig-add-to-calendar').checked = false;
+    document.getElementById('unarchive-gig-modal-backdrop').hidden = false;
+}
+
 // "View Archived Gigs" - same sortable/paginated grid pattern as Copy
-// Setlist, but each row is a direct Unarchive action, not a preview-then-
-// confirm flow (there's nothing to preview before restoring a gig).
+// Setlist; each row opens the confirm-and-checkbox modal above instead of
+// unarchiving directly.
 const ARCHIVED_GIGS_PAGE_SIZE = 10;
 let archivedGigs = [];
 let archivedGigSortKey = 'date';
@@ -655,13 +717,7 @@ function renderArchivedGigsModal() {
         body.querySelector('#archived-gigs-page-prev').addEventListener('click', () => { archivedGigPage--; renderArchivedGigsModal(); });
         body.querySelector('#archived-gigs-page-next').addEventListener('click', () => { archivedGigPage++; renderArchivedGigsModal(); });
         body.querySelectorAll('.archived-gig-unarchive-btn').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-                const res = await fetch(`/api/gigs/${encodeURIComponent(btn.dataset.gigRef)}/unarchive`, { method: 'POST' });
-                if (!res.ok) { alert('Could not unarchive that gig.'); return; }
-                archivedGigs = archivedGigs.filter((g) => g.gigRef !== btn.dataset.gigRef);
-                renderArchivedGigsModal();
-                await loadGigs();
-            });
+            btn.addEventListener('click', () => openUnarchiveGigModal(btn.dataset.gigRef));
         });
     }
 }
