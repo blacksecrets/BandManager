@@ -21,16 +21,33 @@
         <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
     </header>
 
-    <main class="settings-main">
+    <main class="settings-main settings-main-wide">
         <p id="superadmin-denied" class="save-note" hidden>SuperAdmin access is required to view this page.</p>
 
         <section class="platform-card" id="superadmin-bands-section" hidden>
             <h2>All bands</h2>
-            <p>Every band on this BandManager instance. Every band needs at least one Band Admin, chosen when it's created.</p>
-            <table class="user-table">
-                <thead><tr><th>Name</th><th>Slug</th><th>Created</th><th>Status</th><th></th></tr></thead>
-                <tbody id="superadmin-bands-body"></tbody>
-            </table>
+            <p>Every band this BandManager instance has ever seen a name for - onboarded tenants and not-yet-onboarded candidates (real band names picked up from a gig's "with" acts) alike. Every onboarded band needs at least one Band Admin, chosen when it's created.</p>
+
+            <div class="band-status-filters">
+                <label class="checkbox-label"><input type="checkbox" id="band-filter-onboard"> Onboard</label>
+                <label class="checkbox-label"><input type="checkbox" id="band-filter-candidate"> Candidate</label>
+                <label class="checkbox-label"><input type="checkbox" id="band-filter-archived"> Archived</label>
+                <span class="field-hint">No boxes checked shows every band except archived ones.</span>
+            </div>
+            <div id="superadmin-bands-grid"></div>
+
+            <div id="band-archive-modal-backdrop" class="detail-modal-backdrop" hidden>
+                <div class="detail-modal">
+                    <button type="button" class="detail-modal-close" id="band-archive-modal-close">&times;</button>
+                    <h2>Archive <span id="band-archive-modal-name"></span>?</h2>
+                    <p class="save-note">Its Band Admins and Users will no longer be able to select it (their other bands, if any, are unaffected). Nothing is deleted - you can unarchive it later.</p>
+                    <label>Archive notes (optional) <textarea id="band-archive-notes-input" rows="4" maxlength="2000" placeholder="Why is this being archived?"></textarea></label>
+                    <div class="cred-form-buttons">
+                        <button type="button" id="band-archive-continue-btn">Continue</button>
+                        <button type="button" id="band-archive-cancel-btn">Cancel</button>
+                    </div>
+                </div>
+            </div>
 
             <details class="manual-fallback">
                 <summary>Add a band</summary>

@@ -9,6 +9,15 @@
     margin: 0 auto;
     padding: 20px;
 }
+/* Pages whose content is a grid/board/list (Gig Management, Calendar,
+   Catalog, etc.) rather than a form - 760px was a good width for reading
+   a settings form, but it wastes most of the horizontal room the sidebar
+   layout now leaves available for anything wider. Kept narrow ONLY for
+   genuinely form-heavy pages (Profile, Configure Web Presence) where a
+   readable line length actually matters more than filling the screen. */
+.settings-main-wide {
+    max-width: 1600px;
+}
 
 .settings-tabs {
     display: flex;
