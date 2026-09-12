@@ -202,6 +202,7 @@
 
             <form id="gig-prep-add-form" class="cred-form">
                 <label>Add item <input type="text" name="text" maxlength="300" placeholder="e.g. Print setlist"></label>
+                <label class="checkbox-label"><input type="checkbox" name="saveAsDefault"> Also save to your default checklist</label>
                 <button type="submit">Add</button>
             </form>
 
@@ -211,6 +212,7 @@
             </div>
 
             <div class="gig-set-actions">
+                <button type="button" id="gig-prep-load-default-btn">Load your default</button>
                 <button type="button" id="gig-prep-print-one-btn">Print this list</button>
                 <button type="button" id="gig-prep-print-all-btn">Print all three</button>
             </div>

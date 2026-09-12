@@ -306,6 +306,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<GigPrepDefaultItem>(b =>
         {
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.ActEntity).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<GigPrepChecklistItem>(b =>

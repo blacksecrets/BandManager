@@ -781,11 +781,11 @@ function renderGigPrepListPanel() {
     });
 }
 
-async function addGigPrepItem(text) {
+async function addGigPrepItem(text, saveAsDefault) {
     const res = await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/items`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listType: gigPrepActiveType, text })
+        body: JSON.stringify({ listType: gigPrepActiveType, text, saveAsDefault: !!saveAsDefault })
     });
     if (res.ok) {
         gigPrepItems.push(await res.json());
@@ -794,7 +794,7 @@ async function addGigPrepItem(text) {
 }
 
 function addGigPrepItemFromGear(gear) {
-    addGigPrepItem(gigPrepGearLabel(gear));
+    addGigPrepItem(gigPrepGearLabel(gear), false);
 }
 
 document.getElementById('gig-prep-add-form').addEventListener('submit', async (e) => {
@@ -802,8 +802,21 @@ document.getElementById('gig-prep-add-form').addEventListener('submit', async (e
     const form = e.target;
     const text = form.text.value.trim();
     if (!text) return;
-    await addGigPrepItem(text);
+    await addGigPrepItem(text, form.saveAsDefault.checked);
     form.reset();
+});
+
+document.getElementById('gig-prep-load-default-btn').addEventListener('click', async () => {
+    if (!selectedGigRef) return;
+    if (!confirm("This will replace everything currently on this gig's checklist - keep going?")) return;
+    const res = await fetch(`/api/gig-prep/${encodeURIComponent(selectedGigRef)}/load-default`, { method: 'POST' });
+    if (res.ok) {
+        gigPrepItems = await res.json();
+        await renderGigPrepTabsAndList();
+    } else {
+        const result = await res.json().catch(() => ({}));
+        alert(result.error || 'Could not load your default checklist.');
+    }
 });
 
 document.getElementById('gig-prep-print-one-btn').addEventListener('click', () => {

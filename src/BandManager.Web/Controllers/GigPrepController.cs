@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web.Controllers;
 
-public record SaveGigPrepItemRequest(GigPrepListType ListType, string Text);
+public record SaveGigPrepItemRequest(GigPrepListType ListType, string Text, bool SaveAsDefault = false);
 public record ReorderGigPrepRequest(GigPrepListType ListType, List<Guid> Ids);
 
 /// <summary>
@@ -33,8 +33,27 @@ public record ReorderGigPrepRequest(GigPrepListType ListType, List<Guid> Ids);
 [Authorize]
 public class GigPrepController(ApplicationDbContext db) : ControllerBase
 {
-    private static object SerializeDefault(GigPrepDefaultItem i) => new { id = i.Id, listType = i.ListType, text = i.Text };
+    private static object SerializeDefault(GigPrepDefaultItem i) => new { id = i.Id, actId = i.ActId, listType = i.ListType, text = i.Text };
     private static object SerializeItem(GigPrepChecklistItem i) => new { id = i.Id, listType = i.ListType, text = i.Text, isChecked = i.IsChecked };
+
+    // Per list type, an Act-scoped default set (if the user has any items
+    // in it) wins over the global one edited on the Profile page - lets
+    // "your default" differ between e.g. an electric set and an unplugged
+    // one, while a list type nobody's customized per-Act still falls back
+    // to the global set instead of coming up empty.
+    private async Task<List<GigPrepDefaultItem>> GetEffectiveDefaultsAsync(Guid userId, Guid? actId)
+    {
+        var actScoped = actId is null
+            ? new List<GigPrepDefaultItem>()
+            : await db.GigPrepDefaultItems.AsNoTracking()
+                .Where(i => i.UserId == userId && i.ActId == actId)
+                .OrderBy(i => i.SortOrder).ToListAsync();
+        var actTypesCovered = actScoped.Select(d => d.ListType).ToHashSet();
+        var globalFallback = await db.GigPrepDefaultItems.AsNoTracking()
+            .Where(i => i.UserId == userId && i.ActId == null && !actTypesCovered.Contains(i.ListType))
+            .OrderBy(i => i.SortOrder).ToListAsync();
+        return actScoped.Concat(globalFallback).ToList();
+    }
 
     // --- Defaults library (Profile page) ---
 
@@ -131,10 +150,7 @@ public class GigPrepController(ApplicationDbContext db) : ControllerBase
         var hasAny = await db.GigPrepChecklistItems.AnyAsync(i => i.GigId == gig.Id && i.UserId == userId);
         if (!hasAny)
         {
-            var defaults = await db.GigPrepDefaultItems.AsNoTracking()
-                .Where(i => i.UserId == userId)
-                .OrderBy(i => i.SortOrder)
-                .ToListAsync();
+            var defaults = await GetEffectiveDefaultsAsync(userId.Value, gig.ActId);
             if (defaults.Count > 0)
             {
                 foreach (var group in defaults.GroupBy(d => d.ListType))
@@ -172,17 +188,57 @@ public class GigPrepController(ApplicationDbContext db) : ControllerBase
         var item = new GigPrepChecklistItem { GigId = gig.Id, UserId = userId.Value, ListType = request.ListType, Text = text, SortOrder = maxSort + 1 };
         db.GigPrepChecklistItems.Add(item);
 
-        var hasDefaults = await db.GigPrepDefaultItems.AnyAsync(d => d.UserId == userId && d.ListType == request.ListType);
-        if (!hasDefaults)
+        // Explicit opt-in via the "also save to your default checklist"
+        // checkbox - scoped to this gig's Act, not the global Profile-page
+        // set, so it can only ever refine the electric-vs-unplugged case
+        // rather than silently overwriting the person's general defaults.
+        if (request.SaveAsDefault)
         {
-            var defaultMaxSort = await db.GigPrepDefaultItems
-                .Where(d => d.UserId == userId && d.ListType == request.ListType)
-                .Select(d => (int?)d.SortOrder).MaxAsync() ?? -1;
-            db.GigPrepDefaultItems.Add(new GigPrepDefaultItem { UserId = userId.Value, ListType = request.ListType, Text = text, SortOrder = defaultMaxSort + 1 });
+            var alreadyDefault = await db.GigPrepDefaultItems.AnyAsync(d =>
+                d.UserId == userId && d.ActId == gig.ActId && d.ListType == request.ListType && d.Text == text);
+            if (!alreadyDefault)
+            {
+                var defaultMaxSort = await db.GigPrepDefaultItems
+                    .Where(d => d.UserId == userId && d.ActId == gig.ActId && d.ListType == request.ListType)
+                    .Select(d => (int?)d.SortOrder).MaxAsync() ?? -1;
+                db.GigPrepDefaultItems.Add(new GigPrepDefaultItem { UserId = userId.Value, ActId = gig.ActId, ListType = request.ListType, Text = text, SortOrder = defaultMaxSort + 1 });
+            }
         }
 
         await db.SaveChangesAsync();
         return Ok(SerializeItem(item));
+    }
+
+    // Replaces this gig's ENTIRE checklist (all three list types) with
+    // the person's current effective defaults for this gig's Act - an
+    // explicit, confirmed action from the UI, not something that happens
+    // automatically after the first bootstrap (see GetChecklist).
+    [HttpPost("{gigRef}/load-default")]
+    public async Task<IActionResult> LoadDefault(string gigRef)
+    {
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var gig = await db.Gigs.AsNoTracking().FirstOrDefaultAsync(g => g.Ref == gigRef);
+        if (gig is null) return NotFound(new { error = "Gig not found" });
+
+        var existing = await db.GigPrepChecklistItems.Where(i => i.GigId == gig.Id && i.UserId == userId).ToListAsync();
+        db.GigPrepChecklistItems.RemoveRange(existing);
+
+        var defaults = await GetEffectiveDefaultsAsync(userId.Value, gig.ActId);
+        foreach (var group in defaults.GroupBy(d => d.ListType))
+        {
+            var sort = 0;
+            foreach (var d in group)
+                db.GigPrepChecklistItems.Add(new GigPrepChecklistItem { GigId = gig.Id, UserId = userId.Value, ListType = d.ListType, Text = d.Text, SortOrder = sort++ });
+        }
+        await db.SaveChangesAsync();
+
+        var items = await db.GigPrepChecklistItems.AsNoTracking()
+            .Where(i => i.GigId == gig.Id && i.UserId == userId)
+            .OrderBy(i => i.SortOrder)
+            .ToListAsync();
+        return Ok(items.Select(SerializeItem));
     }
 
     [HttpPut("{gigRef}/items/{id:guid}/check")]
