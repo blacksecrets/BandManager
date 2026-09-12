@@ -16,6 +16,7 @@ services:
 
   app:
     build: .
+    image: bandmanager-app:latest
     restart: unless-stopped
     depends_on:
       db:
@@ -34,6 +35,33 @@ services:
       - ./data:/app/data
     ports:
       - "8080:8080"
+
+  # A second instance of the exact same image, same database, same data/
+  # folder (so a login session, uploads, everything stay in sync - this
+  # is a stable window onto the same real app, not a disposable sandbox).
+  # No `build:` of its own - it just runs whatever `app` most recently
+  # built, so rebuilding/redeploying `app` during active work never takes
+  # this one down. To catch it up to the latest build once you're ready:
+  # `docker compose stop app-test && docker compose rm -f app-test &&
+  # docker compose up -d app-test` - same recreate pattern as `app`.
+  # One caveat worth knowing: if a schema migration ever runs against the
+  # shared database while this is still on older code, it could briefly
+  # be out of sync until it's caught up the same way - fine for the
+  # additive-only migrations this project has had so far, but real for
+  # anything that renames/removes a column.
+  app-test:
+    image: bandmanager-app:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Default: "Host=db;Port=5432;Database=bandmanager;Username=bandmanager;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}"
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8181:8080"
 
 volumes:
   pgdata:
