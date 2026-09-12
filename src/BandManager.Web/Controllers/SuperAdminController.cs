@@ -459,11 +459,27 @@ public class SuperAdminController(
     // IsOnboarded excludes with-band stubs (see Band.IsOnboarded) - real
     // tenant management has nothing to do with an unclaimed identity row
     // that exists purely so a Gig's With-acts can reference a real Band.
+    // Every Band, onboarded tenant or not - a not-yet-onboarded "with-band"
+    // stub (a real band name picked up from a Gig's With-acts, see
+    // Band.IsOnboarded's doc comment) is a genuine sales lead, worth
+    // surfacing here rather than hiding. The band switcher and everywhere
+    // else a Band must be genuinely selectable still filter to IsOnboarded -
+    // only this management view shows everything.
     [HttpGet("bands")]
     public async Task<IActionResult> ListBands()
     {
-        var bands = await db.Bands.Where(b => b.IsOnboarded).OrderBy(b => b.Name)
-            .Select(b => new { id = b.Id, name = b.Name, slug = b.Slug, createdAt = b.CreatedAt, isArchived = b.IsArchived, archivedAt = b.ArchivedAt })
+        var bands = await db.Bands.OrderBy(b => b.Name)
+            .Select(b => new
+            {
+                id = b.Id,
+                name = b.Name,
+                slug = b.Slug,
+                createdAt = b.CreatedAt,
+                isArchived = b.IsArchived,
+                archivedAt = b.ArchivedAt,
+                isOnboarded = b.IsOnboarded,
+                archiveNotes = b.ArchiveNotes
+            })
             .ToListAsync();
         return Ok(bands);
     }
@@ -474,8 +490,10 @@ public class SuperAdminController(
     // Bands from both listing and SetActive, and BandAccessCheck denies a
     // stale active-band session pointing at one), while any *other* Band
     // memberships they hold are completely untouched.
+    public record ArchiveBandRequest(string? Notes);
+
     [HttpPost("bands/{bandId:guid}/archive")]
-    public async Task<IActionResult> ArchiveBand(Guid bandId)
+    public async Task<IActionResult> ArchiveBand(Guid bandId, [FromBody] ArchiveBandRequest? request)
     {
         var band = await db.Bands.FindAsync(bandId);
         if (band is null) return NotFound(new { error = "Not found" });
@@ -483,6 +501,7 @@ public class SuperAdminController(
         {
             band.IsArchived = true;
             band.ArchivedAt = DateTime.UtcNow;
+            band.ArchiveNotes = string.IsNullOrWhiteSpace(request?.Notes) ? null : request.Notes.Trim();
             await db.SaveChangesAsync();
         }
         return Ok(new { ok = true });

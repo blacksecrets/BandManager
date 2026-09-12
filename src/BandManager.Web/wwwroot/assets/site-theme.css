@@ -189,6 +189,21 @@ nav.sidebar-nav { display: flex; flex-direction: column; gap: 2px; overflow-y: a
 }
 .notif-badge[hidden] { display: none; }
 
+.band-status-filters { display: flex; align-items: center; gap: 16px; margin: 10px 0 14px; flex-wrap: wrap; }
+
+.status-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 9px;
+    border-radius: 999px;
+}
+.status-pill.status-onboard { background: var(--success); color: var(--success-ink); }
+.status-pill.status-candidate { background: var(--danger); color: var(--danger-ink); }
+.status-pill.status-archived { background: var(--border-strong); color: var(--text-secondary); cursor: help; }
+
 /* Shared user avatar + profile modal (userAvatar.js) - used anywhere a
    user is displayed across the app, not just the sidebar's own footer. */
 .c-accent { background: var(--accent); color: var(--accent-ink); }

@@ -58,6 +58,11 @@ public class Band
     public bool IsArchived { get; set; }
     public DateTime? ArchivedAt { get; set; }
 
+    // Optional, captured at archive time (SuperAdminController.ArchiveBand) -
+    // why this band was archived (never signed up, went inactive, etc.).
+    // Purely informational, shown as a tooltip on the Archived status pill.
+    public string? ArchiveNotes { get; set; }
+
     // False for a "with-band" stub row - an unclaimed identity created so
     // a Gig's With-acts can reference a real Band instead of free text
     // (see GigWithBand), with no BandMembership/login/access of its own.

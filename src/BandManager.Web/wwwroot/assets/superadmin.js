@@ -39,7 +39,7 @@ function renderSongImportBandCheckboxes() {
     container.innerHTML = '';
     const list = document.createElement('div');
     list.className = 'band-checkbox-list';
-    for (const b of allBandsCache.filter((b) => !b.isArchived)) {
+    for (const b of allBandsCache.filter((b) => !b.isArchived && b.isOnboarded)) {
         const label = document.createElement('label');
         label.innerHTML = `<input type="checkbox" value="${b.id}"> ${escapeHtml(b.name)}`;
         list.appendChild(label);
@@ -438,47 +438,120 @@ async function loadAllUsersPicker() {
     }
 }
 
+function bandStatus(b) {
+    if (b.isArchived) return 'archived';
+    if (b.isOnboarded) return 'onboard';
+    return 'candidate';
+}
+
+let superAdminBandsGrid = null;
+
+function visibleBands() {
+    const showOnboard = document.getElementById('band-filter-onboard').checked;
+    const showCandidate = document.getElementById('band-filter-candidate').checked;
+    const showArchived = document.getElementById('band-filter-archived').checked;
+    const noneChecked = !showOnboard && !showCandidate && !showArchived;
+    return allBandsCache.filter((b) => {
+        const status = bandStatus(b);
+        if (noneChecked) return status !== 'archived';
+        if (status === 'onboard') return showOnboard;
+        if (status === 'candidate') return showCandidate;
+        return showArchived;
+    });
+}
+
+function renderBandStatusPill(b) {
+    const status = bandStatus(b);
+    const labels = { onboard: 'Onboard', candidate: 'Candidate', archived: 'Archived' };
+    const title = status === 'archived' && b.archiveNotes ? ` title="${escapeHtml(b.archiveNotes)}"` : '';
+    return `<span class="status-pill status-${status}"${title}>${labels[status]}</span>`;
+}
+
+function renderSuperAdminBandsGrid() {
+    const container = document.getElementById('superadmin-bands-grid');
+    const columns = [
+        { key: 'name', label: 'Name', sortable: true },
+        { key: 'slug', label: 'Slug', sortable: true },
+        { key: 'createdAt', label: 'Created', sortable: true, sortValue: (b) => new Date(b.createdAt).getTime(), render: (b) => new Date(b.createdAt).toLocaleDateString() },
+        { key: 'status', label: 'Status', sortable: true, sortValue: (b) => bandStatus(b), render: renderBandStatusPill },
+        {
+            key: 'actions', label: '', sortable: false, searchable: false,
+            render: (b) => b.isArchived
+                ? `<button type="button" class="remove-btn band-unarchive-btn" data-band-id="${b.id}">Unarchive</button>`
+                : `<button type="button" class="remove-btn band-archive-btn" data-band-id="${b.id}">Archive</button>`
+        }
+    ];
+    superAdminBandsGrid = DataGrid.render(container, {
+        columns,
+        rows: visibleBands(),
+        emptyMessage: 'No bands match the checked filters.'
+    });
+}
+
+// Delegated on the (stable) container, not the buttons themselves - the
+// grid rebuilds its own tbody on every sort/page/filter change, which
+// would silently drop any listener attached directly to a row's button.
+document.getElementById('superadmin-bands-grid').addEventListener('click', async (e) => {
+    const archiveBtn = e.target.closest('.band-archive-btn');
+    if (archiveBtn) {
+        const band = allBandsCache.find((b) => b.id === archiveBtn.dataset.bandId);
+        if (band) openArchiveBandModal(band);
+        return;
+    }
+    const unarchiveBtn = e.target.closest('.band-unarchive-btn');
+    if (unarchiveBtn) {
+        const band = allBandsCache.find((b) => b.id === unarchiveBtn.dataset.bandId);
+        if (!band) return;
+        if (!confirm(`Unarchive ${band.name}? Its members will be able to select it again.`)) return;
+        const res = await fetch(`/api/superadmin/bands/${band.id}/unarchive`, { method: 'POST' });
+        const body = await res.json();
+        if (!res.ok) { alert(body.error || 'Could not unarchive that band.'); return; }
+        await loadSuperAdminBands();
+    }
+});
+
 async function loadSuperAdminBands() {
     const res = await fetch('/api/superadmin/bands');
     if (!res.ok) return;
-    const bands = await res.json();
-    allBandsCache = bands;
+    allBandsCache = await res.json();
     renderAddUserBandCheckboxes();
-    const tbody = document.getElementById('superadmin-bands-body');
-    tbody.innerHTML = '';
-    for (const b of bands) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td>${b.name}</td>
-            <td>${b.slug}</td>
-            <td>${new Date(b.createdAt).toLocaleDateString()}</td>
-            <td>${b.isArchived ? 'Archived' : 'Active'}</td>
-            <td></td>
-        `;
-        const actionBtn = document.createElement('button');
-        actionBtn.className = 'remove-btn';
-        actionBtn.textContent = b.isArchived ? 'Unarchive' : 'Archive';
-        actionBtn.addEventListener('click', () => toggleBandArchive(b.id, b.name, b.isArchived));
-        tr.lastElementChild.appendChild(actionBtn);
-        tbody.appendChild(tr);
-    }
-    if (bands.length === 0) tbody.innerHTML = '<tr><td colspan="5">No bands yet.</td></tr>';
+    if (!superAdminBandsGrid) renderSuperAdminBandsGrid();
+    else superAdminBandsGrid.setRows(visibleBands());
 }
 
-async function toggleBandArchive(id, name, isArchived) {
-    const verb = isArchived ? 'unarchive' : 'archive';
-    const warning = isArchived
-        ? `Unarchive ${name}? Its members will be able to select it again.`
-        : `Archive ${name}? Its Band Admins and Users will no longer be able to select it (their other bands, if any, are unaffected). Nothing is deleted - you can unarchive it later.`;
-    if (!confirm(warning)) return;
-    const res = await fetch(`/api/superadmin/bands/${id}/${verb}`, { method: 'POST' });
-    const body = await res.json();
-    if (!res.ok) {
-        alert(body.error || `Could not ${verb} that band.`);
-        return;
-    }
-    loadSuperAdminBands();
+['band-filter-onboard', 'band-filter-candidate', 'band-filter-archived'].forEach((id) => {
+    document.getElementById(id).addEventListener('change', () => {
+        if (superAdminBandsGrid) superAdminBandsGrid.setRows(visibleBands());
+    });
+});
+
+let archiveBandTarget = null;
+function openArchiveBandModal(band) {
+    archiveBandTarget = band;
+    document.getElementById('band-archive-modal-name').textContent = band.name;
+    document.getElementById('band-archive-notes-input').value = '';
+    document.getElementById('band-archive-modal-backdrop').hidden = false;
 }
+function closeArchiveBandModal() {
+    document.getElementById('band-archive-modal-backdrop').hidden = true;
+    archiveBandTarget = null;
+}
+document.getElementById('band-archive-modal-close').addEventListener('click', closeArchiveBandModal);
+document.getElementById('band-archive-cancel-btn').addEventListener('click', closeArchiveBandModal);
+document.getElementById('band-archive-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'band-archive-modal-backdrop') closeArchiveBandModal(); });
+document.getElementById('band-archive-continue-btn').addEventListener('click', async () => {
+    if (!archiveBandTarget) return;
+    const notes = document.getElementById('band-archive-notes-input').value.trim();
+    const res = await fetch(`/api/superadmin/bands/${archiveBandTarget.id}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes })
+    });
+    const body = await res.json();
+    if (!res.ok) { alert(body.error || 'Could not archive that band.'); return; }
+    closeArchiveBandModal();
+    await loadSuperAdminBands();
+});
 
 document.getElementById('add-band-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -639,7 +712,7 @@ function renderUserManage(container, u) {
     // SuperAdmin sees/manages every band without needing a membership) ---
     if (!u.isSuperAdmin) {
         const memberBandIds = new Set(u.memberships.map((m) => m.bandId));
-        const available = allBandsCache.filter((b) => !b.isArchived && !memberBandIds.has(b.id));
+        const available = allBandsCache.filter((b) => !b.isArchived && b.isOnboarded && !memberBandIds.has(b.id));
         if (available.length > 0) {
             const addHeading = document.createElement('h4');
             addHeading.textContent = 'Add to a band';
@@ -703,7 +776,7 @@ function renderAddUserBandCheckboxes() {
     container.innerHTML = '';
     const list = document.createElement('div');
     list.className = 'band-checkbox-list';
-    for (const b of allBandsCache.filter((b) => !b.isArchived)) {
+    for (const b of allBandsCache.filter((b) => !b.isArchived && b.isOnboarded)) {
         const label = document.createElement('label');
         label.innerHTML = `<input type="checkbox" value="${b.id}"> ${escapeHtml(b.name)}`;
         list.appendChild(label);
