@@ -440,12 +440,21 @@ function renderActsList() {
         <tr>
             <td>${escapeHtml(a.name)}${a.isDefault ? ' <span class="save-note">(default)</span>' : ''}</td>
             <td><button type="button" class="act-edit-btn" data-id="${a.id}">Edit</button></td>
-            <td></td>
+            <td><button type="button" class="act-stage-plot-link-btn" data-id="${a.id}">Stage Plot</button></td>
         </tr>
     `).join('') || '<tr><td colspan="3" class="save-note">No acts yet.</td></tr>';
 
     body.querySelectorAll('.act-edit-btn').forEach((btn) => {
         btn.addEventListener('click', () => openActModal(acts.find((a) => a.id === btn.dataset.id)));
+    });
+    // Direct link straight to Stage Plot - the only other way in is
+    // opening Edit on an Act, then scrolling past the whole Act form and
+    // Gear List to find it at the very bottom of that modal.
+    body.querySelectorAll('.act-stage-plot-link-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const act = acts.find((a) => a.id === btn.dataset.id);
+            if (act) window.openStagePlotEditor(act.id, act.name);
+        });
     });
 }
 
