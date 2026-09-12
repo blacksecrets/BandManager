@@ -13,6 +13,18 @@
         div.textContent = str ?? '';
         return div.innerHTML;
     }
+    // Fields with a direct, unambiguous 1:1 Gig property - date/time
+    // fields the flyer starts pre-filled from GigDateTimeFormatting's own
+    // display strings, so they round-trip through GigsController.Update's
+    // parsing the same way. "tickets" and "with-N" are deliberately
+    // excluded: tickets is derived from three different Gig fields
+    // depending on which ticket mode is set (no single field to write an
+    // edited flyer string back into), and a with-act's flyer text is just
+    // its name with no way to recover which GigWithBand row (or URL) it
+    // came from - writing either back risks silently corrupting data
+    // instead of just skipping a sync a user didn't ask for.
+    const GIG_SYNC_ELIGIBLE_KEYS = ['title', 'venue', 'address', 'date', 'doorsTime', 'openerTime', 'headlinerTime'];
+
     function catalogFileUrl(relPath) {
         return '/' + String(relPath || '').replace(/\\/g, '/').replace(/^data\/catalog\//, 'catalog-files/');
     }
@@ -234,6 +246,10 @@
                                 <span class="flyer-style-toggles flyer-style-toggles-image">
                                     <label class="checkbox-label" title="Skew"><input type="checkbox" data-skew ${field.skew ? 'checked' : ''}> Skew</label>
                                 </span>` : ''}
+                            ${gigRef && GIG_SYNC_ELIGIBLE_KEYS.includes(field.key) ? `
+                                <label class="checkbox-label flyer-field-sync-checkbox" title="When saving, also update the Gig's own ${escapeHtml(field.label)}">
+                                    <input type="checkbox" data-sync-to-gig ${field.syncToGig !== false ? 'checked' : ''}> Save this to the Gig
+                                </label>` : ''}
                             <span class="flyer-field-hint">drag to move &middot; drag &#8690; to resize &middot; drag &#8635; to rotate</span>
                         </div>
                     `;
@@ -245,6 +261,8 @@
                     row.querySelector('[data-included]').addEventListener('change', (e) => { field.included = e.target.checked; renderPreview(); });
                     const valueInput = row.querySelector('[data-value]');
                     if (valueInput) valueInput.addEventListener('input', (e) => { field.value = e.target.value; renderPreview(); });
+                    const syncCheckbox = row.querySelector('[data-sync-to-gig]');
+                    if (syncCheckbox) syncCheckbox.addEventListener('change', (e) => { field.syncToGig = e.target.checked; });
                     const mediaSlot = row.querySelector('[data-media-slot]');
                     if (mediaSlot) {
                         mediaSlot.appendChild(buildMediaSlotControl({
@@ -491,6 +509,18 @@
 
             document.getElementById('flyer-save-btn').addEventListener('click', async () => {
                 const status = document.getElementById('flyer-editor-status');
+
+                // Collect which eligible fields are both checked and
+                // actually included/filled-in on the flyer - an unchecked
+                // or blank field is never synced, and confirming names
+                // exactly what's about to change before anything is sent.
+                const syncFields = fields.filter((f) =>
+                    GIG_SYNC_ELIGIBLE_KEYS.includes(f.key) && f.syncToGig !== false && f.included && (f.value || '').trim());
+                if (syncFields.length > 0) {
+                    const names = syncFields.map((f) => f.label).join(', ');
+                    if (!confirm(`Also update the Gig's own ${names}? This can't be undone.`)) return;
+                }
+
                 const publish = document.getElementById('flyer-publish-checkbox').checked;
                 status.textContent = publish
                     ? 'Saving... this can take several seconds while it publishes to the site.'
@@ -514,6 +544,28 @@
                 });
                 const resBody = await res.json().catch(() => ({}));
                 if (!res.ok) { status.textContent = resBody.error || 'Could not save the flyer.'; return; }
+
+                if (syncFields.length > 0) {
+                    const gigPayload = {};
+                    for (const f of syncFields) gigPayload[f.key] = f.value.trim();
+                    const gigRes = await fetch(`/api/gigs/${encodeURIComponent(gigRef)}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(gigPayload)
+                    });
+                    // Update saves the Gig before attempting its own live-site
+                    // push, so a 502 here still means the Gig's fields were
+                    // updated - only a 400 (bad input, e.g. an edited date
+                    // field no longer in a parseable format) or 404 (Gig
+                    // gone) means the sync itself didn't happen.
+                    if (gigRes.status === 400 || gigRes.status === 404) {
+                        const gigBody = await gigRes.json().catch(() => ({}));
+                        status.textContent = `Flyer saved, but could not update the Gig: ${gigBody.error || 'unknown error'}`;
+                        await new Promise((r) => setTimeout(r, 2500));
+                    } else if (!gigRes.ok) {
+                        const gigBody = await gigRes.json().catch(() => ({}));
+                        status.textContent = `Flyer saved and the Gig updated, but couldn't push to the site: ${gigBody.error || 'unknown error'}`;
+                        await new Promise((r) => setTimeout(r, 2500));
+                    }
+                }
                 close(resBody);
             });
         });
