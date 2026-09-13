@@ -52,6 +52,21 @@
             </div>
             <p id="payout-percentages-status" class="save-note"></p>
         </section>
+
+        <section class="platform-card" id="financial-summary-content" hidden>
+            <h2>Financial Summary</h2>
+            <p class="save-note">Year/quarter earnings rollup, for tax time - beyond any single gig's own payout record.</p>
+
+            <label class="financial-summary-year-picker">Year
+                <select id="financial-summary-year-select"></select>
+            </label>
+
+            <div id="financial-summary-quarters"></div>
+            <p id="financial-summary-total" class="financial-summary-total"></p>
+
+            <h3>By member (at each member's current split)</h3>
+            <div id="financial-summary-members-grid"></div>
+        </section>
     </main>
 
     <script src="/assets/dataGrid.js"></script>

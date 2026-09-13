@@ -214,6 +214,64 @@ public class AccountingController(ApplicationDbContext db, IActiveBandAccessor a
         return Ok(result);
     }
 
+    // D13: year/quarter earnings rollup, beyond the existing per-gig view -
+    // BandAdmin-only (unlike my-payouts/gigs/{gigRef} above, which any
+    // member can see their own slice of) since this is the whole band's
+    // gross figures, not just the caller's own cut. Per-member totals use
+    // each member's CURRENT PayoutRecipient.Percentage applied
+    // retroactively across the whole year, same live-calculation
+    // convention GetMyPayouts/GetGigPayout already use - there's no
+    // historical snapshot of what the split was on any past date, so a
+    // member who joined partway through the year still shows a total as
+    // if they'd always held their current share. Only gigs with a real,
+    // non-null payout amount count.
+    [HttpGet("summary")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> GetFinancialSummary([FromQuery] int year)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        if (year < 2000 || year > 2100) return BadRequest(new { error = "Not a valid year." });
+
+        var rows = await db.GigPayouts.AsNoTracking()
+            .Where(p => p.Gig.BandId == band.Id && p.Amount != null && p.Gig.Date.Year == year)
+            .Select(p => new { p.Gig.Date, Amount = p.Amount!.Value })
+            .ToListAsync();
+
+        var quarters = Enumerable.Range(1, 4).Select(q =>
+        {
+            var inQuarter = rows.Where(r => (r.Date.Month - 1) / 3 + 1 == q).ToList();
+            return new { quarter = q, grossAmount = inQuarter.Sum(r => r.Amount), gigCount = inQuarter.Count };
+        }).ToList();
+
+        var roster = await db.PayoutRecipients.AsNoTracking()
+            .Where(p => p.BandId == band.Id).Include(p => p.User).ToListAsync();
+        var totalGross = rows.Sum(r => r.Amount);
+        var byMember = roster.Select(r => new
+        {
+            userId = r.UserId,
+            name = r.User.DisplayName,
+            r.Percentage,
+            totalReceived = Math.Round(totalGross * r.Percentage / 100m, 2)
+        }).OrderByDescending(m => m.totalReceived).ToList();
+
+        return Ok(new { year, totalGross, gigCount = rows.Count, quarters, byMember });
+    }
+
+    [HttpGet("summary/years")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> GetFinancialSummaryYears()
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var years = await db.GigPayouts.AsNoTracking()
+            .Where(p => p.Gig.BandId == band.Id && p.Amount != null)
+            .Select(p => p.Gig.Date.Year)
+            .Distinct().OrderByDescending(y => y).ToListAsync();
+        return Ok(years);
+    }
+
     [HttpGet("gigs/{gigRef}")]
     [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> GetGigPayout(string gigRef)

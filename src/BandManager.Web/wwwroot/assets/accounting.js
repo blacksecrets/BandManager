@@ -38,6 +38,55 @@ async function loadAccounting() {
     populateDefaultSelects(data);
     renderRosterCheckboxes();
     renderPercentagesGrid();
+
+    document.getElementById('financial-summary-content').hidden = false;
+    await loadFinancialSummaryYears();
+}
+
+// --- Financial Summary (D13) ---
+const QUARTER_MONTHS = ['Jan-Mar', 'Apr-Jun', 'Jul-Sep', 'Oct-Dec'];
+const usdFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+
+async function loadFinancialSummaryYears() {
+    const select = document.getElementById('financial-summary-year-select');
+    const years = await fetch('/api/accounting/summary/years').then((r) => (r.ok ? r.json() : []));
+    const currentYear = new Date().getFullYear();
+    // Always includes the current year even with zero payout data yet -
+    // a band just starting out shouldn't see an empty dropdown with
+    // nothing to pick.
+    const allYears = years.includes(currentYear) ? years : [currentYear, ...years];
+    select.innerHTML = allYears.map((y) => `<option value="${y}">${y}</option>`).join('');
+    select.value = String(currentYear);
+    await loadFinancialSummary();
+}
+document.getElementById('financial-summary-year-select').addEventListener('change', loadFinancialSummary);
+
+async function loadFinancialSummary() {
+    const year = document.getElementById('financial-summary-year-select').value;
+    const res = await fetch(`/api/accounting/summary?year=${year}`);
+    if (!res.ok) return;
+    const data = await res.json();
+
+    const quartersBox = document.getElementById('financial-summary-quarters');
+    quartersBox.innerHTML = `<div class="financial-summary-quarter-grid">${data.quarters.map((q) => `
+        <div class="financial-summary-quarter-tile">
+            <span class="financial-summary-quarter-label">Q${q.quarter} <span class="save-note">(${QUARTER_MONTHS[q.quarter - 1]})</span></span>
+            <span class="financial-summary-quarter-amount">${usdFmt.format(q.grossAmount)}</span>
+            <span class="save-note">${q.gigCount} gig${q.gigCount === 1 ? '' : 's'}</span>
+        </div>`).join('')}</div>`;
+
+    document.getElementById('financial-summary-total').textContent =
+        `${data.year} total: ${usdFmt.format(data.totalGross)} across ${data.gigCount} gig${data.gigCount === 1 ? '' : 's'}`;
+
+    DataGrid.render(document.getElementById('financial-summary-members-grid'), {
+        columns: [
+            { key: 'name', label: 'Member', render: (m) => escapeHtmlAccounting(m.name) },
+            { key: 'percentage', label: 'Current %', render: (m) => `${m.percentage}%` },
+            { key: 'totalReceived', label: 'Total', sortValue: (m) => m.totalReceived, render: (m) => usdFmt.format(m.totalReceived) }
+        ],
+        rows: data.byMember, getRowId: (m) => m.userId,
+        searchable: false, pageSize: 1000, emptyMessage: 'No payout recipients set up yet.'
+    });
 }
 
 function populateDefaultSelects(data) {
