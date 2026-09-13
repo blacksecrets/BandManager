@@ -32,6 +32,28 @@
         return [v.addressLine1, [v.city, v.state].filter(Boolean).join(', '), v.postalCode].filter(Boolean).join(', ');
     }
 
+    // D10: a soft, non-blocking heads-up when the picked date has a band
+    // member marked Unavailable - exposed on window since gig-sets.js's
+    // separate Edit Gig form (a static form, not built by this modal)
+    // needs the exact same check and shouldn't duplicate it. Called on
+    // the date field's own change event by both forms, not on submit -
+    // "prevent bad input up front" means surfacing this before Save is
+    // even clicked, not after.
+    async function renderAvailabilityWarning(dateStr, warningEl) {
+        if (!dateStr) { warningEl.hidden = true; return; }
+        let conflicts = [];
+        try {
+            const res = await fetch(`/api/gigs/availability-conflicts?date=${dateStr}`);
+            conflicts = res.ok ? await res.json() : [];
+        } catch { conflicts = []; }
+
+        if (conflicts.length === 0) { warningEl.hidden = true; return; }
+        const names = conflicts.map((c) => escapeHtml(c.name)).join(', ');
+        warningEl.innerHTML = `&#9888; Marked unavailable this date: ${names}`;
+        warningEl.hidden = false;
+    }
+    window.checkGigDateAvailability = renderAvailabilityWarning;
+
     // --- With-acts control (same shape as dashboard.js's buildWithActsControl -
     // duplicated here since this modal is shared across pages that don't all
     // load dashboard.js, matching this codebase's existing per-file convention.)
@@ -99,6 +121,7 @@
                     <label id="add-gig-act-label" hidden>Act <select name="actId" id="add-gig-act-select"></select></label>
                     <label id="add-gig-promoter-label" hidden>Promoter <select name="promoterId" id="add-gig-promoter-select"><option value="">None</option></select></label>
                     <label>Date <input type="date" name="date" required></label>
+                    <p id="add-gig-availability-warning" class="field-warning" hidden></p>
                     <label>Time (optional) <input type="text" name="time" placeholder="e.g. Doors: 7PM - Show: 8PM" maxlength="100"></label>
                     <label>Doors time (optional) <input type="text" name="doorsTime" placeholder="e.g. 7:00 PM" maxlength="60"></label>
                     <label>Opener start time (optional) <input type="text" name="openerTime" placeholder="e.g. 8:00 PM" maxlength="60"></label>
@@ -142,6 +165,10 @@
         }
         form.querySelectorAll('input[name="ticketMode"]').forEach((r) => r.addEventListener('change', updateTicketModeUI));
         updateTicketModeUI();
+
+        form.date.addEventListener('change', () => {
+            renderAvailabilityWarning(form.date.value, document.getElementById('add-gig-availability-warning'));
+        });
 
         document.getElementById('add-gig-venue-manual-toggle').addEventListener('click', () => {
             clearSelectedVenue();
@@ -398,6 +425,7 @@
         document.getElementById('add-gig-venue-manual').hidden = true;
         document.getElementById('add-gig-status').textContent = '';
         document.getElementById('add-gig-venue-status').textContent = '';
+        document.getElementById('add-gig-availability-warning').hidden = true;
         ['new-venue-name', 'new-venue-address1', 'new-venue-city', 'new-venue-state', 'new-venue-zip', 'new-venue-phone', 'new-venue-website']
             .forEach((id) => { document.getElementById(id).value = ''; });
     }

@@ -203,6 +203,16 @@
 .cred-form button:hover { background: #ff3333; }
 .save-note { font-size: 0.8rem; color: #9fdca8; }
 
+.field-warning {
+    font-size: 0.82rem;
+    color: #f0c674;
+    background: rgba(240, 198, 116, 0.1);
+    border: 1px solid rgba(240, 198, 116, 0.35);
+    border-radius: 5px;
+    padding: 6px 10px;
+    margin: -4px 0 4px;
+}
+
 .auto-setup-tool {
     background: rgba(46, 139, 61, 0.08);
     border: 1px solid #2e8b3d;

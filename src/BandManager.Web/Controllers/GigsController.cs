@@ -98,6 +98,28 @@ public class GigsController(
         return (band, null);
     }
 
+    // The D10 availability-conflict warning: a soft heads-up (not a
+    // block) shown while picking a gig's date, either in the Add or Edit
+    // Gig form - anyone can check any date's conflicts (BandMember, not
+    // BandAdmin-only), same as Availability's own read side. Only
+    // Unavailable counts as a conflict worth surfacing; Tentative isn't
+    // a real conflict and would just add noise to a warning that's
+    // supposed to be about preventable mistakes.
+    [HttpGet("availability-conflicts")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> AvailabilityConflicts([FromQuery] DateOnly date)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var conflicts = await db.Availabilities.AsNoTracking()
+            .Where(a => a.BandId == band.Id && a.Date == date && a.Status == AvailabilityStatus.Unavailable)
+            .Include(a => a.User)
+            .Select(a => new { userId = a.UserId, name = a.User.DisplayName, note = a.Note })
+            .ToListAsync();
+        return Ok(conflicts);
+    }
+
     // Resolves the gig's Act: the picked one if it's a real Act on this
     // band, otherwise the band's IsDefault Act - every gig always ends up
     // with one, matching Gig.ActId's doc comment.

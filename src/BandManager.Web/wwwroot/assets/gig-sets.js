@@ -383,6 +383,7 @@ document.getElementById('gig-set-edit-btn').addEventListener('click', async () =
     form.venueUrl.value = gig.venueUrl || '';
     form.address.value = gig.address || '';
     form.date.value = gig.dateIso || '';
+    window.checkGigDateAvailability(form.date.value, document.getElementById('edit-gig-availability-warning'));
     form.time.value = gig.time || '';
     form.doorsTime.value = gig.doorsTime || '';
     form.openerTime.value = gig.openerTime || '';
@@ -424,6 +425,15 @@ document.querySelectorAll('#edit-gig-form input[name="ticketMode"]').forEach((r)
         form.ticketsUrl.disabled = form.ticketMode.value !== 'url';
         form.customTicketsText.disabled = form.ticketMode.value !== 'custom';
     });
+});
+
+// D10: same non-blocking availability heads-up as the Add Gig modal -
+// window.checkGigDateAvailability comes from addGigModal.js, which this
+// page already loads. Checked both on manual date changes and once right
+// after the form is populated with the gig's existing date (that initial
+// fill doesn't fire a "change" event on its own).
+document.getElementById('edit-gig-form').date.addEventListener('change', (e) => {
+    window.checkGigDateAvailability(e.target.value, document.getElementById('edit-gig-availability-warning'));
 });
 
 document.getElementById('edit-gig-form').addEventListener('submit', async (e) => {
