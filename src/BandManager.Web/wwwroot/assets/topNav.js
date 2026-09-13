@@ -13,6 +13,17 @@
 // didn't exist yet depending on which of two independent fetches resolved
 // first, so it's simpler and safer as one script with one fetch sequence.
 (function () {
+    // Piggybacks modalHoverHelp.js onto every page that already loads this
+    // script, same "one script tag, no per-page markup changes needed"
+    // approach this file's own doc comment describes - avoids adding a
+    // second <script> tag to every one of the ~20 pages that has a
+    // .detail-modal-close button.
+    if (!document.querySelector('script[src="/assets/modalHoverHelp.js"]')) {
+        const s = document.createElement('script');
+        s.src = '/assets/modalHoverHelp.js';
+        document.head.appendChild(s);
+    }
+
     const NAV_SECTIONS = [
         {
             label: 'Band flow', bandScoped: true, items: [
