@@ -376,7 +376,7 @@ async function loadUspsCredentials() {
     const creds = await res.json();
     const badge = document.getElementById('usps-status-badge');
     const form = document.getElementById('usps-cred-form');
-    if (creds) {
+    if (creds.configured) {
         badge.textContent = 'Configured';
         badge.classList.add('configured');
         form.clientId.value = creds.clientId || '';
@@ -417,7 +417,7 @@ async function loadGoogleMapsCredentials() {
     const creds = await res.json();
     const badge = document.getElementById('google-maps-status-badge');
     const form = document.getElementById('google-maps-cred-form');
-    if (creds) {
+    if (creds.configured) {
         badge.textContent = 'Configured';
         badge.classList.add('configured');
         form.apiKey.value = creds.apiKey || '';

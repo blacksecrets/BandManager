@@ -257,7 +257,11 @@ public class SuperAdminController(
     public async Task<IActionResult> GetUspsCredentials()
     {
         var creds = await SongSearchService.GetCredentialAsync(db, cipher, AddressLookupService.CredentialKey);
-        return Ok(creds);
+        // Never Ok(null) - a null body content-negotiates to 204 No Content,
+        // which the frontend's res.json() can't parse (see
+        // AddressLookupController.Configured, which sidesteps this the same
+        // way).
+        return Ok(new { configured = creds is not null, clientId = creds?.GetValueOrDefault("clientId"), clientSecret = creds?.GetValueOrDefault("clientSecret") });
     }
 
     [HttpPut("usps-credentials")]
@@ -287,7 +291,8 @@ public class SuperAdminController(
     public async Task<IActionResult> GetGoogleMapsCredentials()
     {
         var creds = await SongSearchService.GetCredentialAsync(db, cipher, DrivingDistanceService.CredentialKey);
-        return Ok(creds);
+        // Never Ok(null) - see the comment on GetUspsCredentials above.
+        return Ok(new { configured = creds is not null, apiKey = creds?.GetValueOrDefault("apiKey") });
     }
 
     [HttpPut("google-maps-credentials")]
