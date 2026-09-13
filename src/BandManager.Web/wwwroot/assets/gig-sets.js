@@ -1,6 +1,17 @@
 let gigs = [];
 let selectedGigRef = null;
 let bandMembers = [];
+let isBandAdmin = false;
+
+// Buttons that only a BandAdmin/SuperAdmin can actually complete
+// server-side - hidden (not just left clickable-then-rejected) for a
+// plain member so there's no dead-end click, and so the page visually
+// separates "yours to use" from "admin only" instead of showing all nine
+// gig-detail actions with identical weight. Left visible either way:
+// Copy/Assign a Setlist, Print Setlist, Save as Spotify Playlist, Gig
+// Prep, and Accounting (its own view/edit split already exists) - every
+// band member can genuinely use those.
+const ADMIN_ONLY_BUTTON_IDS = ['add-gig-btn', 'gig-set-edit-btn', 'gig-set-flyer-btn', 'gig-set-select-flyer-btn', 'gig-set-archive-btn'];
 
 function escapeHtml(str) {
     const div = document.createElement('div');
@@ -23,6 +34,12 @@ async function init() {
     document.getElementById('gig-sets-no-band').hidden = hasBand;
     document.getElementById('gig-sets-content').hidden = !hasBand;
     if (!hasBand) return;
+
+    isBandAdmin = !!me.isAdmin;
+    for (const id of ADMIN_ONLY_BUTTON_IDS) {
+        const el = document.getElementById(id);
+        if (el) el.hidden = !isBandAdmin;
+    }
 
     await loadGigs();
     const membersRes = await fetch('/api/profile/band-members');
@@ -683,7 +700,7 @@ function renderArchivedGigsModal() {
                             <td>${escapeHtml(g.title)}</td>
                             <td>${escapeHtml(g.venue || '')}</td>
                             <td>${escapeHtml(g.date || '')}</td>
-                            <td><button type="button" class="archived-gig-unarchive-btn" data-gig-ref="${escapeHtml(g.gigRef)}" title="Bring this gig and all of its stuff back!">Unarchive</button></td>
+                            <td>${isBandAdmin ? `<button type="button" class="archived-gig-unarchive-btn" data-gig-ref="${escapeHtml(g.gigRef)}" title="Bring this gig and all of its stuff back!">Unarchive</button>` : ''}</td>
                         </tr>
                     `).join('')}
                 </tbody>
