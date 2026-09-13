@@ -84,6 +84,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<TestCase> TestCases => Set<TestCase>();
 
+    public DbSet<ControlVisibilityRule> ControlVisibilityRules => Set<ControlVisibilityRule>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -528,6 +530,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<TestCase>(b =>
         {
             b.HasKey(x => x.Key);
+        });
+
+        builder.Entity<ControlVisibilityRule>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.UpdatedByUser).WithMany().HasForeignKey(x => x.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.BandId, x.ControlKey, x.Role }).IsUnique();
         });
     }
 }

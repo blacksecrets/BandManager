@@ -81,7 +81,12 @@ public class AuthController(
     public async Task<IActionResult> Logout()
     {
         await signInManager.SignOutAsync();
-        activeBand.Clear();
+        // Session.Clear() (not just activeBand.Clear()) - the session
+        // cookie survives sign-out on its own, so anything else cached in
+        // it (ControlVisibilityAccessor's per-band rule cache) would
+        // otherwise persist right through a "log out and back in", which
+        // is exactly the moment that cache is supposed to refresh.
+        HttpContext.Session.Clear();
         return Redirect("/login.html");
     }
 

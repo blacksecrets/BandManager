@@ -86,6 +86,8 @@ builder.Services.AddSession(options =>
 });
 
 builder.Services.AddScoped<IActiveBandAccessor, ActiveBandAccessor>();
+builder.Services.AddScoped<IControlVisibilityAccessor, ControlVisibilityAccessor>();
+builder.Services.AddScoped<BandManager.Data.Services.ControlVisibilityService>();
 
 // Forgot-password emails. LoggingEmailSender is a dev-mode stand-in (logs
 // the reset link instead of sending it) - swap this registration for a

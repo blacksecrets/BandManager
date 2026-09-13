@@ -4,14 +4,23 @@ let bandMembers = [];
 let isBandAdmin = false;
 
 // Buttons that only a BandAdmin/SuperAdmin can actually complete
-// server-side - hidden (not just left clickable-then-rejected) for a
-// plain member so there's no dead-end click, and so the page visually
-// separates "yours to use" from "admin only" instead of showing all nine
-// gig-detail actions with identical weight. Left visible either way:
-// Copy/Assign a Setlist, Print Setlist, Save as Spotify Playlist, Gig
+// server-side by default - hidden (not just left clickable-then-rejected)
+// for a plain member so there's no dead-end click, and so the page
+// visually separates "yours to use" from "admin only" instead of showing
+// all nine gig-detail actions with identical weight. Left visible either
+// way: Copy/Assign a Setlist, Print Setlist, Save as Spotify Playlist, Gig
 // Prep, and Accounting (its own view/edit split already exists) - every
-// band member can genuinely use those.
-const ADMIN_ONLY_BUTTON_IDS = ['add-gig-btn', 'gig-set-edit-btn', 'gig-set-flyer-btn', 'gig-set-select-flyer-btn', 'gig-set-archive-btn'];
+// band member can genuinely use those. Each DOM id maps to a ControlKey
+// the DB-driven visibility system (/api/control-visibility) can override
+// per band - see ControlVisibilityDefaults.cs for the shipped default,
+// which matches this hardcoded fallback exactly.
+const ADMIN_ONLY_BUTTON_IDS = {
+    'add-gig-btn': 'gig-sets:add-gig-btn',
+    'gig-set-edit-btn': 'gig-sets:edit-btn',
+    'gig-set-flyer-btn': 'gig-sets:flyer-btn',
+    'gig-set-select-flyer-btn': 'gig-sets:select-flyer-btn',
+    'gig-set-archive-btn': 'gig-sets:archive-btn'
+};
 
 function escapeHtml(str) {
     const div = document.createElement('div');
@@ -36,9 +45,15 @@ async function init() {
     if (!hasBand) return;
 
     isBandAdmin = !!me.isAdmin;
-    for (const id of ADMIN_ONLY_BUTTON_IDS) {
+    let visibility = {};
+    try {
+        const visRes = await fetch('/api/control-visibility');
+        if (visRes.ok) visibility = await visRes.json();
+    } catch { /* fall through to the hardcoded default below */ }
+    for (const [id, controlKey] of Object.entries(ADMIN_ONLY_BUTTON_IDS)) {
         const el = document.getElementById(id);
-        if (el) el.hidden = !isBandAdmin;
+        if (!el) continue;
+        el.hidden = controlKey in visibility ? !visibility[controlKey] : !isBandAdmin;
     }
 
     await loadGigs();
