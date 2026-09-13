@@ -132,6 +132,25 @@ public class VenueCampaignsController(ApplicationDbContext db, IActiveBandAccess
         var (dueNow, dueDate, dueStep) = ComputeDue(campaign, steps);
         var primaryContact = campaign.Venue.Contacts.FirstOrDefault(c => c.IsPrimary) ?? campaign.Venue.Contacts.FirstOrDefault();
 
+        // D15: "have we played here before, how'd it go, what did we net" -
+        // read straight off Gig.VenueId rather than derived from this one
+        // campaign row, since a campaign only ever tracks its own CURRENT/
+        // most-recent BookedGigId (see VenueCampaign's own doc comment on
+        // reopening in place) and would miss any earlier booking at the
+        // same venue once the campaign cycles through reject/retry/rebook.
+        var gigHistory = await db.Gigs.AsNoTracking()
+            .Where(g => g.BandId == bandId && g.VenueId == campaign.VenueId)
+            .OrderByDescending(g => g.Date)
+            .Select(g => new
+            {
+                gigRef = g.Ref,
+                title = g.Title,
+                date = g.Date,
+                isArchived = g.IsArchived,
+                amount = db.GigPayouts.Where(p => p.GigId == g.Id).Select(p => p.Amount).FirstOrDefault()
+            })
+            .ToListAsync();
+
         return Ok(new
         {
             id = campaign.Id,
@@ -156,6 +175,14 @@ public class VenueCampaignsController(ApplicationDbContext db, IActiveBandAccess
                 notes = campaign.Venue.Notes,
                 contacts = campaign.Venue.Contacts.Select(c => new { id = c.Id, name = c.Name, title = c.Title, email = c.Email, phone = c.Phone, isPrimary = c.IsPrimary })
             },
+            gigHistory = gigHistory.Select(g => new
+            {
+                g.gigRef,
+                g.title,
+                date = g.date.ToString("yyyy-MM-dd"),
+                g.isArchived,
+                amount = g.amount
+            }),
             dueNow,
             dueDate,
             nextStep = dueStep is null ? null : new

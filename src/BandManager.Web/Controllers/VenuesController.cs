@@ -14,6 +14,7 @@ public record SaveVenueRequest(
     string Name, string? AddressLine1, string? City, string? State, string? PostalCode, string? Phone, string? Website, string? Notes,
     int? AudienceCapacity, decimal? StageWidthFeet, decimal? StageDepthFeet, Guid? DefaultPromoterId);
 public record SaveVenueContactRequest(string? Name, string? Title, string? Email, string? Phone, bool IsPrimary);
+public record SetVenueNotesRequest(string? Notes);
 
 /// <summary>
 /// This band's venue book - read/write open to any BandMember (booking
@@ -129,6 +130,24 @@ public class VenuesController(ApplicationDbContext db, IActiveBandAccessor activ
         venue.DefaultPromoterId = request.DefaultPromoterId;
         await db.SaveChangesAsync();
         return Ok(Serialize(venue));
+    }
+
+    // D15: notes-only save, separate from the full Update above - the
+    // relationship-history view (venue-campaigns.js) only ever has the
+    // campaign detail's trimmed-down venue shape on hand (no capacity/
+    // stage dimensions/promoter), so routing a notes edit through the
+    // full Update would silently null those fields out for anything it
+    // doesn't send.
+    [HttpPut("{id:guid}/notes")]
+    public async Task<IActionResult> UpdateNotes(Guid id, [FromBody] SetVenueNotesRequest request)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var venue = await db.Venues.FirstOrDefaultAsync(v => v.Id == id && v.BandId == bandId);
+        if (venue is null) return NotFound(new { error = "Not found" });
+
+        venue.Notes = Clean(request.Notes);
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, notes = venue.Notes });
     }
 
     [HttpDelete("{id:guid}")]

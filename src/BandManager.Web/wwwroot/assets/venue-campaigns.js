@@ -10,7 +10,14 @@ function escapeHtml(str) {
 
 function fmtDate(iso) {
     if (!iso) return '—';
-    return new Date(iso).toLocaleDateString();
+    // A bare date-only string ("2026-11-15", as retryDate/dueDate/gigHistory
+    // dates all are) parses as UTC midnight, then toLocaleDateString()
+    // renders it in the browser's own timezone - west of UTC, that's
+    // always the day before. A full timestamp (occurredAt) doesn't have
+    // this problem and is left alone.
+    const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+    const date = dateOnly ? new Date(`${iso}T00:00:00`) : new Date(iso);
+    return date.toLocaleDateString();
 }
 
 const STATUS_LABELS = {
@@ -285,6 +292,28 @@ function renderCampaignDetail(body, c) {
     `;
     body.appendChild(header);
 
+    // D15: relationship notes - already saved on Venue (VenuesController
+    // has had a PUT for this all along), just never surfaced anywhere in
+    // this detail view until now.
+    const notesBox = document.createElement('div');
+    notesBox.className = 'venue-notes-box';
+    notesBox.innerHTML = `
+        <h3>Notes</h3>
+        <textarea id="venue-detail-notes" rows="3" placeholder="e.g. Great room, load-in through the back alley, always pays same night...">${escapeHtml(c.venue.notes || '')}</textarea>
+        <button type="button" id="venue-detail-notes-save-btn">Save notes</button>
+        <p id="venue-detail-notes-status" class="save-note"></p>
+    `;
+    body.appendChild(notesBox);
+    notesBox.querySelector('#venue-detail-notes-save-btn').addEventListener('click', async () => {
+        const status = notesBox.querySelector('#venue-detail-notes-status');
+        status.textContent = 'Saving...';
+        const res = await fetch(`/api/venues/${c.venue.id}/notes`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: notesBox.querySelector('#venue-detail-notes').value })
+        });
+        status.textContent = res.ok ? 'Saved.' : 'Could not save.';
+    });
+
     if (c.venue.contacts.length > 0) {
         const contactsBox = document.createElement('div');
         contactsBox.innerHTML = '<h3>Contacts</h3>';
@@ -339,6 +368,22 @@ function renderCampaignDetail(body, c) {
         body.appendChild(note);
         body.appendChild(renderManualLogForm(c));
     }
+
+    // D15: booking history - straight from Gig.VenueId (see the
+    // controller's own comment on why), not derived from this campaign's
+    // single BookedGigId, so it's accurate even across multiple bookings
+    // over time at the same venue.
+    const bookingBox = document.createElement('div');
+    bookingBox.innerHTML = '<h3>Booking history</h3>';
+    if (c.gigHistory.length === 0) {
+        bookingBox.innerHTML += '<p class="save-note">Never played here yet.</p>';
+    } else {
+        const usdFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+        bookingBox.innerHTML += `<ul class="venue-booking-history-list">${c.gigHistory.map((g) => `
+            <li>${escapeHtml(g.title)} - ${fmtDate(g.date)}${g.isArchived ? ' (archived)' : ''}${g.amount != null ? ` - ${usdFmt.format(g.amount)}` : ''}</li>
+        `).join('')}</ul>`;
+    }
+    body.appendChild(bookingBox);
 
     // History
     const historyBox = document.createElement('div');
