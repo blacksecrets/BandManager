@@ -13,6 +13,7 @@ async function loadBandAdmin() {
     noBandEl.textContent = 'Select a band from the switcher above to manage it.';
     noBandEl.hidden = hasBand;
     document.getElementById('band-info-section').hidden = !hasBand;
+    document.getElementById('band-broadcast-section').hidden = !hasBand;
     document.getElementById('band-branding-section').hidden = !hasBand;
     document.getElementById('band-users-section').hidden = !hasBand;
     document.getElementById('band-roles-section').hidden = !hasBand;
@@ -1187,6 +1188,25 @@ document.getElementById('song-catalog-form').addEventListener('submit', async (e
     if (!res.ok) { status.textContent = body.error || 'Could not save.'; return; }
     status.textContent = isSuperAdminGlobal ? 'Saved.' : 'Submitted for review.';
     await loadSongCatalog();
+});
+
+// --- Announcements (D14) ---
+document.getElementById('broadcast-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('broadcast-status');
+    const message = form.message.value.trim();
+    if (!message) return;
+    if (!confirm(`Send this to every member of this band?\n\n"${message}"`)) return;
+
+    status.textContent = 'Sending...';
+    const res = await fetch('/api/notifications/broadcast', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { status.textContent = body.error || 'Could not send.'; return; }
+    status.textContent = `Sent to ${body.recipientCount} member${body.recipientCount === 1 ? '' : 's'}.`;
+    form.reset();
 });
 
 loadBandAdmin();

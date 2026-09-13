@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record NotificationBulkIdsRequest(List<Guid> Ids);
+public record SendBroadcastRequest(string Message);
 
 /// <summary>
 /// A generic per-user inbox - deliberately not song-specific, even though
@@ -19,8 +20,47 @@ public record NotificationBulkIdsRequest(List<Guid> Ids);
 [ApiController]
 [Route("/api/notifications")]
 [Authorize]
-public class NotificationsController(ApplicationDbContext db) : ControllerBase
+public class NotificationsController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
 {
+    // D14: a BandAdmin/SuperAdmin's "tell everyone at once" tool - every
+    // other Notification here is system-generated off some other event
+    // (a song reviewed, a gig reminder); this is the one kind a person
+    // writes and sends directly. Reuses the exact same per-user inbox
+    // every other notification already uses, rather than a separate
+    // announcements table/UI - the whole point of Kind existing on
+    // Notification in the first place (see the class doc comment).
+    [HttpPost("broadcast")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> SendBroadcast([FromBody] SendBroadcastRequest request)
+    {
+        var bandId = activeBand.GetActiveBandId();
+        if (bandId is null) return BadRequest(new { error = "No active band selected." });
+        var message = request.Message?.Trim();
+        if (string.IsNullOrEmpty(message)) return BadRequest(new { error = "Message is required." });
+        if (message.Length > 2000) return BadRequest(new { error = "Message is too long (2000 characters max)." });
+
+        var senderId = User.GetUserId();
+        if (senderId is null) return Unauthorized();
+        var senderName = await db.Users.Where(u => u.Id == senderId).Select(u => u.DisplayName).FirstOrDefaultAsync() ?? "A Band Admin";
+
+        var memberIds = await db.BandMemberships.Where(m => m.BandId == bandId).Select(m => m.UserId).ToListAsync();
+        foreach (var memberId in memberIds)
+        {
+            // Sent to the admin's own inbox too, same as everyone else's -
+            // it's a record of what was announced and when, not just a
+            // one-way push to other people. Sender name prefixed into the
+            // message itself since Notification has no separate "from"
+            // field to render one - every other Kind here is
+            // system-generated and doesn't need one.
+            db.Notifications.Add(new Notification
+            {
+                UserId = memberId, BandId = bandId, Kind = NotificationKind.Broadcast, Message = $"{senderName}: {message}"
+            });
+        }
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, recipientCount = memberIds.Count });
+    }
+
     [HttpGet]
     public async Task<IActionResult> List()
     {

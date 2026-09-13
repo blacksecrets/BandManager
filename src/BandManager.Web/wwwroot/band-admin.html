@@ -54,6 +54,16 @@
             </form>
         </section>
 
+        <section class="platform-card" id="band-broadcast-section" hidden>
+            <h2>Send an Announcement</h2>
+            <p>Notifies every member of this band at once - shows up in each person's Notifications, same as any other notification.</p>
+            <form id="broadcast-form" class="cred-form">
+                <label>Message <textarea name="message" maxlength="2000" rows="3" required placeholder="e.g. Rehearsal moved to Thursday this week"></textarea></label>
+                <button type="submit">Send to everyone</button>
+                <p id="broadcast-status" class="save-note"></p>
+            </form>
+        </section>
+
         <section class="platform-card" id="band-branding-section" hidden>
             <h2>This band's branding</h2>
             <p>Applied everywhere once this band is selected (by anyone) - background, logo, and favicon all switch over automatically, replacing the BandManager shell's own branding until a different band is picked.</p>
