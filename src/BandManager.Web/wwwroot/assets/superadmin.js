@@ -13,6 +13,7 @@ async function loadSuperAdminPage() {
     document.getElementById('calendar-oauth-section').hidden = false;
     document.getElementById('posting-oauth-section').hidden = false;
     document.getElementById('usps-section').hidden = false;
+    document.getElementById('google-maps-section').hidden = false;
     document.getElementById('admin-branding-section').hidden = false;
     document.getElementById('song-catalog-review-section').hidden = false;
     document.getElementById('flyer-fonts-section').hidden = false;
@@ -26,6 +27,7 @@ async function loadSuperAdminPage() {
     loadCalendarOAuthCredentials();
     loadPostingOAuthCredentials();
     loadUspsCredentials();
+    loadGoogleMapsCredentials();
     loadBranding();
     renderSongImportBandCheckboxes();
     loadFlyerFonts();
@@ -406,6 +408,46 @@ document.getElementById('usps-disconnect-btn').addEventListener('click', async (
     await fetch('/api/superadmin/usps-credentials', { method: 'DELETE' });
     document.getElementById('usps-cred-form').reset();
     loadUspsCredentials();
+});
+
+// --- Google Maps driving distance ---
+async function loadGoogleMapsCredentials() {
+    const res = await fetch('/api/superadmin/google-maps-credentials');
+    if (!res.ok) return;
+    const creds = await res.json();
+    const badge = document.getElementById('google-maps-status-badge');
+    const form = document.getElementById('google-maps-cred-form');
+    if (creds) {
+        badge.textContent = 'Configured';
+        badge.classList.add('configured');
+        form.apiKey.value = creds.apiKey || '';
+        document.getElementById('google-maps-disconnect-tool').hidden = false;
+    } else {
+        badge.textContent = 'Not configured';
+        badge.classList.remove('configured');
+        document.getElementById('google-maps-disconnect-tool').hidden = true;
+    }
+}
+
+document.getElementById('google-maps-cred-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('google-maps-cred-status');
+    const res = await fetch('/api/superadmin/google-maps-credentials', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: form.apiKey.value.trim() })
+    });
+    const body = await res.json();
+    status.textContent = res.ok ? 'Saved.' : (body.error || 'Could not save.');
+    if (res.ok) loadGoogleMapsCredentials();
+});
+
+document.getElementById('google-maps-disconnect-btn').addEventListener('click', async () => {
+    if (!confirm('Remove the Google Maps API key? Trip distances will no longer be calculated until a new key is saved.')) return;
+    await fetch('/api/superadmin/google-maps-credentials', { method: 'DELETE' });
+    document.getElementById('google-maps-cred-form').reset();
+    loadGoogleMapsCredentials();
 });
 
 for (const btn of document.querySelectorAll('.instructions-toggle')) {

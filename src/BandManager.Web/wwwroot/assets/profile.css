@@ -22,6 +22,18 @@
 }
 .checkbox-label input { width: auto; }
 
+.trip-endpoint-fieldset {
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.trip-endpoint-fieldset legend { font-size: 0.8rem; color: #999; padding: 0 4px; }
+.trip-endpoint-manual { display: flex; flex-direction: column; gap: 8px; }
+.trip-endpoint-manual[hidden] { display: none; }
+
 .field-error { color: #d98080; font-size: 0.8rem; margin-top: 3px; display: block; }
 .field-error[hidden] { display: none; }
 

@@ -78,6 +78,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<GigPayout> GigPayouts => Set<GigPayout>();
     public DbSet<GigPayoutRecipient> GigPayoutRecipients => Set<GigPayoutRecipient>();
 
+    public DbSet<UserTravelProfile> UserTravelProfiles => Set<UserTravelProfile>();
+    public DbSet<BandLocation> BandLocations => Set<BandLocation>();
+    public DbSet<Trip> Trips => Set<Trip>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -496,6 +500,27 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.Gig).WithMany().HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.GigId, x.UserId }).IsUnique();
+        });
+
+        // --- Expense tracker (Travel) ---
+
+        builder.Entity<UserTravelProfile>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.UserId).IsUnique();
+        });
+
+        builder.Entity<BandLocation>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.Name }).IsUnique();
+        });
+
+        builder.Entity<Trip>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.UserId, x.BandId, x.Date });
         });
     }
 }

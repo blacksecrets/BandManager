@@ -278,6 +278,31 @@
             </div>
         </section>
 
+        <section class="platform-card" id="google-maps-section" hidden>
+            <h2>Driving distance (Google Maps)</h2>
+            <p>Powers the automatic mileage calculation on each member's Travel expense tracker (Profile page) - best-effort only; a trip still saves fine without this configured, just without a computed distance.</p>
+
+            <form id="google-maps-cred-form" class="cred-form">
+                <h3>Google Distance Matrix API <span class="status-badge" id="google-maps-status-badge">checking...</span></h3>
+                <div class="instructions-toggle-wrap">
+                    <button type="button" class="instructions-toggle">Instructions <span class="chevron">&#9656;</span></button>
+                    <div class="instructions-panel" hidden>
+                        <ol>
+                            <li>Create a project at the <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a> (Google's free tier covers typical mileage-log volume).</li>
+                            <li>Enable the <strong>Distance Matrix API</strong> for that project.</li>
+                            <li>Create an API key under Credentials and paste it below.</li>
+                        </ol>
+                    </div>
+                </div>
+                <label>API Key <input type="text" name="apiKey" autocomplete="off"></label>
+                <button type="submit">Save Google Maps API key</button>
+                <p id="google-maps-cred-status" class="save-note"></p>
+            </form>
+            <div class="disconnect-tool" id="google-maps-disconnect-tool" hidden>
+                <button type="button" class="disconnect-btn" id="google-maps-disconnect-btn">Remove Google Maps API key</button>
+            </div>
+        </section>
+
         <section class="platform-card" id="song-import-section" hidden>
             <h2>Bulk-import songs</h2>
             <p>Add songs to the shared catalog from a CSV file - <a href="/api/superadmin/songs/import/template">download the template</a> for the exact columns and format. Required: Title, Original Artist. Every row is validated before anything is imported; if any row fails, nothing is imported and every problem is listed below.</p>

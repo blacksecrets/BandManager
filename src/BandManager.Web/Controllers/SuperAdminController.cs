@@ -21,6 +21,7 @@ public record SetYouTubeCredentialsRequest(string ApiKey);
 public record SetSpotifyCredentialsRequest(string ClientId, string ClientSecret);
 public record SetCalendarOAuthCredentialsRequest(string ClientId, string ClientSecret);
 public record SetUspsCredentialsRequest(string ClientId, string ClientSecret);
+public record SetGoogleMapsCredentialsRequest(string ApiKey);
 
 /// <summary>
 /// The SuperAdmin config screen's backend - band onboarding/archiving, and
@@ -275,6 +276,33 @@ public class SuperAdminController(
     public async Task<IActionResult> ClearUspsCredentials()
     {
         await SongSearchService.ClearCredentialAsync(db, AddressLookupService.CredentialKey);
+        return Ok(new { ok = true });
+    }
+
+    // --- Google Maps driving distance (Travel expense tracker's Trip grid) ---
+    // Same global/SuperAdmin-managed/PlatformSettings-backed shape as USPS
+    // above - see DrivingDistanceService.
+
+    [HttpGet("google-maps-credentials")]
+    public async Task<IActionResult> GetGoogleMapsCredentials()
+    {
+        var creds = await SongSearchService.GetCredentialAsync(db, cipher, DrivingDistanceService.CredentialKey);
+        return Ok(creds);
+    }
+
+    [HttpPut("google-maps-credentials")]
+    public async Task<IActionResult> SetGoogleMapsCredentials([FromBody] SetGoogleMapsCredentialsRequest request)
+    {
+        var apiKey = request.ApiKey?.Trim();
+        if (string.IsNullOrEmpty(apiKey)) return BadRequest(new { error = "API key is required." });
+        await SongSearchService.SetCredentialAsync(db, cipher, DrivingDistanceService.CredentialKey, new() { ["apiKey"] = apiKey });
+        return Ok(new { ok = true });
+    }
+
+    [HttpDelete("google-maps-credentials")]
+    public async Task<IActionResult> ClearGoogleMapsCredentials()
+    {
+        await SongSearchService.ClearCredentialAsync(db, DrivingDistanceService.CredentialKey);
         return Ok(new { ok = true });
     }
 
