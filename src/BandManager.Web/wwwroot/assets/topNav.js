@@ -17,10 +17,20 @@
         {
             label: 'Band flow', bandScoped: true, items: [
                 { href: '/dashboard', label: 'Web Presence' },
-                { href: '/repertoire', label: 'Repertoire' },
                 { href: '/gig-sets', label: 'Gig Management' },
                 { href: '/calendar', label: 'Calendar' },
                 { href: '/venue-campaigns', label: 'Venue Campaigns' },
+            ]
+        },
+        {
+            // Every-member, band-scoped things that aren't part of the Band
+            // flow gig-workflow sequence and aren't admin-only - the label
+            // itself names the active band (see dynamicLabel below), so
+            // this reads as "My Attica"/"My Black Secrets" rather than a
+            // generic "Band" label sitting next to "Band admin".
+            label: 'My band', dynamicLabel: (me) => `My ${me.activeBandName || 'band'}`, bandScoped: true, items: [
+                { href: '/repertoire', label: 'Repertoire' },
+                { href: '/my-accounting', label: 'Accounting' },
             ]
         },
         {
@@ -28,9 +38,8 @@
                 { href: '/band-admin', label: 'General' },
                 { href: '/settings', label: 'Configure Web Presence' },
                 { href: '/cadence', label: 'Cadence' },
-                { href: '/repertoire', label: 'Repertoire' },
                 { href: '/catalog', label: 'Images and Flyers' },
-                { href: '/accounting', label: 'Accounting' },
+                { href: '/accounting', label: 'Band Accounting' },
             ]
         },
         {
@@ -160,7 +169,7 @@
 
             const label = document.createElement('div');
             label.className = 'sidebar-section-label';
-            label.textContent = section.label;
+            label.textContent = section.dynamicLabel ? section.dynamicLabel(me) : section.label;
             nav.appendChild(label);
 
             for (const item of visibleItems) {

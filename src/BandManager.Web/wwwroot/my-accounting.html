@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Accounting</title>
+<link rel="stylesheet" href="/assets/site-theme.css">
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Accounting</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <p id="my-accounting-no-band" class="save-note" hidden>Select a band from the switcher above to see your payout status.</p>
+
+        <section class="platform-card" id="my-accounting-content" hidden>
+            <h2>Your payouts</h2>
+            <p class="save-note">Your share of every gig payout in this band - set up under Band Admin &gt; Band Accounting.</p>
+            <div id="my-payouts-grid"></div>
+        </section>
+    </main>
+
+    <script src="/assets/dataGrid.js"></script>
+    <script src="/assets/my-accounting.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/userAvatar.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

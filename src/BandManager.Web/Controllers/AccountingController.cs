@@ -163,6 +163,48 @@ public class AccountingController(ApplicationDbContext db, IActiveBandAccessor a
         return (band, gig, null);
     }
 
+    // A member's own payout status across every gig in the active band
+    // where they're on the payout roster - the "My <band>" > Accounting
+    // page's data source. Read-only (all the actual editing stays under
+    // Band Admin > Band Accounting / a gig's own Accounting view) - same
+    // live-computed-amount rule as GetGigPayout above.
+    [HttpGet("my-payouts")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> GetMyPayouts()
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var userId = User.GetUserId()!.Value;
+
+        var myPercentage = await db.PayoutRecipients.AsNoTracking()
+            .Where(p => p.BandId == band.Id && p.UserId == userId).Select(p => (decimal?)p.Percentage).FirstOrDefaultAsync();
+        if (myPercentage is null) return Ok(Array.Empty<object>());
+
+        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == band.Id).ToListAsync();
+        var payouts = await db.GigPayouts.AsNoTracking().Where(p => gigs.Select(g => g.Id).Contains(p.GigId)).ToDictionaryAsync(p => p.GigId);
+        var myRows = await db.GigPayoutRecipients.AsNoTracking()
+            .Where(r => r.UserId == userId && gigs.Select(g => g.Id).Contains(r.GigId)).ToDictionaryAsync(r => r.GigId);
+
+        var result = gigs
+            .Where(g => payouts.ContainsKey(g.Id))
+            .OrderByDescending(g => g.Date)
+            .Select(g =>
+            {
+                var payout = payouts[g.Id];
+                myRows.TryGetValue(g.Id, out var myRow);
+                return new
+                {
+                    gigRef = g.Ref,
+                    gigTitle = g.Title,
+                    date = g.Date.ToString("yyyy-MM-dd"),
+                    amount = payout.Amount is { } total ? Math.Round(total * myPercentage.Value / 100m, 2) : (decimal?)null,
+                    isPaid = myRow?.IsPaid ?? false,
+                    payoutType = myRow?.PayoutType?.ToString()
+                };
+            });
+        return Ok(result);
+    }
+
     [HttpGet("gigs/{gigRef}")]
     [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> GetGigPayout(string gigRef)
