@@ -61,6 +61,13 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         lengthSeconds = gs.Song?.LengthSeconds ?? gs.ManualLengthSeconds,
         youTubeUrl = gs.Song?.YouTubeUrl ?? gs.ManualYouTubeUrl,
         spotifyUrl = gs.Song?.SpotifyUrl ?? gs.ManualSpotifyUrl,
+        // D12: was missing here even though Song.SongsterrUrl is always
+        // correctly saved by AddManualSong below - every set song ends up
+        // with a real catalog SongId (matched or newly created), so this
+        // is never actually null except for a genuinely songsterr-less
+        // song, unlike YouTube/Spotify there's no separate Manual* column
+        // for it on GigSetSong at all.
+        songsterrUrl = gs.Song?.SongsterrUrl,
         isManual = gs.SongId is null
     };
 

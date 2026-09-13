@@ -417,6 +417,21 @@
     }
 
     // --- Modal open/close ---
+    // D12: one click to open every song's reference links at once, for a
+    // full run-through instead of clicking each song's links one by one.
+    // Opened synchronously inside this same click handler (a real user
+    // gesture) - most browsers only allow a burst of window.open calls
+    // like this without treating them as popups when they're all
+    // triggered directly from one click, not from an async callback.
+    document.getElementById('gig-set-open-all-links-btn').addEventListener('click', () => {
+        const links = currentSongs.flatMap((s) => [s.youTubeUrl, s.spotifyUrl, s.songsterrUrl]).filter(Boolean);
+        if (links.length === 0) {
+            alert('No reference links on any song in this set yet.');
+            return;
+        }
+        for (const url of links) window.open(url, '_blank', 'noopener');
+    });
+
     function closeSetlistModal() { document.getElementById('setlist-modal-backdrop').hidden = true; }
     document.getElementById('setlist-modal-close').addEventListener('click', closeSetlistModal);
     document.getElementById('setlist-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'setlist-modal-backdrop') closeSetlistModal(); });
