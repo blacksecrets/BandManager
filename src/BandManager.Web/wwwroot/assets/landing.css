@@ -85,6 +85,11 @@
 }
 .landing-widget-wide { width: 100%; }
 
+.next-two-weeks-section + .next-two-weeks-section { margin-top: 14px; }
+.next-two-weeks-section h3 { margin: 0 0 6px; font-size: 0.95rem; color: #ccc; }
+.next-two-weeks-section ul { margin: 0; padding-left: 18px; }
+.next-two-weeks-section li { color: #ddd; font-size: 0.88rem; margin-bottom: 3px; }
+
 .landing-goto-btn {
     align-self: flex-start;
     background: #2e4d8b;

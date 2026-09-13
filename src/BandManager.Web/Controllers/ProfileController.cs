@@ -51,7 +51,7 @@ public class ProfileController(
     // how to render for a BandMember/BandAdmin - the one place both this
     // endpoint's validation and Me()'s default fall back to, so adding a
     // new widget later only means updating this list plus landing.js.
-    public static readonly string[] KnownDashboardWidgets = ["gigs", "venues", "web-presence", "calendar"];
+    public static readonly string[] KnownDashboardWidgets = ["gigs", "venues", "web-presence", "calendar", "next-two-weeks"];
 
     [HttpGet("me")]
     [Authorize]

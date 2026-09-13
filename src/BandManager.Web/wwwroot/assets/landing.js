@@ -43,7 +43,8 @@ const WIDGETS = [
     { key: 'gigs', label: 'Our Gigs', load: loadGigsWidget },
     { key: 'venues', label: 'Our Venues', load: loadVenuesWidget },
     { key: 'web-presence', label: 'Our Web Presence', load: loadWebPresenceWidget },
-    { key: 'calendar', label: 'Our Calendar', load: loadCalendarWidget }
+    { key: 'calendar', label: 'Our Calendar', load: loadCalendarWidget },
+    { key: 'next-two-weeks', label: 'My Next Two Weeks', load: loadNextTwoWeeksWidget }
 ];
 
 let dashboardWidgets = WIDGETS.map((w) => w.key);
@@ -232,6 +233,31 @@ async function loadCalendarWidget() {
             });
         }, '/calendar', 'Go To Calendar');
     });
+}
+
+// --- My Next Two Weeks ---
+// Keyed by GigPrepListType's numeric value (Pre=0, Packing=1, Post=2) -
+// listType comes over the wire as that number, not a string name, same
+// as gig-sets.js's own gigPrepItems handling already assumes.
+const PREP_LIST_LABELS = { 0: 'Pre-gig', 1: 'Packing', 2: 'Post-gig' };
+
+async function loadNextTwoWeeksWidget() {
+    const res = await fetch('/api/dashboard/next-two-weeks');
+    const data = res.ok ? await res.json() : { gigs: [], rehearsals: [], openPrepTasks: [] };
+    const container = document.getElementById('landing-next-two-weeks-content');
+
+    function section(title, items, renderItem) {
+        if (items.length === 0) return `<div class="next-two-weeks-section"><h3>${escapeHtml(title)}</h3><p class="save-note">Nothing here.</p></div>`;
+        return `<div class="next-two-weeks-section"><h3>${escapeHtml(title)} (${items.length})</h3><ul>${items.map(renderItem).join('')}</ul></div>`;
+    }
+
+    const rehearsalTimeFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+
+    container.innerHTML = [
+        section('Gigs', data.gigs, (g) => `<li>${escapeHtml(g.title)} - ${escapeHtml(g.date)}${g.venue ? ` @ ${escapeHtml(g.venue)}` : ''}</li>`),
+        section('Rehearsals', data.rehearsals, (r) => `<li>${escapeHtml(r.title)} - ${escapeHtml(rehearsalTimeFmt.format(new Date(r.startsAt)))}${r.location ? ` @ ${escapeHtml(r.location)}` : ''}</li>`),
+        section('My Open Gig Prep Tasks', data.openPrepTasks, (t) => `<li>${escapeHtml(t.gigTitle)}: [${escapeHtml(PREP_LIST_LABELS[t.listType] || t.listType)}] ${escapeHtml(t.text)}</li>`)
+    ].join('');
 }
 
 // --- SuperAdmin: Bands + Connectivity Status ---
