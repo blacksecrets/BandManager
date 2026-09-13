@@ -30,7 +30,13 @@
         chevron.innerHTML = '&#9656;';
         h2.insertBefore(chevron, h2.firstChild);
 
-        body.hidden = true;
+        // Collapsed by default, except a section that opts out via
+        // data-default-open - for a page whose one section IS the reason
+        // someone's there (e.g. Repertoire's own song grid), starting it
+        // collapsed just adds an extra click to see the one thing they
+        // came for, with nothing gained since there's no clutter to hide.
+        body.hidden = !('defaultOpen' in section.dataset);
+        chevron.innerHTML = body.hidden ? '&#9656;' : '&#9662;';
 
         h2.addEventListener('click', () => {
             body.hidden = !body.hidden;
