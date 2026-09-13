@@ -286,9 +286,12 @@ public class GigsController(
 
         // title/address: only applied if non-empty - a blank submission
         // here only ever means nothing was typed yet, never "clear it."
-        if (S("title") is { Length: > 0 } title)
+        // Trims BEFORE checking length (not after) - a whitespace-only
+        // submission like " " must fail this guard the same way an empty
+        // string does, or it silently clears the title once trimmed below.
+        if (S("title")?.Trim() is { Length: > 0 } title)
         {
-            gig.Title = title.Trim()[..Math.Min(title.Trim().Length, 500)];
+            gig.Title = title[..Math.Min(title.Length, 500)];
 
             // Opt-in, evaluated fresh on this save only - same pattern as
             // flyerEditor.js's own per-field "Save this to the Gig"
@@ -308,7 +311,7 @@ public class GigsController(
                 }
             }
         }
-        if (S("address") is { Length: > 0 } address) gig.Address = address.Trim()[..Math.Min(address.Trim().Length, 500)];
+        if (S("address")?.Trim() is { Length: > 0 } address) gig.Address = address[..Math.Min(address.Length, 500)];
 
         // Everything else can be legitimately cleared - a blank value is
         // itself a meaningful state, not something to silently drop.

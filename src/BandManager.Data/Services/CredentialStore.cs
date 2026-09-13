@@ -43,7 +43,21 @@ public class CredentialStore(ApplicationDbContext db, ICredentialCipher cipher)
     {
         var account = await FindAccountAsync(bandId, platformId);
         if (account?.EncryptedCredentials is null) return null;
-        return JsonSerializer.Deserialize<Dictionary<string, string>>(cipher.Decrypt(account.EncryptedCredentials));
+        try
+        {
+            return JsonSerializer.Deserialize<Dictionary<string, string>>(cipher.Decrypt(account.EncryptedCredentials));
+        }
+        catch
+        {
+            // A stored credential that no longer decrypts/parses (corrupted
+            // blob, rotated key file) degrades to "not configured" instead
+            // of throwing - same convention SongSearchService.GetCredentialAsync
+            // already uses, which every caller here (HasSiteConfiguredAsync,
+            // GitHubSiteClient, the Facebook/Instagram/Google Business
+            // publishers, CredentialsController's "reusable" listing) relies
+            // on staying a graceful null rather than an unhandled exception.
+            return null;
+        }
     }
 
     public async Task<bool> HasCredentialAsync(Guid bandId, string platformId)
