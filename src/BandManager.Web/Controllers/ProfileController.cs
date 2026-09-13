@@ -18,6 +18,7 @@ public record UpdateNameRequest(string? FirstName, string? LastName);
 public record UpdateContactRequest(string? CellNumber, string? AddressLine1, string? AddressLine2, string? City, string? State, string? PostalCode);
 public record UpdateCatalogViewModeRequest(string ViewMode, string? Tab = null);
 public record UpdateLastSelectedGigRequest(string? GigRef);
+public record UpdateDashboardWidgetsRequest(List<string> Widgets);
 
 /// <summary>
 /// Self-service profile (any logged-in user) + Band-scoped user
@@ -45,6 +46,12 @@ public class ProfileController(
 {
     private static readonly string[] BrandTypes = ["logo", "background", "favicon"];
     private const long MaxBrandBytes = 20 * 1024 * 1024;
+
+    // The complete set of widgets the login dashboard (landing.js) knows
+    // how to render for a BandMember/BandAdmin - the one place both this
+    // endpoint's validation and Me()'s default fall back to, so adding a
+    // new widget later only means updating this list plus landing.js.
+    public static readonly string[] KnownDashboardWidgets = ["gigs", "venues", "web-presence", "calendar"];
 
     [HttpGet("me")]
     [Authorize]
@@ -105,7 +112,17 @@ public class ProfileController(
             // isAdmin: true whenever the user can manage the active Band's
             // users - BandAdmin of it, or SuperAdmin regardless. Named to
             // match what wwwroot/assets/profile.js already checks.
-            isAdmin = user.IsSuperAdmin || activeBandRole == "BandAdmin"
+            isAdmin = user.IsSuperAdmin || activeBandRole == "BandAdmin",
+            // Never null on the wire - a user who's never customized gets
+            // the full known list in its shipped order, so landing.js
+            // never has to know the default itself. Deliberately checking
+            // for null specifically (not IsNullOrWhiteSpace) - an empty
+            // string is a real, saved choice ("hide every widget"), not
+            // the same as never having customized at all; collapsing the
+            // two would silently un-hide everything on next load.
+            dashboardWidgets = user.DashboardWidgetOrder is null
+                ? KnownDashboardWidgets
+                : user.DashboardWidgetOrder.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         });
     }
 
@@ -125,6 +142,29 @@ public class ProfileController(
         else user.CatalogViewMode = request.ViewMode;
         await userManager.UpdateAsync(user);
         return Ok(new { ok = true, catalogViewMode = user.CatalogViewMode, catalogViewModeFlyers = user.CatalogViewModeFlyers });
+    }
+
+    // The login dashboard's widget picker/reorder - the request is the
+    // complete visible set, in the order to render them; anything in
+    // KnownDashboardWidgets not listed is simply hidden. An unrecognized
+    // key or a duplicate fails outright rather than silently dropping it,
+    // so a client-side bug in the picker surfaces immediately instead of
+    // quietly saving a wrong layout.
+    [HttpPut("dashboard-widgets")]
+    [Authorize]
+    public async Task<IActionResult> UpdateDashboardWidgets([FromBody] UpdateDashboardWidgetsRequest request)
+    {
+        var user = await userManager.GetUserAsync(User);
+        if (user is null) return Unauthorized();
+
+        var widgets = request.Widgets ?? [];
+        var unknown = widgets.FirstOrDefault(w => !KnownDashboardWidgets.Contains(w));
+        if (unknown is not null) return BadRequest(new { error = $"Unknown widget: {unknown}" });
+        if (widgets.Distinct().Count() != widgets.Count) return BadRequest(new { error = "Duplicate widget in list." });
+
+        user.DashboardWidgetOrder = widgets.Count == 0 ? "" : string.Join(',', widgets);
+        await userManager.UpdateAsync(user);
+        return Ok(new { ok = true, dashboardWidgets = widgets });
     }
 
     // The sticky "current gig" for this member, in this band - see

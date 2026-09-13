@@ -36,6 +36,32 @@ document.querySelectorAll('.landing-goto-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => { e.stopPropagation(); location.href = btn.dataset.href; });
 });
 
+// Every widget landing.js knows how to render for BandMember/BandAdmin,
+// keyed the same way as ProfileController.KnownDashboardWidgets so the
+// two never drift apart. label is only used by the customize picker.
+const WIDGETS = [
+    { key: 'gigs', label: 'Our Gigs', load: loadGigsWidget },
+    { key: 'venues', label: 'Our Venues', load: loadVenuesWidget },
+    { key: 'web-presence', label: 'Our Web Presence', load: loadWebPresenceWidget },
+    { key: 'calendar', label: 'Our Calendar', load: loadCalendarWidget }
+];
+
+let dashboardWidgets = WIDGETS.map((w) => w.key);
+
+// Applies dashboardWidgets (order + which are shown) to the already-in-DOM
+// widget sections via CSS order + hidden, rather than rebuilding markup -
+// there are only ever these 4 known widgets, so a fixed set of sections
+// toggled/reordered is simpler than templating them from scratch.
+function applyWidgetLayout() {
+    WIDGETS.forEach((w) => {
+        const section = document.querySelector(`[data-widget="${w.key}"]`);
+        if (!section) return;
+        const position = dashboardWidgets.indexOf(w.key);
+        section.hidden = position === -1;
+        section.style.order = position === -1 ? WIDGETS.length : position;
+    });
+}
+
 async function init() {
     const res = await fetch('/api/profile/me');
     const me = await res.json();
@@ -51,11 +77,13 @@ async function init() {
         return;
     }
 
+    dashboardWidgets = (me.dashboardWidgets || []).filter((k) => WIDGETS.some((w) => w.key === k));
+    applyWidgetLayout();
+
+    document.getElementById('landing-customize-btn').hidden = false;
     document.getElementById('landing-member-grid').hidden = false;
-    loadGigsWidget();
-    loadVenuesWidget();
-    loadWebPresenceWidget();
-    loadCalendarWidget();
+    for (const w of WIDGETS) if (dashboardWidgets.includes(w.key)) w.load();
+    initCustomizeModal();
 }
 
 // --- Our Gigs ---
@@ -256,6 +284,91 @@ async function loadSuperAdminDashboard() {
         ],
         rows: connectivityRows, getRowId: (p) => p.id,
         defaultSortKey: 'displayName', defaultSortDir: 'asc', searchable: false, emptyMessage: 'No platforms configured.'
+    });
+}
+
+// --- Customize Widgets: pick which show, drag to reorder ---
+function initCustomizeModal() {
+    const backdrop = document.getElementById('landing-customize-modal-backdrop');
+    const list = document.getElementById('landing-customize-list');
+    const status = document.getElementById('landing-customize-status');
+
+    function renderList() {
+        // Visible widgets first (in their saved order), then every hidden
+        // one appended in its shipped default order - so a widget the
+        // user has hidden is still there to re-check, without needing its
+        // own separate "add back" affordance.
+        const hiddenInDefaultOrder = WIDGETS.map((w) => w.key).filter((k) => !dashboardWidgets.includes(k));
+        const orderedKeys = [...dashboardWidgets, ...hiddenInDefaultOrder];
+
+        list.innerHTML = '';
+        for (const key of orderedKeys) {
+            const widget = WIDGETS.find((w) => w.key === key);
+            const li = document.createElement('li');
+            li.className = 'landing-customize-item';
+            li.draggable = true;
+            li.dataset.key = key;
+            li.innerHTML = `
+                <span class="drag-handle" title="Drag to reorder">&#9776;</span>
+                <label><input type="checkbox" ${dashboardWidgets.includes(key) ? 'checked' : ''}> ${escapeHtml(widget.label)}</label>
+            `;
+            list.appendChild(li);
+        }
+    }
+
+    let dragged = null;
+    list.addEventListener('dragstart', (e) => {
+        dragged = e.target.closest('.landing-customize-item');
+        dragged?.classList.add('dragging');
+    });
+    list.addEventListener('dragend', () => {
+        dragged?.classList.remove('dragging');
+        dragged = null;
+        list.querySelectorAll('.drag-over').forEach((el) => el.classList.remove('drag-over'));
+    });
+    list.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('.landing-customize-item');
+        if (!target || target === dragged) return;
+        list.querySelectorAll('.drag-over').forEach((el) => el.classList.remove('drag-over'));
+        target.classList.add('drag-over');
+    });
+    list.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('.landing-customize-item');
+        target?.classList.remove('drag-over');
+        if (!target || !dragged || target === dragged) return;
+        const rect = target.getBoundingClientRect();
+        const before = e.clientY < rect.top + rect.height / 2;
+        target.insertAdjacentElement(before ? 'beforebegin' : 'afterend', dragged);
+    });
+
+    document.getElementById('landing-customize-btn').addEventListener('click', () => {
+        status.textContent = '';
+        renderList();
+        backdrop.hidden = false;
+    });
+    document.getElementById('landing-customize-modal-close').addEventListener('click', () => { backdrop.hidden = true; });
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.hidden = true; });
+
+    document.getElementById('landing-customize-save-btn').addEventListener('click', async () => {
+        const widgets = [...list.querySelectorAll('.landing-customize-item')]
+            .filter((li) => li.querySelector('input').checked)
+            .map((li) => li.dataset.key);
+
+        status.textContent = 'Saving...';
+        const res = await fetch('/api/profile/dashboard-widgets', {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ widgets })
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            status.textContent = body.error || 'Could not save. Try again.';
+            return;
+        }
+        // Reload rather than patch the DOM live - a widget just turned on
+        // needs its own data fetched and its detail-modal click handler
+        // attached, which is exactly what a normal page load already does.
+        location.reload();
     });
 }
 

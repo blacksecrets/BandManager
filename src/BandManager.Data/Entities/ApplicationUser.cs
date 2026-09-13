@@ -64,6 +64,16 @@ public class ApplicationUser : IdentityUser<Guid>
     // with different natural defaults).
     public string? CatalogViewModeFlyers { get; set; }
 
+    // The login dashboard's widget picker/reorder (BandMember/BandAdmin
+    // view only - see landing.js) - comma-separated widget keys, in the
+    // order to render them; a key simply not listed here is hidden. Null
+    // (never customized) means "every known widget, in its shipped
+    // default order" - same "nobody's forced to have an opinion yet"
+    // pattern as CatalogViewMode above, not defaulted here so a future
+    // new widget automatically appears for everyone who hasn't
+    // customized, rather than being silently missing until they re-save.
+    public string? DashboardWidgetOrder { get; set; }
+
     public ICollection<BandMembership> BandMemberships { get; set; } = new List<BandMembership>();
     public ICollection<Gear> Gear { get; set; } = new List<Gear>();
 }

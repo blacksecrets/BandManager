@@ -3,6 +3,45 @@
     padding: 24px;
 }
 
+.landing-customize-btn {
+    display: block;
+    margin: 0 auto 16px;
+    max-width: 1200px;
+    background: #2a2a2a;
+    color: #ccc;
+    border: 1px solid #444;
+    padding: 7px 14px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.landing-customize-btn:hover { background: #333; color: #fff; }
+
+.landing-customize-modal { width: 420px; max-width: 92vw; }
+
+.landing-customize-list {
+    list-style: none;
+    margin: 0 0 16px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.landing-customize-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #222;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 8px 10px;
+    cursor: grab;
+}
+.landing-customize-item.dragging { opacity: 0.4; }
+.landing-customize-item.drag-over { border-color: #5b8def; }
+.landing-customize-item .drag-handle { color: #777; font-size: 1rem; line-height: 1; }
+.landing-customize-item label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
 .landing-widget-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -33,6 +72,12 @@
     flex-direction: column;
     gap: 10px;
 }
+/* Needed since B5 (Customize Widgets): an author rule setting `display`
+   always beats the browser's default `[hidden] { display: none }` UA
+   style at equal specificity, so a hidden widget needs its own explicit
+   override here, same as .landing-widget-grid/.landing-superadmin-stack
+   above already do. */
+.landing-widget[hidden] { display: none; }
 .landing-widget > h2 {
     margin: 0;
     font-size: 1.1rem;

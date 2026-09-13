@@ -23,6 +23,8 @@
     <main class="landing-main">
         <p id="landing-no-band" class="save-note" hidden>Select a band from the switcher above.</p>
 
+        <button type="button" id="landing-customize-btn" class="landing-customize-btn" hidden title="Choose which widgets show here, and in what order">Customize Widgets</button>
+
         <div id="landing-member-grid" class="landing-widget-grid" hidden>
             <section class="landing-widget" data-widget="gigs">
                 <h2>Our Gigs</h2>
@@ -58,6 +60,17 @@
             </section>
         </div>
     </main>
+
+    <div id="landing-customize-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal landing-customize-modal">
+            <button type="button" class="detail-modal-close" id="landing-customize-modal-close">&times;</button>
+            <h2>Customize Widgets</h2>
+            <p class="detail-meta">Check the ones you want, and drag to reorder.</p>
+            <ul id="landing-customize-list" class="landing-customize-list"></ul>
+            <button type="button" id="landing-customize-save-btn" class="upload-btn">Save</button>
+            <p id="landing-customize-status" class="save-note"></p>
+        </div>
+    </div>
 
     <div id="landing-detail-modal-backdrop" class="detail-modal-backdrop" hidden>
         <div class="detail-modal landing-detail-modal">
