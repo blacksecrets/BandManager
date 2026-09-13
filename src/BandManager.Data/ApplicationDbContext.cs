@@ -82,6 +82,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BandLocation> BandLocations => Set<BandLocation>();
     public DbSet<Trip> Trips => Set<Trip>();
 
+    public DbSet<TestCase> TestCases => Set<TestCase>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -521,6 +523,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.UserId, x.BandId, x.Date });
+        });
+
+        builder.Entity<TestCase>(b =>
+        {
+            b.HasKey(x => x.Key);
         });
     }
 }

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Test Suite</title>
+<link rel="stylesheet" href="/assets/site-theme.css">
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/test-suite.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Test Suite</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main settings-main-wide">
+        <p id="test-suite-denied" class="verify-error-banner" hidden>SuperAdmin only.</p>
+
+        <div id="test-suite-content" hidden>
+            <section class="platform-card">
+                <h2>Automated Regression Tests</h2>
+                <p class="save-note">Black-box checks that log in as a dedicated, isolated test account and drive the real app the way a browser would - login, band switching, gig create/archive/unarchive, payout percentage validation, Travel trip saving, and more. These only exercise a fixed "Regression Test Band" that never touches Attica, Black Secrets, or any other real band. This catches things breaking that used to work - it does <strong>not</strong> replace clicking through the app yourself for new bugs or usability issues, which is what the checklist below is for.</p>
+                <button type="button" id="run-regression-btn">Run Regression Tests</button>
+                <span id="regression-running-note" class="save-note" hidden>Running...</span>
+                <p id="regression-summary" class="save-note"></p>
+                <div id="regression-results"></div>
+            </section>
+
+            <section class="platform-card">
+                <h2>Manual Test Cases</h2>
+                <p class="save-note">Work through these by hand - follow the steps, compare what actually happens to the expected result, and mark it. Use Notes for anything odd you notice, bug or usability alike, even if the case otherwise passes.</p>
+                <div class="test-suite-summary-bar">
+                    <span id="test-suite-summary"></span>
+                    <button type="button" id="test-suite-reset-btn">Reset all to Not Tested</button>
+                </div>
+                <div id="test-case-areas"></div>
+            </section>
+        </div>
+    </main>
+
+    <script src="/assets/test-suite.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/userAvatar.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

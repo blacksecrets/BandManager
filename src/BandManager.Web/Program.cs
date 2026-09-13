@@ -88,6 +88,7 @@ builder.Services.AddScoped<BandManager.Web.Services.SongSearchService>();
 builder.Services.AddScoped<BandManager.Web.Services.NotificationReminderService>();
 builder.Services.AddScoped<BandManager.Web.Services.AddressLookupService>();
 builder.Services.AddScoped<BandManager.Web.Services.DrivingDistanceService>();
+builder.Services.AddScoped<BandManager.Web.Services.RegressionTestRunner>();
 builder.Services.AddScoped<BandManager.Web.Services.GoogleCalendarPushService>();
 builder.Services.AddScoped<BandManager.Web.Services.OutlookCalendarPushService>();
 builder.Services.AddScoped<BandManager.Web.Services.TechRiderPdfService>();
@@ -172,7 +173,20 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     db.Database.Migrate();
-    await DbSeeder.SeedAsync(db);
+    try
+    {
+        await DbSeeder.SeedAsync(db);
+    }
+    catch (DbUpdateException) when (app.Environment.IsProduction())
+    {
+        // Two containers (app + app-test) share one database and both run
+        // this on every startup - a brand-new seed row (e.g. a freshly
+        // added TestCase) can race between them on first boot, and
+        // whichever loses hits a duplicate-key error here. Harmless: the
+        // winner already inserted the row, so this run just skips seeding
+        // this time and reconciles normally on the next restart - crashing
+        // the whole app over an idempotent no-op isn't worth it.
+    }
 }
 
 app.UseDefaultFiles();
@@ -243,7 +257,7 @@ MapAuthenticatedStaticFiles("/avatars", avatarsRootPath);
 // disclosed gap: unlike the old app, that path doesn't require login -
 // no secrets live in the page shells themselves, just markup/JS, but
 // worth tightening later if that stops being true).
-foreach (var page in new[] { "dashboard", "settings", "cadence", "catalog", "profile", "band-admin", "superadmin", "repertoire", "gig-sets", "notifications", "calendar", "print-setlist", "venue-campaigns", "print-gig-prep", "accounting", "my-accounting" })
+foreach (var page in new[] { "dashboard", "settings", "cadence", "catalog", "profile", "band-admin", "superadmin", "repertoire", "gig-sets", "notifications", "calendar", "print-setlist", "venue-campaigns", "print-gig-prep", "accounting", "my-accounting", "test-suite" })
 {
     // Plain "logged in" (not the BandMember policy) - same as "/" (the
     // Dashboard, served unconditionally above) needs no active Band just

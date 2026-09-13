@@ -70,6 +70,25 @@ public static class DbSeeder
             }
         }
 
+        foreach (var testCase in TestCaseSeedData.All)
+        {
+            var existing = await db.TestCases.FindAsync(testCase.Key);
+            if (existing is null)
+            {
+                db.TestCases.Add(testCase);
+            }
+            else
+            {
+                // Content only - Status/Notes/LastTestedAt are the human's
+                // own state and are never touched by a re-seed.
+                existing.Area = testCase.Area;
+                existing.Title = testCase.Title;
+                existing.Steps = testCase.Steps;
+                existing.ExpectedResult = testCase.ExpectedResult;
+                existing.SortOrder = testCase.SortOrder;
+            }
+        }
+
         await db.SaveChangesAsync();
 
         var existingPairs = await db.PlatformContentTypes

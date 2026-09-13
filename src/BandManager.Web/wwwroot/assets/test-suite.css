@@ -1,0 +1,93 @@
+.test-suite-summary-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 10px 0 16px;
+    flex-wrap: wrap;
+}
+.test-suite-summary-bar span { color: #ccc; font-size: 0.9rem; }
+
+.test-case-area {
+    border: 1px solid #333;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    background: #1c1c1c;
+}
+.test-case-area > summary {
+    cursor: pointer;
+    padding: 10px 14px;
+    font-weight: bold;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+.test-case-area > summary::-webkit-details-marker { display: none; }
+.test-case-area > summary::before { content: "\25b8"; margin-right: 8px; color: #999; font-weight: normal; }
+.test-case-area[open] > summary::before { content: "\25be"; }
+.test-case-area-tally { font-weight: normal; font-size: 0.82rem; color: #999; }
+
+.test-case-area-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+
+.test-case-card {
+    border: 1px solid #2c2c2c;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #161616;
+}
+.test-case-card.status-pass { border-left: 3px solid #2e8b3d; }
+.test-case-card.status-fail { border-left: 3px solid #a33; }
+.test-case-card.status-blocked { border-left: 3px solid #b8860b; }
+.test-case-card.status-nottested { border-left: 3px solid #444; }
+
+.test-case-title { font-weight: bold; margin-bottom: 4px; }
+.test-case-field { font-size: 0.85rem; color: #ccc; margin: 4px 0; white-space: pre-line; }
+.test-case-field strong { color: #999; font-weight: normal; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; display: block; margin-bottom: 2px; }
+
+.test-case-status-row { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.test-case-status-btn {
+    border: 1px solid #444;
+    background: none;
+    color: #ccc;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.test-case-status-btn.active[data-status="Pass"] { background: #2e8b3d; color: white; border-color: #2e8b3d; }
+.test-case-status-btn.active[data-status="Fail"] { background: #a33; color: white; border-color: #a33; }
+.test-case-status-btn.active[data-status="Blocked"] { background: #b8860b; color: white; border-color: #b8860b; }
+.test-case-status-btn.active[data-status="NotTested"] { background: #444; color: #ccc; }
+.test-case-last-tested { font-size: 0.75rem; color: #777; margin-left: auto; }
+
+.test-case-notes {
+    width: 100%;
+    margin-top: 8px;
+    min-height: 40px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #eee;
+    font-size: 0.85rem;
+    padding: 6px 8px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.regression-result-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border-bottom: 1px solid #2a2a2a;
+    font-size: 0.88rem;
+}
+.regression-result-row:last-child { border-bottom: none; }
+.regression-result-icon { flex-shrink: 0; font-weight: bold; width: 18px; text-align: center; }
+.regression-result-row.pass .regression-result-icon { color: #2e8b3d; }
+.regression-result-row.fail .regression-result-icon { color: #a33; }
+.regression-result-name { font-weight: bold; }
+.regression-result-message { color: #aaa; }
+.regression-result-duration { color: #666; font-size: 0.78rem; margin-left: auto; white-space: nowrap; }

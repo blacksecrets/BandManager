@@ -46,6 +46,7 @@
             label: 'Settings', items: [
                 { href: '/profile', label: 'Profile' },
                 { href: '/superadmin', label: 'SuperAdmin', superAdminOnly: true },
+                { href: '/test-suite', label: 'Test Suite', superAdminOnly: true },
             ]
         },
     ];
