@@ -28,7 +28,19 @@ public class OutlookCalendarPushService(ApplicationDbContext db, ICredentialCiph
 
     private async Task<string?> GetValidAccessTokenAsync(UserExternalCalendarConnection connection)
     {
-        var tokens = JsonSerializer.Deserialize<StoredTokens>(cipher.Decrypt(connection.EncryptedTokens));
+        StoredTokens? tokens;
+        try
+        {
+            tokens = JsonSerializer.Deserialize<StoredTokens>(cipher.Decrypt(connection.EncryptedTokens));
+        }
+        catch
+        {
+            // A corrupted/undecryptable token shouldn't abort the whole
+            // push loop over every connected member - same convention as
+            // CredentialStore.GetCredentialAsync: treat it as "no valid
+            // token" for this one connection and move on.
+            return null;
+        }
         if (tokens is null) return null;
         if (tokens.ExpiresAt > DateTime.UtcNow.AddMinutes(1)) return tokens.AccessToken;
         if (string.IsNullOrEmpty(tokens.RefreshToken)) return null;

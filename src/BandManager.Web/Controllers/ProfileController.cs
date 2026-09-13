@@ -626,8 +626,15 @@ public class ProfileController(
     }
 
     // --- Platform branding (SuperAdmin only, global - see PlatformSetting) ---
+    // GetBranding itself is deliberately public: login.html/setup.html load
+    // it before anyone's authenticated, same reason BandAdminController's
+    // per-band equivalent is [AllowAnonymous] too. Stated explicitly here
+    // (this controller has no class-level [Authorize] to fall back on) so
+    // it doesn't read as an oversight and get "fixed" into requiring auth,
+    // which would break the logo/background on the login page.
 
     [HttpGet("branding")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetBranding()
     {
         var settings = await db.PlatformSettings.ToDictionaryAsync(s => s.Key, s => s.Value);

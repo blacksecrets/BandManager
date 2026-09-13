@@ -80,7 +80,12 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         var setCounts = sets.ToDictionary(s => s.GigRef, s => s.Songs.Count);
         var setDurations = sets.ToDictionary(s => s.GigRef, SetDurationSeconds);
 
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        // UTC, not server-local (DateTime.Today) - matches
+        // FlyersController.UpcomingGigs' own "today" and every other date
+        // computed in this app, so a gig doesn't briefly show as upcoming
+        // here and already-past there (or vice versa) around midnight in
+        // whatever timezone the server happens to be running in.
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var result = gigs.Select(g => new
         {
             gigRef = g.Ref,
