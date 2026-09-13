@@ -294,6 +294,15 @@ public class FlyersController(
     // live. Unpublished/unconfigured saves still persist normally - the
     // Flyer/Catalog rows are never gated behind the publish checkbox, only
     // the live push is.
+    // Create and Update both register the freshly-rendered image the same
+    // way - one shared helper so the label/category/naming convention
+    // can't drift between the two call sites.
+    private Task<CatalogItem> RegisterFlyerCatalogItemAsync(Band band, Gig gig, byte[] rendered) =>
+        catalogStore.RegisterCatalogItemAsync(
+            band.Id, rendered, "image/png", $"flyer-{gig.Ref}.png",
+            CatalogSource.Upload, sourceUrl: null, uploadedBy: User.Identity?.Name,
+            label: $"Flyer - {gig.Title}", category: CatalogCategory.Flyer);
+
     private async Task<IActionResult> SaveAndMaybePublishAsync(Band band, Flyer flyer, Gig gig, byte[] rendered, CatalogItem catalogItem, bool publish, bool setAsDefault)
     {
         // Independent of Publish below - "the gig's default flyer" is a
@@ -349,10 +358,7 @@ public class FlyersController(
         if (renderErr is not null) return renderErr;
         var (gig, source, rendered, fields) = result!;
 
-        var catalogItem = await catalogStore.RegisterCatalogItemAsync(
-            band.Id, rendered, "image/png", $"flyer-{gig.Ref}.png",
-            CatalogSource.Upload, sourceUrl: null, uploadedBy: User.Identity?.Name,
-            label: $"Flyer - {gig.Title}", category: CatalogCategory.Flyer);
+        var catalogItem = await RegisterFlyerCatalogItemAsync(band, gig, rendered);
 
         var flyer = new Flyer
         {
@@ -390,10 +396,7 @@ public class FlyersController(
         if (renderErr is not null) return renderErr;
         var (gig, source, rendered, fields) = result!;
 
-        var catalogItem = await catalogStore.RegisterCatalogItemAsync(
-            band.Id, rendered, "image/png", $"flyer-{gig.Ref}.png",
-            CatalogSource.Upload, sourceUrl: null, uploadedBy: User.Identity?.Name,
-            label: $"Flyer - {gig.Title}", category: CatalogCategory.Flyer);
+        var catalogItem = await RegisterFlyerCatalogItemAsync(band, gig, rendered);
 
         flyer.GeneratedCatalogItemId = catalogItem.Id;
         flyer.SourceCatalogItemId = source.Id;

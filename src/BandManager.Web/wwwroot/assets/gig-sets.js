@@ -15,14 +15,6 @@ function formatLength(seconds) {
     return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-function parseLength(text) {
-    const trimmed = (text || '').trim();
-    if (!trimmed) return null;
-    const match = trimmed.match(/^(\d+):([0-5]?\d)$/);
-    if (!match) return null;
-    return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-}
-
 async function init() {
     const res = await fetch('/api/profile/me');
     const me = await res.json();

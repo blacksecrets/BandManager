@@ -609,13 +609,9 @@ public class GigsController(
 
         if (!gig.IsArchived)
         {
-            var now = DateTime.UtcNow;
             gig.IsArchived = true;
-            gig.ArchivedAt = now;
-            await db.ScheduleItems.Where(s => s.BandId == band.Id && s.GigRef == gigRef && !s.IsArchived)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsArchived, true).SetProperty(x => x.ArchivedAt, now));
-            await db.Flyers.Where(f => f.BandId == band.Id && f.GigRef == gigRef && !f.IsArchived)
-                .ExecuteUpdateAsync(f => f.SetProperty(x => x.IsArchived, true).SetProperty(x => x.ArchivedAt, now));
+            gig.ArchivedAt = DateTime.UtcNow;
+            await CascadeGigArchivedStateAsync(band.Id, gigRef, archived: true);
             await db.SaveChangesAsync();
         }
 
@@ -641,6 +637,18 @@ public class GigsController(
 
     public record UnarchiveGigRequest(bool AddToWebsiteCalendar = false);
 
+    // Archive/Unarchive are structural mirror images of each other - one
+    // helper for the ScheduleItem/Flyer cascade so a future change to what
+    // gets cascaded (e.g. adding GigPrep items) only needs editing once.
+    private async Task CascadeGigArchivedStateAsync(Guid bandId, string gigRef, bool archived)
+    {
+        var at = archived ? DateTime.UtcNow : (DateTime?)null;
+        await db.ScheduleItems.Where(s => s.BandId == bandId && s.GigRef == gigRef && s.IsArchived != archived)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsArchived, archived).SetProperty(x => x.ArchivedAt, at));
+        await db.Flyers.Where(f => f.BandId == bandId && f.GigRef == gigRef && f.IsArchived != archived)
+            .ExecuteUpdateAsync(f => f.SetProperty(x => x.IsArchived, archived).SetProperty(x => x.ArchivedAt, at));
+    }
+
     // The precise reverse of Archive - clears Gig.IsArchived, and clears
     // it only on ScheduleItem/Flyer rows for this GigRef that are
     // currently archived (safe since nothing else can independently
@@ -659,10 +667,7 @@ public class GigsController(
         {
             gig.IsArchived = false;
             gig.ArchivedAt = null;
-            await db.ScheduleItems.Where(s => s.BandId == band.Id && s.GigRef == gigRef && s.IsArchived)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsArchived, false).SetProperty(x => x.ArchivedAt, (DateTime?)null));
-            await db.Flyers.Where(f => f.BandId == band.Id && f.GigRef == gigRef && f.IsArchived)
-                .ExecuteUpdateAsync(f => f.SetProperty(x => x.IsArchived, false).SetProperty(x => x.ArchivedAt, (DateTime?)null));
+            await CascadeGigArchivedStateAsync(band.Id, gigRef, archived: false);
             await db.SaveChangesAsync();
         }
 
