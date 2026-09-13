@@ -129,6 +129,20 @@ public class AuthController(
                     : string.Join(" ", result.Errors.Select(e => e.Description))
             });
         }
+
+        // A self-service reset via "Forgot password" IS the user choosing
+        // their own password - same as ProfileController.ChangePassword,
+        // this should clear the flag too. Without this, someone who
+        // forgot their password and did exactly the right thing lands on
+        // Profile with a confusing "your password was set by an admin"
+        // banner and gets redirected away from wherever they were
+        // actually trying to go, instead of straight to their dashboard.
+        if (user.MustChangePassword)
+        {
+            user.MustChangePassword = false;
+            await userManager.UpdateAsync(user);
+        }
+
         return Ok(new { ok = true });
     }
 
