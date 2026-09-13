@@ -86,6 +86,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<ControlVisibilityRule> ControlVisibilityRules => Set<ControlVisibilityRule>();
 
+    public DbSet<GigMeetingPoint> GigMeetingPoints => Set<GigMeetingPoint>();
+    public DbSet<GigRideOffer> GigRideOffers => Set<GigRideOffer>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -537,6 +540,20 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.UpdatedByUser).WithMany().HasForeignKey(x => x.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
             b.HasIndex(x => new { x.BandId, x.ControlKey, x.Role }).IsUnique();
+        });
+
+        builder.Entity<GigMeetingPoint>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.UpdatedByUser).WithMany().HasForeignKey(x => x.UpdatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.BandId, x.GigRef }).IsUnique();
+        });
+
+        builder.Entity<GigRideOffer>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.GigRef, x.UserId }).IsUnique();
         });
     }
 }

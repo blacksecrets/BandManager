@@ -65,6 +65,32 @@
                         <button type="button" id="gig-set-view-edit-btn">View/Edit Setlist</button>
                     </div>
 
+                    <details class="manual-fallback" id="ride-coordination-section">
+                        <summary>Ride Coordination</summary>
+                        <div class="ride-coordination-meeting">
+                            <p id="ride-coordination-meeting-display" class="save-note"></p>
+                            <button type="button" id="ride-coordination-meeting-edit-btn">Set meeting point/time</button>
+                            <form id="ride-coordination-meeting-form" class="cred-form" hidden>
+                                <label>Meeting point <input type="text" name="meetingPoint" maxlength="300" placeholder="e.g. Rich's house"></label>
+                                <label>Meeting time <input type="text" name="meetingTime" maxlength="100" placeholder="e.g. 6:00 PM"></label>
+                                <button type="submit">Save</button>
+                                <button type="button" id="ride-coordination-meeting-cancel-btn">Cancel</button>
+                            </form>
+                        </div>
+                        <div class="ride-coordination-drivers">
+                            <h3>Who's driving</h3>
+                            <ul id="ride-coordination-driver-list"></ul>
+                        </div>
+                        <div class="ride-coordination-self">
+                            <label class="checkbox-label"><input type="checkbox" id="ride-coordination-im-driving"> I'm driving</label>
+                            <div id="ride-coordination-self-fields" hidden>
+                                <label>Seats available <input type="number" id="ride-coordination-seats" min="0" max="20"></label>
+                                <label>Note <input type="text" id="ride-coordination-note" maxlength="200" placeholder="e.g. leaving at 6, text me"></label>
+                                <button type="button" id="ride-coordination-save-btn">Save</button>
+                            </div>
+                        </div>
+                    </details>
+
                     <div id="gig-artifact-panel"></div>
                 </section>
             </div>

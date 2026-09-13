@@ -241,3 +241,17 @@
 
 #setlist-modal-backdrop .setlist-modal { max-width: 1000px; max-height: 88vh; overflow-y: auto; }
 #setlist-modal-backdrop .gig-set-builder { margin-top: 14px; }
+
+#ride-coordination-section { margin-top: 14px; }
+.ride-coordination-meeting { display: flex; align-items: center; gap: 12px; margin: 8px 0; flex-wrap: wrap; }
+.ride-coordination-meeting #ride-coordination-meeting-display { margin: 0; }
+.ride-coordination-meeting button { background: #444; color: #eee; border: 1px solid #666; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+#ride-coordination-meeting-form { margin-top: 8px; }
+.ride-coordination-drivers h3 { font-size: 0.9rem; margin: 10px 0 4px; color: #ccc; }
+#ride-coordination-driver-list { margin: 0; padding-left: 18px; }
+#ride-coordination-driver-list li { font-size: 0.85rem; color: #ddd; margin-bottom: 3px; }
+.ride-coordination-self { margin-top: 10px; }
+#ride-coordination-self-fields { display: flex; align-items: flex-end; gap: 10px; margin-top: 8px; flex-wrap: wrap; }
+#ride-coordination-self-fields label { display: flex; flex-direction: column; gap: 3px; font-size: 0.8rem; color: #ccc; }
+#ride-coordination-self-fields input { background: #2a2a2a; border: 1px solid #555; border-radius: 5px; padding: 5px 8px; color: #eee; }
+#ride-coordination-seats { width: 80px; }

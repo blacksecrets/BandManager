@@ -2,6 +2,7 @@ let gigs = [];
 let selectedGigRef = null;
 let bandMembers = [];
 let isBandAdmin = false;
+let currentUserId = null;
 
 // Buttons that only a BandAdmin/SuperAdmin can actually complete
 // server-side by default - hidden (not just left clickable-then-rejected)
@@ -45,6 +46,7 @@ async function init() {
     if (!hasBand) return;
 
     isBandAdmin = !!me.isAdmin;
+    currentUserId = me.id;
     let visibility = {};
     try {
         const visRes = await fetch('/api/control-visibility');
@@ -126,6 +128,7 @@ async function selectGig(gig) {
     updateSetSummary();
 
     await loadArtifactPanel();
+    await loadRideCoordination();
 }
 
 // Song count/duration are already on the gig object (ListGigs computes
@@ -164,6 +167,72 @@ function renderArtifactPanelHtml(data) {
 
     return `<h3>Everything for this gig</h3>${flyerHtml}<h4>Scheduled posts</h4>${itemsHtml}`;
 }
+
+// --- Ride Coordination (D11) ---
+let rideCoordinationMeeting = { meetingPoint: '', meetingTime: '' };
+
+async function loadRideCoordination() {
+    const res = await fetch(`/api/ride-coordination/${encodeURIComponent(selectedGigRef)}`);
+    const data = res.ok ? await res.json() : { meetingPoint: null, meetingTime: null, drivers: [] };
+    rideCoordinationMeeting = { meetingPoint: data.meetingPoint || '', meetingTime: data.meetingTime || '' };
+
+    const display = document.getElementById('ride-coordination-meeting-display');
+    display.textContent = data.meetingPoint || data.meetingTime
+        ? `Meeting at ${data.meetingPoint || '?'}${data.meetingTime ? ` - ${data.meetingTime}` : ''}`
+        : 'No meeting point set yet.';
+
+    const list = document.getElementById('ride-coordination-driver-list');
+    list.innerHTML = data.drivers.length === 0
+        ? '<li class="save-note">Nobody has offered to drive yet.</li>'
+        : data.drivers.map((d) => `<li>${escapeHtml(d.name)}${d.seatsAvailable != null ? ` - ${d.seatsAvailable} seat${d.seatsAvailable === 1 ? '' : 's'} open` : ''}${d.note ? ` (${escapeHtml(d.note)})` : ''}</li>`).join('');
+
+    const mine = data.drivers.find((d) => d.userId === currentUserId);
+    const checkbox = document.getElementById('ride-coordination-im-driving');
+    const fields = document.getElementById('ride-coordination-self-fields');
+    checkbox.checked = !!mine;
+    fields.hidden = !mine;
+    document.getElementById('ride-coordination-seats').value = mine?.seatsAvailable ?? '';
+    document.getElementById('ride-coordination-note').value = mine?.note ?? '';
+}
+
+document.getElementById('ride-coordination-meeting-edit-btn').addEventListener('click', () => {
+    const form = document.getElementById('ride-coordination-meeting-form');
+    form.meetingPoint.value = rideCoordinationMeeting.meetingPoint;
+    form.meetingTime.value = rideCoordinationMeeting.meetingTime;
+    form.hidden = false;
+});
+document.getElementById('ride-coordination-meeting-cancel-btn').addEventListener('click', () => {
+    document.getElementById('ride-coordination-meeting-form').hidden = true;
+});
+document.getElementById('ride-coordination-meeting-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    await fetch(`/api/ride-coordination/${encodeURIComponent(selectedGigRef)}/meeting-point`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meetingPoint: form.meetingPoint.value, meetingTime: form.meetingTime.value })
+    });
+    form.hidden = true;
+    await loadRideCoordination();
+});
+
+document.getElementById('ride-coordination-im-driving').addEventListener('change', async (e) => {
+    document.getElementById('ride-coordination-self-fields').hidden = !e.target.checked;
+    if (!e.target.checked) {
+        await fetch(`/api/ride-coordination/${encodeURIComponent(selectedGigRef)}/driving`, { method: 'DELETE' });
+        await loadRideCoordination();
+    }
+});
+document.getElementById('ride-coordination-save-btn').addEventListener('click', async () => {
+    const seatsRaw = document.getElementById('ride-coordination-seats').value;
+    await fetch(`/api/ride-coordination/${encodeURIComponent(selectedGigRef)}/driving`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            seatsAvailable: seatsRaw === '' ? null : Number(seatsRaw),
+            note: document.getElementById('ride-coordination-note').value
+        })
+    });
+    await loadRideCoordination();
+});
 
 // --- View/Edit Setlist (opens the shared setlist-builder modal - see
 // assets/setlistEditor.js, also used by the Calendar's Rehearsal modal) ---
