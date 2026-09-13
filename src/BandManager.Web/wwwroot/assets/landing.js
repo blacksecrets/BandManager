@@ -62,6 +62,12 @@ async function init() {
 async function loadGigsWidget() {
     const res = await fetch('/api/gig-sets/gigs');
     const gigs = res.ok ? await res.json() : [];
+    // The compact tile is "what's coming up," not a full history - already-
+    // past gigs are still one click away via "Go To Gig Management" (which
+    // has its own Upcoming/Past split), so this preview only ever shows
+    // what's still ahead, soonest first, instead of defaulting to furthest-
+    // future-first and burying the next gig below everything else.
+    const upcomingGigs = gigs.filter((g) => !g.isPast);
 
     const widgetColumns = [
         { key: 'title', label: 'Title', render: (g) => escapeHtml(g.title) },
@@ -69,8 +75,8 @@ async function loadGigsWidget() {
         { key: 'venue', label: 'Venue', render: (g) => escapeHtml(g.venue || '—') }
     ];
     window.DataGrid.render(document.getElementById('landing-gigs-grid'), {
-        columns: widgetColumns, rows: gigs, getRowId: (g) => g.gigRef,
-        defaultSortKey: 'date', defaultSortDir: 'desc', emptyMessage: 'No gigs yet.'
+        columns: widgetColumns, rows: upcomingGigs, getRowId: (g) => g.gigRef,
+        defaultSortKey: 'date', defaultSortDir: 'asc', emptyMessage: 'No upcoming gigs.'
     });
 
     document.querySelector('[data-widget="gigs"] h2').addEventListener('click', () => {
@@ -81,9 +87,12 @@ async function loadGigsWidget() {
                 { key: 'songCount', label: 'Songs', render: (g) => g.songCount },
                 { key: 'duration', label: 'Duration', sortValue: (g) => g.durationSeconds, render: (g) => escapeHtml(g.duration || '—') }
             ];
+            // The expanded "everything" view keeps past gigs too (someone
+            // opening this probably does want the full list), just sorted
+            // soonest-first same as the tile, instead of furthest-first.
             window.DataGrid.render(container, {
                 columns: detailColumns, rows: gigs, getRowId: (g) => g.gigRef,
-                defaultSortKey: 'date', defaultSortDir: 'desc', emptyMessage: 'No gigs yet.'
+                defaultSortKey: 'date', defaultSortDir: 'asc', emptyMessage: 'No gigs yet.'
             });
         }, '/gig-sets', 'Go To Gig Management');
     });
