@@ -56,15 +56,23 @@ builder.Services.ConfigureApplicationCookie(options =>
         if (context.Request.Path.StartsWithSegments("/api"))
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
+            return context.Response.WriteAsJsonAsync(new { error = "Please log in again." });
         }
         context.Response.Redirect(context.RedirectUri);
         return Task.CompletedTask;
     };
     options.Events.OnRedirectToAccessDenied = context =>
     {
+        // A body matters here, not just the status code - every page's own
+        // JS uniformly does `const result = await res.json(); if (!res.ok)
+        // status.textContent = result.error ...`, and a 403 with no body
+        // makes that res.json() call itself throw (empty response isn't
+        // valid JSON) before the ok-check ever runs. Caught live: a plain
+        // member clicking an admin-only action (e.g. Add a Gig) saw the
+        // button freeze on "Adding gig..." forever with no error and no
+        // way to know what happened, instead of a clear permission message.
         context.Response.StatusCode = StatusCodes.Status403Forbidden;
-        return Task.CompletedTask;
+        return context.Response.WriteAsJsonAsync(new { error = "You don't have permission to do that - ask a Band Admin." });
     };
 });
 
