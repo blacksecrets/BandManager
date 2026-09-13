@@ -409,7 +409,12 @@ async function attemptSaveTrip() {
     }
 
     closeTripModal();
-    await loadTravelTrips();
+    // The save response is already the fully-serialized trip - update the
+    // local list and re-render from it instead of re-fetching the whole
+    // list, same pattern test-suite.js's saveTestCaseResult already uses.
+    const idx = travelTrips.findIndex((t) => t.id === body.id);
+    if (idx >= 0) travelTrips[idx] = body; else travelTrips.unshift(body);
+    renderTravelTripsGrid();
 }
 
 tripForm().addEventListener('submit', async (e) => {

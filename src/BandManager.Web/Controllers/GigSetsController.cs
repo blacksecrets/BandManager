@@ -74,11 +74,18 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         if (band is null) return NotFound();
 
         var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == bandId && !g.IsArchived).OrderBy(g => g.Date).ToListAsync();
-        var sets = await db.GigSets.AsNoTracking().Include(s => s.Songs).ThenInclude(gs => gs.Song)
+        // Projected in one query, same pattern ListArchivedGigs already
+        // uses below - no Include/full-entity load and no separate
+        // count/duration passes over the same Songs collection.
+        var setStats = await db.GigSets.AsNoTracking()
             .Where(s => s.BandId == bandId && !s.IsFloating)
-            .ToListAsync();
-        var setCounts = sets.ToDictionary(s => s.GigRef, s => s.Songs.Count);
-        var setDurations = sets.ToDictionary(s => s.GigRef, SetDurationSeconds);
+            .Select(s => new
+            {
+                s.GigRef,
+                Count = s.Songs.Count,
+                DurationSeconds = s.Songs.Sum(x => (x.Song != null ? x.Song.LengthSeconds : null) ?? x.ManualLengthSeconds ?? 0)
+            })
+            .ToDictionaryAsync(x => x.GigRef, x => x);
 
         // UTC, not server-local (DateTime.Today) - matches
         // FlyersController.UpcomingGigs' own "today" and every other date
@@ -97,9 +104,9 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
             // the display text back apart client-side.
             sortDate = g.Date.ToString("yyyy-MM-dd"),
             time = g.Time,
-            songCount = setCounts.GetValueOrDefault(g.Ref, 0),
-            durationSeconds = setDurations.GetValueOrDefault(g.Ref, 0),
-            duration = FormatDuration(setDurations.GetValueOrDefault(g.Ref, 0)),
+            songCount = setStats.GetValueOrDefault(g.Ref)?.Count ?? 0,
+            durationSeconds = setStats.GetValueOrDefault(g.Ref)?.DurationSeconds ?? 0,
+            duration = FormatDuration(setStats.GetValueOrDefault(g.Ref)?.DurationSeconds ?? 0),
             isPast = g.Date < today
         });
         return Ok(result);

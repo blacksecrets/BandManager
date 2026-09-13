@@ -180,28 +180,37 @@ public class AccountingController(ApplicationDbContext db, IActiveBandAccessor a
             .Where(p => p.BandId == band.Id && p.UserId == userId).Select(p => (decimal?)p.Percentage).FirstOrDefaultAsync();
         if (myPercentage is null) return Ok(Array.Empty<object>());
 
-        var gigs = await db.Gigs.AsNoTracking().Where(g => g.BandId == band.Id).ToListAsync();
-        var payouts = await db.GigPayouts.AsNoTracking().Where(p => gigs.Select(g => g.Id).Contains(p.GigId)).ToDictionaryAsync(p => p.GigId);
-        var myRows = await db.GigPayoutRecipients.AsNoTracking()
-            .Where(r => r.UserId == userId && gigs.Select(g => g.Id).Contains(r.GigId)).ToDictionaryAsync(r => r.GigId);
-
-        var result = gigs
-            .Where(g => payouts.ContainsKey(g.Id))
-            .OrderByDescending(g => g.Date)
-            .Select(g =>
+        // One query - only gigs that actually have a payout row for this
+        // band, joined straight to this user's own recipient row (if any)
+        // instead of loading every Gig's full columns just to filter/
+        // dictionary-build them in memory afterward.
+        var rows = await (
+            from payout in db.GigPayouts.AsNoTracking()
+            where payout.Gig.BandId == band.Id
+            join myRow in db.GigPayoutRecipients.AsNoTracking().Where(r => r.UserId == userId)
+                on payout.GigId equals myRow.GigId into myRowJoin
+            from myRow in myRowJoin.DefaultIfEmpty()
+            orderby payout.Gig.Date descending
+            select new
             {
-                var payout = payouts[g.Id];
-                myRows.TryGetValue(g.Id, out var myRow);
-                return new
-                {
-                    gigRef = g.Ref,
-                    gigTitle = g.Title,
-                    date = g.Date.ToString("yyyy-MM-dd"),
-                    amount = payout.Amount is { } total ? Math.Round(total * myPercentage.Value / 100m, 2) : (decimal?)null,
-                    isPaid = myRow?.IsPaid ?? false,
-                    payoutType = myRow?.PayoutType?.ToString()
-                };
-            });
+                gigRef = payout.Gig.Ref,
+                gigTitle = payout.Gig.Title,
+                date = payout.Gig.Date,
+                amount = payout.Amount,
+                isPaid = myRow != null && myRow.IsPaid,
+                payoutType = myRow != null ? myRow.PayoutType : null
+            }
+        ).ToListAsync();
+
+        var result = rows.Select(r => new
+        {
+            r.gigRef,
+            r.gigTitle,
+            date = r.date.ToString("yyyy-MM-dd"),
+            amount = r.amount is { } total ? Math.Round(total * myPercentage.Value / 100m, 2) : (decimal?)null,
+            r.isPaid,
+            payoutType = r.payoutType?.ToString()
+        });
         return Ok(result);
     }
 
