@@ -13,6 +13,7 @@ async function loadBandAdmin() {
     noBandEl.textContent = 'Select a band from the switcher above to manage it.';
     noBandEl.hidden = hasBand;
     document.getElementById('band-info-section').hidden = !hasBand;
+    document.getElementById('band-control-visibility-section').hidden = !hasBand;
     document.getElementById('band-broadcast-section').hidden = !hasBand;
     document.getElementById('band-branding-section').hidden = !hasBand;
     document.getElementById('band-users-section').hidden = !hasBand;
@@ -26,6 +27,7 @@ async function loadBandAdmin() {
     isSuperAdminGlobal = !!me.isSuperAdmin;
 
     loadBandInfo();
+    loadControlVisibility();
     loadBandBranding();
     loadBandRoleOptions().then(loadUsers);
     loadBandRolesMembers();
@@ -36,6 +38,51 @@ async function loadBandAdmin() {
 }
 
 let isSuperAdminGlobal = false;
+
+// --- Who Sees What (B4 - a UI on top of B3's DB-driven control-visibility
+// rules; only Gig Management's 5 admin-only buttons exist as controls so
+// far - see ControlVisibilityDefaults.cs for the canonical list) ---
+const CONTROL_LABELS = {
+    'gig-sets:add-gig-btn': '"+ Add a Gig" button (Gig Management)',
+    'gig-sets:edit-btn': '"Edit Gig" button (Gig Management)',
+    'gig-sets:flyer-btn': '"Create/Edit Flyer" button (Gig Management)',
+    'gig-sets:select-flyer-btn': '"Select Flyer" button (Gig Management)',
+    'gig-sets:archive-btn': '"Archive" button (Gig Management)'
+};
+
+async function loadControlVisibility() {
+    const res = await fetch('/api/control-visibility/rules');
+    if (!res.ok) return;
+    const rules = await res.json();
+    const tbody = document.getElementById('control-visibility-table-body');
+    tbody.innerHTML = rules.map((r) => `
+        <tr data-control-key="${r.controlKey}">
+            <td>${CONTROL_LABELS[r.controlKey] || r.controlKey}</td>
+            <td><input type="checkbox" data-role="User" ${r.user.isVisible ? 'checked' : ''}></td>
+            <td><input type="checkbox" data-role="BandAdmin" ${r.bandAdmin.isVisible ? 'checked' : ''}></td>
+        </tr>
+    `).join('');
+}
+
+document.getElementById('control-visibility-save-btn').addEventListener('click', async () => {
+    const status = document.getElementById('control-visibility-status');
+    const rules = [...document.querySelectorAll('#control-visibility-table-body tr')].flatMap((tr) => {
+        const controlKey = tr.dataset.controlKey;
+        return [...tr.querySelectorAll('input[type=checkbox]')].map((cb) => ({
+            controlKey, role: cb.dataset.role, isVisible: cb.checked
+        }));
+    });
+
+    status.textContent = 'Saving...';
+    const res = await fetch('/api/control-visibility', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rules })
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { status.textContent = body.error || 'Could not save.'; return; }
+    status.textContent = body.changed
+        ? 'Saved - affected members will see this after they log out and back in.'
+        : 'No changes to save.';
+});
 
 // --- Band Information (name/phone/mailing address) ---
 

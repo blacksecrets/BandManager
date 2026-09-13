@@ -54,6 +54,17 @@
             </form>
         </section>
 
+        <section class="platform-card" id="band-control-visibility-section" hidden>
+            <h2>Who Sees What</h2>
+            <p>Show or hide specific buttons/controls per role, for this band only. A control not listed here has no override yet and just uses its shipped default. <strong>Changing a rule doesn't update anyone's screen until they log out and back in</strong> - they'll get a notification saying so.</p>
+            <table class="user-table">
+                <thead><tr><th>Control</th><th>Member</th><th>Band Admin</th></tr></thead>
+                <tbody id="control-visibility-table-body"></tbody>
+            </table>
+            <button type="button" id="control-visibility-save-btn">Save</button>
+            <p id="control-visibility-status" class="save-note"></p>
+        </section>
+
         <section class="platform-card" id="band-broadcast-section" hidden>
             <h2>Send an Announcement</h2>
             <p>Notifies every member of this band at once - shows up in each person's Notifications, same as any other notification.</p>
