@@ -544,6 +544,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.BandId, x.Name }).IsUnique();
+            b.HasOne(x => x.Venue).WithMany().HasForeignKey(x => x.VenueId).OnDelete(DeleteBehavior.SetNull);
         });
 
         builder.Entity<Trip>(b =>

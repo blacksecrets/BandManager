@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BandManager.Web.Controllers;
 
-public record SaveLocationRequest(string Name, string AddressLine1, string City, string State, string PostalCode, string Kind);
+public record SaveLocationRequest(string Name, string AddressLine1, string City, string State, string PostalCode, string Kind, Guid? VenueId = null);
 
 /// <summary>
 /// The generalized version of BandLocation (Travel.cs) - a general band
@@ -18,7 +18,10 @@ public record SaveLocationRequest(string Name, string AddressLine1, string City,
 /// Venue itself - see BandLocation's own doc comment for why (Venue
 /// carries booking-specific fields - capacity, stage dimensions, a
 /// default promoter - that don't belong on a rehearsal space or a
-/// member's second home).
+/// member's second home). A Kind=Venue entry can optionally link to a
+/// real Venue book row via VenueId (see BandLocation.VenueId's own
+/// comment) instead of drifting into an unrelated, disconnected copy
+/// of the same place's address.
 /// </summary>
 [ApiController]
 [Route("/api/locations")]
@@ -44,6 +47,7 @@ public class LocationsController(ApplicationDbContext db, IActiveBandAccessor ac
         state = l.State,
         postalCode = l.PostalCode,
         kind = l.Kind.ToString(),
+        venueId = l.VenueId,
         mapsUrl = MapsUrl(l.AddressLine1, l.City, l.State, l.PostalCode)
     };
 
@@ -76,6 +80,8 @@ public class LocationsController(ApplicationDbContext db, IActiveBandAccessor ac
         if (string.IsNullOrWhiteSpace(request.AddressLine1) || string.IsNullOrWhiteSpace(request.City)
             || string.IsNullOrWhiteSpace(request.State) || string.IsNullOrWhiteSpace(request.PostalCode))
             return BadRequest(new { error = "A complete address (street, city, state, ZIP) is required." });
+        if (request.VenueId is { } newVenueId && !await db.Venues.AnyAsync(v => v.Id == newVenueId && v.BandId == bandId))
+            return BadRequest(new { error = "Venue not found." });
 
         var location = new BandLocation
         {
@@ -85,7 +91,8 @@ public class LocationsController(ApplicationDbContext db, IActiveBandAccessor ac
             City = Clean(request.City)!,
             State = Clean(request.State)!,
             PostalCode = Clean(request.PostalCode)!,
-            Kind = kind
+            Kind = kind,
+            VenueId = request.VenueId
         };
         db.BandLocations.Add(location);
         await db.SaveChangesAsync();
@@ -107,6 +114,8 @@ public class LocationsController(ApplicationDbContext db, IActiveBandAccessor ac
         if (string.IsNullOrWhiteSpace(request.AddressLine1) || string.IsNullOrWhiteSpace(request.City)
             || string.IsNullOrWhiteSpace(request.State) || string.IsNullOrWhiteSpace(request.PostalCode))
             return BadRequest(new { error = "A complete address (street, city, state, ZIP) is required." });
+        if (request.VenueId is { } editVenueId && !await db.Venues.AnyAsync(v => v.Id == editVenueId && v.BandId == bandId))
+            return BadRequest(new { error = "Venue not found." });
 
         location.Name = name;
         location.AddressLine1 = Clean(request.AddressLine1)!;
@@ -114,6 +123,7 @@ public class LocationsController(ApplicationDbContext db, IActiveBandAccessor ac
         location.State = Clean(request.State)!;
         location.PostalCode = Clean(request.PostalCode)!;
         location.Kind = kind;
+        location.VenueId = request.VenueId;
         await db.SaveChangesAsync();
         return Ok(Serialize(location));
     }

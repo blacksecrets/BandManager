@@ -1,3 +1,31 @@
+/* Locations' venue-link picker (see band-admin.js's loadVenuesForLocationPicker)
+   - reuses addGigModal.css's .add-gig-venue-* classes for the list/row/
+   selected styling, but that stylesheet only styles its own toggle button
+   by id, so this section's differently-id'd equivalent needs its own copy
+   of that one rule. */
+#location-venue-manual-toggle {
+    align-self: flex-start;
+    background: none;
+    border: 1px dashed #555;
+    color: #ccc;
+    padding: 5px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+#location-venue-manual-toggle:hover { background: rgba(255, 255, 255, 0.05); }
+
+.location-venue-link-badge {
+    display: inline-block;
+    margin-left: 4px;
+    background: none;
+    border: 1px solid #4a6fa5;
+    color: #aac1de;
+    border-radius: 10px;
+    padding: 1px 8px;
+    font-size: 0.72rem;
+}
+
 /* Song Catalog section (see band-admin.js's loadSongCatalog) */
 .song-catalog-filters {
     display: flex;

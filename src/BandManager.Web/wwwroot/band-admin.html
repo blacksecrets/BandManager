@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="/assets/stagePlotEditor.css">
 <link rel="stylesheet" href="/assets/dataGrid.css">
 <link rel="stylesheet" href="/assets/band-admin.css">
+<link rel="stylesheet" href="/assets/addGigModal.css">
 </head>
 <body>
     <header class="topbar">
@@ -349,7 +350,7 @@
 
         <section class="platform-card" id="band-locations-section" hidden>
             <h2>Locations</h2>
-            <p>A general address book for this band - studios, rehearsal spaces, gear stores, anywhere that's not a booking venue (those live under Venue Campaigns instead). Every entry gets a "Get Directions" map link automatically.</p>
+            <p>A general address book for this band - studios, rehearsal spaces, gear stores, anywhere that's not a booking venue (those live under Venue Campaigns instead). Every entry gets a "Get Directions" map link automatically. A Venue-kind entry can link to your Venue book instead of duplicating its address.</p>
 
             <table class="user-table">
                 <thead><tr><th>Name</th><th>Kind</th><th>Address</th><th></th></tr></thead>
@@ -373,6 +374,16 @@
                             <option value="Other">Other</option>
                         </select>
                     </label>
+
+                    <div id="location-venue-link-section" class="add-gig-venue-section" hidden>
+                        <span class="add-gig-venue-label">This is a booking venue - link to one already in your Venue book instead of a separate, disconnected copy of its address?</span>
+                        <div id="location-venue-selected" class="add-gig-venue-selected" hidden></div>
+                        <div id="location-venue-picker">
+                            <div id="location-venue-list" class="add-gig-venue-list"><p class="save-note">Loading venues...</p></div>
+                            <button type="button" id="location-venue-manual-toggle">Not linked to an existing venue</button>
+                        </div>
+                    </div>
+
                     <label>Address <input type="text" name="addressLine1" maxlength="300" required></label>
                     <label>City <input type="text" name="city" maxlength="100" required></label>
                     <label>State <input type="text" name="state" maxlength="2" required></label>

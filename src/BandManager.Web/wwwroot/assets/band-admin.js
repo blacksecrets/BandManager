@@ -878,22 +878,45 @@ const LOCATION_KIND_LABELS = { Venue: 'Venue', Studio: 'Studio', RehearsalSpace:
 let locations = [];
 let editingLocationId = null;
 
+// The band's real Venue book (VenuesController) - Kind=Venue Locations can
+// optionally link to one of these instead of carrying a second,
+// disconnected copy of the same place's address (see BandLocation.VenueId's
+// own comment). Loaded once and reused both for the picker inside the
+// modal and to show which Venue a linked row in the table resolves to.
+let venuesForLocationPicker = [];
+let venuesForLocationPickerLoaded = false;
+let selectedLocationVenue = null; // { id, name, addressLine1, city, state, postalCode } | null
+
+async function loadVenuesForLocationPicker() {
+    if (venuesForLocationPickerLoaded) return;
+    const res = await fetch('/api/venues');
+    venuesForLocationPicker = res.ok ? await res.json() : [];
+    venuesForLocationPickerLoaded = true;
+}
+
+function formatVenueAddress(v) {
+    return [v.addressLine1, [v.city, v.state].filter(Boolean).join(', '), v.postalCode].filter(Boolean).join(' · ');
+}
+
 async function loadLocations() {
-    const res = await fetch('/api/locations');
-    locations = res.ok ? await res.json() : [];
+    const [locRes] = await Promise.all([fetch('/api/locations'), loadVenuesForLocationPicker()]);
+    locations = locRes.ok ? await locRes.json() : [];
     renderLocationsList();
 }
 
 function renderLocationsList() {
     const body = document.getElementById('locations-table-body');
-    body.innerHTML = locations.map((l) => `
+    body.innerHTML = locations.map((l) => {
+        const linkedVenue = l.venueId ? venuesForLocationPicker.find((v) => v.id === l.venueId) : null;
+        return `
         <tr>
             <td>${escapeHtml(l.name)}</td>
-            <td>${escapeHtml(LOCATION_KIND_LABELS[l.kind] || l.kind)}</td>
+            <td>${escapeHtml(LOCATION_KIND_LABELS[l.kind] || l.kind)}${linkedVenue ? ` <span class="location-venue-link-badge" title="Linked to this band's Venue book">🔗 ${escapeHtml(linkedVenue.name)}</span>` : ''}</td>
             <td>${escapeHtml([l.addressLine1, l.city, l.state].filter(Boolean).join(', '))} <a href="${escapeHtml(l.mapsUrl)}" target="_blank" rel="noopener">Get Directions</a></td>
             <td><button type="button" class="location-edit-btn" data-id="${l.id}">Edit</button></td>
         </tr>
-    `).join('') || '<tr><td colspan="4" class="save-note">No locations yet.</td></tr>';
+    `;
+    }).join('') || '<tr><td colspan="4" class="save-note">No locations yet.</td></tr>';
 
     body.querySelectorAll('.location-edit-btn').forEach((btn) => {
         btn.addEventListener('click', () => openLocationModal(locations.find((l) => l.id === btn.dataset.id)));
@@ -903,6 +926,70 @@ function renderLocationsList() {
 function closeLocationModal() { document.getElementById('location-modal-backdrop').hidden = true; }
 document.getElementById('location-modal-close').addEventListener('click', closeLocationModal);
 document.getElementById('location-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'location-modal-backdrop') closeLocationModal(); });
+
+function renderLocationVenueList() {
+    const box = document.getElementById('location-venue-list');
+    if (venuesForLocationPicker.length === 0) {
+        box.innerHTML = '<p class="save-note">No venues in your Venue book yet - enter this one manually below.</p>';
+        return;
+    }
+    box.innerHTML = '';
+    for (const v of venuesForLocationPicker) {
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.className = 'add-gig-venue-row';
+        row.innerHTML = `
+            <span class="add-gig-venue-name">${escapeHtml(v.name)}</span>
+            <span class="add-gig-venue-address">${escapeHtml(formatVenueAddress(v)) || 'No address on file'}</span>
+        `;
+        row.addEventListener('click', () => showSelectedLocationVenue(v));
+        box.appendChild(row);
+    }
+}
+
+// Just the picked/linked-venue display state (list -> "selected" block) -
+// no form-field writes, so restoring an already-linked Location's saved
+// edit state (openLocationModal) doesn't clobber its own name/address with
+// the raw Venue's, only actively picking one from the list should do that
+// (see showSelectedLocationVenue below, the only caller that pre-fills).
+function selectLocationVenueUI(v) {
+    selectedLocationVenue = v;
+    document.getElementById('location-venue-picker').hidden = true;
+    const sel = document.getElementById('location-venue-selected');
+    sel.hidden = false;
+    sel.innerHTML = `
+        <span class="add-gig-venue-selected-name">${escapeHtml(v.name)}</span>
+        <span class="add-gig-venue-selected-address">${escapeHtml(formatVenueAddress(v)) || 'No address on file'}</span>
+        <button type="button" id="location-venue-change-btn">Change venue</button>
+    `;
+    sel.querySelector('#location-venue-change-btn').addEventListener('click', () => clearSelectedLocationVenue());
+}
+
+// User actively picked v from the list - pre-fill the form from it, unlike
+// selectLocationVenueUI above (used when restoring an already-saved link).
+function showSelectedLocationVenue(v) {
+    const form = document.getElementById('location-form');
+    form.name.value = v.name;
+    form.addressLine1.value = v.addressLine1 || '';
+    form.city.value = v.city || '';
+    form.state.value = v.state || '';
+    form.postalCode.value = v.postalCode || '';
+    selectLocationVenueUI(v);
+}
+
+function clearSelectedLocationVenue() {
+    selectedLocationVenue = null;
+    document.getElementById('location-venue-selected').hidden = true;
+    document.getElementById('location-venue-picker').hidden = false;
+}
+
+function applyLocationVenueLinkVisibility() {
+    const form = document.getElementById('location-form');
+    const section = document.getElementById('location-venue-link-section');
+    section.hidden = form.kind.value !== 'Venue';
+}
+document.getElementById('location-form').kind.addEventListener('change', applyLocationVenueLinkVisibility);
+document.getElementById('location-venue-manual-toggle').addEventListener('click', () => clearSelectedLocationVenue());
 
 function openLocationModal(location) {
     editingLocationId = location ? location.id : null;
@@ -915,6 +1002,12 @@ function openLocationModal(location) {
     form.city.value = location?.city || '';
     form.state.value = location?.state || '';
     form.postalCode.value = location?.postalCode || '';
+
+    renderLocationVenueList();
+    const linkedVenue = location?.venueId ? venuesForLocationPicker.find((v) => v.id === location.venueId) : null;
+    if (linkedVenue) selectLocationVenueUI(linkedVenue);
+    else clearSelectedLocationVenue();
+    applyLocationVenueLinkVisibility();
 
     const deleteBtn = document.getElementById('location-delete-btn');
     deleteBtn.hidden = !location;
@@ -940,7 +1033,8 @@ document.getElementById('location-form').addEventListener('submit', async (e) =>
         addressLine1: form.addressLine1.value.trim(),
         city: form.city.value.trim(),
         state: form.state.value.trim(),
-        postalCode: form.postalCode.value.trim()
+        postalCode: form.postalCode.value.trim(),
+        venueId: form.kind.value === 'Venue' ? (selectedLocationVenue?.id ?? null) : null
     });
     const url = editingLocationId ? `/api/locations/${editingLocationId}` : '/api/locations';
     const method = editingLocationId ? 'PUT' : 'POST';

@@ -57,6 +57,17 @@ public class BandLocation
     // from the Locations book.
     public LocationKind Kind { get; set; } = LocationKind.Other;
 
+    // When Kind is Venue, optionally links to the band's real Venue book
+    // entry for the same place instead of this Location carrying a second,
+    // disconnected copy of its address - same "traceability link, editable
+    // snapshot" pattern as Gig.VenueId (see Gig.cs's own comment on that).
+    // Name/AddressLine1/City/State/PostalCode above stay the real display
+    // fields, pre-filled from the Venue when linked but editable
+    // independently afterward - SetNull (not Cascade) so deleting the
+    // Venue just unlinks this entry rather than deleting it.
+    public Guid? VenueId { get; set; }
+    public Venue? Venue { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 
