@@ -129,3 +129,7 @@
 a.landing-stat-tile:hover { border-color: #5b8def; background: #262a33; }
 .landing-stat-value { font-size: 1.6rem; font-weight: 600; color: #e6b563; font-variant-numeric: tabular-nums; }
 .landing-stat-label { font-size: 0.8rem; color: #999; }
+
+.landing-graph-bar { fill: #e6b563; }
+.landing-graph-value { font-size: 10px; fill: #ccc; font-variant-numeric: tabular-nums; }
+.landing-graph-label { font-size: 11px; fill: #999; }

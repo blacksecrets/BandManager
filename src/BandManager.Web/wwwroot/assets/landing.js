@@ -44,10 +44,20 @@ const WIDGETS = [
     { key: 'venues', label: 'Our Venues', load: loadVenuesWidget },
     { key: 'web-presence', label: 'Our Web Presence', load: loadWebPresenceWidget },
     { key: 'calendar', label: 'Our Calendar', load: loadCalendarWidget },
-    { key: 'next-two-weeks', label: 'My Next Two Weeks', load: loadNextTwoWeeksWidget }
+    { key: 'next-two-weeks', label: 'My Next Two Weeks', load: loadNextTwoWeeksWidget },
+    { key: 'venue-campaign-status', label: 'Venue Campaign Status', load: loadVenueCampaignStatusWidget },
+    // adminOnly: hidden from the customize picker entirely for a plain
+    // member, not just visibility-gated once added - the widget shows
+    // this band's overall gross earnings, which a member has no access
+    // to anywhere else (My Accounting only ever shows their own rows).
+    // The underlying endpoint is BandAdmin-only regardless, so this is
+    // belt-and-suspenders, not the only thing standing between a member
+    // and the data.
+    { key: 'accounting-graph', label: 'Accounting Graph', load: loadAccountingGraphWidget, adminOnly: true }
 ];
 
 let dashboardWidgets = WIDGETS.map((w) => w.key);
+let isAdminGlobal = false;
 
 // Applies dashboardWidgets (order + which are shown) to the already-in-DOM
 // widget sections via CSS order + hidden, rather than rebuilding markup -
@@ -57,7 +67,13 @@ function applyWidgetLayout() {
     WIDGETS.forEach((w) => {
         const section = document.querySelector(`[data-widget="${w.key}"]`);
         if (!section) return;
-        const position = dashboardWidgets.indexOf(w.key);
+        // An adminOnly widget stays visually hidden for a non-admin even
+        // if it's still sitting in their saved layout (e.g. they were
+        // demoted after picking it) - matches the load loop in init()
+        // skipping it too, so there's never an empty, unloaded section
+        // left showing.
+        const eligible = !w.adminOnly || isAdminGlobal;
+        const position = eligible ? dashboardWidgets.indexOf(w.key) : -1;
         section.hidden = position === -1;
         section.style.order = position === -1 ? WIDGETS.length : position;
     });
@@ -78,12 +94,17 @@ async function init() {
         return;
     }
 
+    isAdminGlobal = !!me.isAdmin;
     dashboardWidgets = (me.dashboardWidgets || []).filter((k) => WIDGETS.some((w) => w.key === k));
     applyWidgetLayout();
 
     document.getElementById('landing-customize-btn').hidden = false;
     document.getElementById('landing-member-grid').hidden = false;
-    for (const w of WIDGETS) if (dashboardWidgets.includes(w.key)) w.load();
+    for (const w of WIDGETS) {
+        if (!dashboardWidgets.includes(w.key)) continue;
+        if (w.adminOnly && !isAdminGlobal) continue;
+        w.load();
+    }
     initCustomizeModal();
 }
 
@@ -260,6 +281,60 @@ async function loadNextTwoWeeksWidget() {
     ].join('');
 }
 
+// --- Venue Campaign Status ---
+const CAMPAIGN_STATUS_LABELS = { NotStarted: 'Not started', Active: 'Active', Paused: 'Paused', CompleteBooked: 'Booked', CompleteRejected: 'Rejected' };
+
+async function loadVenueCampaignStatusWidget() {
+    const res = await fetch('/api/venue-campaigns');
+    const venues = res.ok ? await res.json() : [];
+
+    const counts = {};
+    for (const v of venues) counts[v.status] = (counts[v.status] || 0) + 1;
+
+    const container = document.getElementById('landing-venue-campaign-status');
+    const order = ['Active', 'CompleteBooked', 'Paused', 'CompleteRejected', 'NotStarted'];
+    container.innerHTML = order.map((status) => `
+        <div class="landing-stat-tile">
+            <span class="landing-stat-value">${counts[status] || 0}</span>
+            <span class="landing-stat-label">${escapeHtml(CAMPAIGN_STATUS_LABELS[status])}</span>
+        </div>
+    `).join('');
+}
+
+// --- Accounting Graph (admin-only - see WIDGETS' adminOnly note) ---
+async function loadAccountingGraphWidget() {
+    const container = document.getElementById('landing-accounting-graph');
+    const year = new Date().getFullYear();
+    const res = await fetch(`/api/accounting/summary?year=${year}`);
+    if (!res.ok) {
+        // Belt-and-suspenders case: someone lost admin mid-session with
+        // this widget already in their layout. Explain plainly rather
+        // than showing a blank box or a raw error.
+        container.innerHTML = '<p class="save-note">You need Band Admin access to see this.</p>';
+        return;
+    }
+    const data = await res.json();
+    const usdFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+    const max = Math.max(1, ...data.quarters.map((q) => q.grossAmount));
+    const barWidth = 56, gap = 22, chartHeight = 90, labelHeight = 34;
+    const svgWidth = data.quarters.length * (barWidth + gap);
+
+    const bars = data.quarters.map((q, i) => {
+        const h = Math.round((q.grossAmount / max) * chartHeight);
+        const x = i * (barWidth + gap);
+        return `
+            <text x="${x + barWidth / 2}" y="${chartHeight - h - 6}" text-anchor="middle" class="landing-graph-value">${q.grossAmount > 0 ? usdFmt.format(q.grossAmount) : ''}</text>
+            <rect x="${x}" y="${chartHeight - h}" width="${barWidth}" height="${Math.max(h, 1)}" rx="4" class="landing-graph-bar"></rect>
+            <text x="${x + barWidth / 2}" y="${chartHeight + 20}" text-anchor="middle" class="landing-graph-label">Q${q.quarter}</text>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <p class="save-note">${year} - ${usdFmt.format(data.totalGross)} total across ${data.gigCount} gig${data.gigCount === 1 ? '' : 's'}</p>
+        <svg viewBox="0 0 ${svgWidth} ${chartHeight + labelHeight}" width="100%" height="${chartHeight + labelHeight}">${bars}</svg>
+    `;
+}
+
 // --- SuperAdmin: Bands + Connectivity Status ---
 async function loadSuperAdminDashboard() {
     const [bandsRes, usersRes] = await Promise.all([fetch('/api/superadmin/bands'), fetch('/api/superadmin/users')]);
@@ -331,8 +406,9 @@ function initCustomizeModal() {
         // one appended in its shipped default order - so a widget the
         // user has hidden is still there to re-check, without needing its
         // own separate "add back" affordance.
-        const hiddenInDefaultOrder = WIDGETS.map((w) => w.key).filter((k) => !dashboardWidgets.includes(k));
-        const orderedKeys = [...dashboardWidgets, ...hiddenInDefaultOrder];
+        const pickable = WIDGETS.filter((w) => !w.adminOnly || isAdminGlobal).map((w) => w.key);
+        const hiddenInDefaultOrder = pickable.filter((k) => !dashboardWidgets.includes(k));
+        const orderedKeys = [...dashboardWidgets.filter((k) => pickable.includes(k)), ...hiddenInDefaultOrder];
 
         list.innerHTML = '';
         for (const key of orderedKeys) {
