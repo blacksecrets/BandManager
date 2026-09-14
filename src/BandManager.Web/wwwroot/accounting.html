@@ -23,6 +23,14 @@
     <main class="settings-main settings-main-wide">
         <p id="accounting-no-band" class="save-note" hidden>Select a band from the switcher above to manage it.</p>
 
+        <section class="platform-card" id="payout-terms-content" hidden>
+            <h2>Payout Terms</h2>
+            <p class="save-note">Plain-language "here's the deal" every member can read on their own My Accounting page - rate/split basis, who pays, when. Short of full invoicing, this is just the terms in your own words.</p>
+            <textarea id="payout-terms-textarea" rows="3" placeholder="e.g. Split evenly after gas/expenses, paid same night by the door person, Venmo if not cash."></textarea>
+            <button type="button" id="payout-terms-save-btn">Save</button>
+            <p id="payout-terms-status" class="save-note"></p>
+        </section>
+
         <section class="platform-card" id="accounting-content" hidden>
             <h2>Receivables</h2>
             <p class="save-note">Who gets paid, and how much of each gig's net payout they receive.</p>

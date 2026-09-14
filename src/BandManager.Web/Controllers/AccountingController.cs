@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record SetPayoutDefaultsRequest(Guid? DefaultGigPayeeUserId, Guid? DefaultMerchPayeeUserId);
+public record SetPayoutTermsRequest(string? Note);
 public record SetPayoutRosterRequest(List<Guid> UserIds);
 public record PayoutPercentageInput(Guid UserId, decimal Percentage);
 public record SetPayoutPercentagesRequest(List<PayoutPercentageInput> Percentages);
@@ -53,6 +54,32 @@ public class AccountingController(ApplicationDbContext db, IActiveBandAccessor a
         lastName = u.LastName,
         email = u.Email
     };
+
+    // --- Payout Terms (D7): plain-language "how you get paid" -----------
+    // Read is BandMember (every member should be able to read the terms
+    // without asking), write is BandAdmin-only - the same access split
+    // Receivables/GetGigPayout already use for view-vs-edit.
+    [HttpGet("payout-terms")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> GetPayoutTerms()
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        return Ok(new { note = band.PayoutTermsNote });
+    }
+
+    [HttpPut("payout-terms")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> SetPayoutTerms([FromBody] SetPayoutTermsRequest request)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+
+        var note = request.Note?.Trim();
+        band.PayoutTermsNote = string.IsNullOrEmpty(note) ? null : note;
+        await db.SaveChangesAsync();
+        return Ok(new { ok = true, note = band.PayoutTermsNote });
+    }
 
     // --- Receivables (Band Admin > Accounting) ---
 

@@ -63,6 +63,15 @@ public class Band
     // Purely informational, shown as a tooltip on the Archived status pill.
     public string? ArchiveNotes { get; set; }
 
+    // D7: a plain-language "how you get paid" note - rate/split basis,
+    // who's responsible for actually paying, when. Deliberately separate
+    // from PayoutRecipient's percentage split (the *mechanism*) - this is
+    // the *terms*, in the band's own words, shown to every member
+    // (My Accounting) and editable only by a BandAdmin (Band Accounting).
+    // Short of full invoicing (a bigger, separately-deferred idea) this is
+    // the plain "here's the deal" a member can read without asking.
+    public string? PayoutTermsNote { get; set; }
+
     // False for a "with-band" stub row - an unclaimed identity created so
     // a Gig's With-acts can reference a real Band instead of free text
     // (see GigWithBand), with no BandMembership/login/access of its own.

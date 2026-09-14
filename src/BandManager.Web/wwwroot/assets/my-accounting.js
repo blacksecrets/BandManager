@@ -18,6 +18,16 @@ async function loadMyAccounting() {
     noBand.hidden = true;
     content.hidden = false;
 
+    const termsRes = await fetch('/api/accounting/payout-terms');
+    const terms = termsRes.ok ? await termsRes.json() : { note: null };
+    const termsBox = document.getElementById('my-payout-terms-content');
+    if (terms.note) {
+        document.getElementById('my-payout-terms-note').textContent = terms.note;
+        termsBox.hidden = false;
+    } else {
+        termsBox.hidden = true;
+    }
+
     const res = await fetch('/api/accounting/my-payouts');
     const rows = res.ok ? await res.json() : [];
 

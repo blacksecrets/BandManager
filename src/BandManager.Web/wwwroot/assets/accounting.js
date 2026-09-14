@@ -29,6 +29,9 @@ async function loadAccounting() {
     noBand.hidden = true;
     content.hidden = false;
 
+    document.getElementById('payout-terms-content').hidden = false;
+    await loadPayoutTerms();
+
     const res = await fetch('/api/accounting/receivables');
     if (!res.ok) return;
     const data = await res.json();
@@ -88,6 +91,22 @@ async function loadFinancialSummary() {
         searchable: false, pageSize: 1000, emptyMessage: 'No payout recipients set up yet.'
     });
 }
+
+// --- Payout Terms (D7) ---
+async function loadPayoutTerms() {
+    const res = await fetch('/api/accounting/payout-terms');
+    const data = res.ok ? await res.json() : { note: null };
+    document.getElementById('payout-terms-textarea').value = data.note || '';
+}
+document.getElementById('payout-terms-save-btn').addEventListener('click', async () => {
+    const status = document.getElementById('payout-terms-status');
+    status.textContent = 'Saving...';
+    const res = await fetch('/api/accounting/payout-terms', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: document.getElementById('payout-terms-textarea').value })
+    });
+    status.textContent = res.ok ? 'Saved.' : 'Could not save.';
+});
 
 function populateDefaultSelects(data) {
     const form = document.getElementById('payout-defaults-form');
