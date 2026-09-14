@@ -12,6 +12,12 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddHttpContextAccessor();
+// Real-time transport for Band Chat - built into Microsoft.AspNetCore.App
+// in .NET 10, no separate package. Clients.User(...) targeting works with
+// zero custom IUserIdProvider since the auth cookie already carries the
+// user's id as ClaimTypes.NameIdentifier, exactly what the default
+// provider reads - see ChatHub's own doc comment.
+builder.Services.AddSignalR();
 
 // Without this, ASP.NET Core generates a fresh in-memory key ring per
 // process - every container restart silently invalidates every logged-in
@@ -123,11 +129,18 @@ var bandBrandingRootPath = Path.Combine(builder.Environment.ContentRootPath, "da
 var customFontsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "fonts");
 var avatarsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "avatars");
 var receiptsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "receipts");
+var chatAttachmentsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "chat-attachments");
 
 builder.Services.AddHttpClient(); // generic IHttpClientFactory, for FlyerCache/CatalogStore below
 
 builder.Services.AddScoped<BandManager.Data.Services.CatalogStore>(sp =>
     new BandManager.Data.Services.CatalogStore(sp.GetRequiredService<ApplicationDbContext>(), catalogRootPath, sp.GetRequiredService<IHttpClientFactory>().CreateClient()));
+
+builder.Services.AddScoped<BandManager.Web.Services.IChatService>(sp =>
+    new BandManager.Web.Services.ChatService(
+        sp.GetRequiredService<ApplicationDbContext>(),
+        sp.GetRequiredService<BandManager.Data.Services.CatalogStore>(),
+        chatAttachmentsRootPath));
 
 // Per-Band site content sourcing (calendar.js/media.js/gallery.js) - plain
 // HttpClient-typed services, no extra constructor params, so a simple
@@ -228,6 +241,8 @@ app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapHub<BandManager.Web.Hubs.ChatHub>("/hubs/chat");
+
 // Uploaded artifacts, only reachable once logged in - mirrors the old
 // app's /uploads static mount, which sat after requireLogin for the same
 // reason. Known gap (same as the old single-tenant app never had to
@@ -262,6 +277,7 @@ MapAuthenticatedStaticFiles("/band-branding", bandBrandingRootPath);
 MapAuthenticatedStaticFiles("/custom-fonts", customFontsRootPath);
 MapAuthenticatedStaticFiles("/avatars", avatarsRootPath);
 MapAuthenticatedStaticFiles("/receipts", receiptsRootPath);
+MapAuthenticatedStaticFiles("/chat-attachments", chatAttachmentsRootPath);
 // Extensionless page routes - the reused frontend's nav links (topbar
 // <a href="/settings">, etc., carried over unchanged from the old app)
 // point at these, not the .html filenames directly. The .html files stay

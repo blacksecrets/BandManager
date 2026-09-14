@@ -92,6 +92,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<GigMeetingPoint> GigMeetingPoints => Set<GigMeetingPoint>();
     public DbSet<GigRideOffer> GigRideOffers => Set<GigRideOffer>();
 
+    public DbSet<ChatThread> ChatThreads => Set<ChatThread>();
+    public DbSet<ChatThreadMember> ChatThreadMembers => Set<ChatThreadMember>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<ChatMessageAttachment> ChatMessageAttachments => Set<ChatMessageAttachment>();
+    public DbSet<ChatReaction> ChatReactions => Set<ChatReaction>();
+    public DbSet<ChatMessageMention> ChatMessageMentions => Set<ChatMessageMention>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -441,6 +448,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.SongEditRequest).WithMany().HasForeignKey(x => x.SongEditRequestId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne(x => x.Gig).WithMany().HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.SetNull);
             b.HasOne(x => x.Rehearsal).WithMany().HasForeignKey(x => x.RehearsalId).OnDelete(DeleteBehavior.SetNull);
+            b.HasOne(x => x.ChatMessage).WithMany().HasForeignKey(x => x.ChatMessageId).OnDelete(DeleteBehavior.SetNull);
             b.HasIndex(x => new { x.UserId, x.IsRead });
         });
 
@@ -575,6 +583,55 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.BandId, x.GigRef, x.UserId }).IsUnique();
+        });
+
+        // --- Band Chat ---
+
+        builder.Entity<ChatThread>(b =>
+        {
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => new { x.BandId, x.Type });
+            // At most one BandWide (Type ordinal 0) thread per Band - a
+            // race-condition backstop for the lazy-create-on-first-touch
+            // path (ChatService.EnsureBandWideThreadAsync), same idiom as
+            // SongEditRequest's own filtered-unique-index guard.
+            b.HasIndex(x => x.BandId).HasFilter("\"Type\" = 0").IsUnique();
+        });
+
+        builder.Entity<ChatThreadMember>(b =>
+        {
+            b.HasOne(x => x.Thread).WithMany().HasForeignKey(x => x.ThreadId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.LastReadMessage).WithMany().HasForeignKey(x => x.LastReadMessageId).OnDelete(DeleteBehavior.SetNull);
+            b.HasIndex(x => new { x.ThreadId, x.UserId }).IsUnique();
+            b.HasIndex(x => new { x.UserId, x.IsTabOpen });
+        });
+
+        builder.Entity<ChatMessage>(b =>
+        {
+            b.HasOne(x => x.Thread).WithMany().HasForeignKey(x => x.ThreadId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Sender).WithMany().HasForeignKey(x => x.SenderId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.ThreadId, x.CreatedAt });
+        });
+
+        builder.Entity<ChatMessageAttachment>(b =>
+        {
+            b.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ChatReaction>(b =>
+        {
+            b.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.MessageId, x.UserId }).IsUnique();
+        });
+
+        builder.Entity<ChatMessageMention>(b =>
+        {
+            b.HasOne(x => x.Message).WithMany().HasForeignKey(x => x.MessageId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.MentionedUser).WithMany().HasForeignKey(x => x.MentionedUserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.MentionedUserId);
         });
     }
 }

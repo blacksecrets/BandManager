@@ -24,6 +24,27 @@
         document.head.appendChild(s);
     }
 
+    // Band Chat: same self-injecting approach, but chat.js owns a lot more
+    // (a whole modal widget) so it exposes window.ChatWidget instead of
+    // just running on load - init() below calls ChatWidget.init(me) once
+    // this script has actually loaded, and wires the chat bell's click to
+    // ChatWidget.toggleModal().
+    if (!document.querySelector('link[href="/assets/chat.css"]')) {
+        const l = document.createElement('link');
+        l.rel = 'stylesheet';
+        l.href = '/assets/chat.css';
+        document.head.appendChild(l);
+    }
+    let chatWidgetReady = Promise.resolve();
+    if (!document.querySelector('script[src="/assets/chat.js"]')) {
+        chatWidgetReady = new Promise((resolve) => {
+            const s = document.createElement('script');
+            s.src = '/assets/chat.js';
+            s.onload = resolve;
+            document.head.appendChild(s);
+        });
+    }
+
     const NAV_SECTIONS = [
         {
             label: 'Band flow', bandScoped: true, items: [
@@ -123,6 +144,20 @@
         sidebar.appendChild(buildNav(me));
         sidebar.appendChild(buildFooter(me, topbar));
 
+        const bellWrap = document.createElement('span');
+        bellWrap.className = 'topbar-bells';
+
+        // Band Chat bell sits to the left of Notifications, per its own
+        // spec - DOM order within this flex wrapper is visual order.
+        const chatBell = document.createElement('button');
+        chatBell.type = 'button';
+        chatBell.className = 'chat-bell';
+        chatBell.title = 'Band Chat';
+        chatBell.setAttribute('aria-label', 'Band Chat');
+        chatBell.innerHTML = '&#128172;<span class="chat-badge" id="chat-badge" hidden></span>';
+        chatBell.addEventListener('click', () => { chatWidgetReady.then(() => window.ChatWidget && window.ChatWidget.toggleModal()); });
+        bellWrap.appendChild(chatBell);
+
         const bell = document.createElement('button');
         bell.type = 'button';
         bell.className = 'notif-bell';
@@ -130,11 +165,15 @@
         bell.setAttribute('aria-label', 'Notifications');
         bell.innerHTML = '&#128276;<span class="notif-badge" id="notif-badge" hidden></span>';
         bell.addEventListener('click', () => { location.href = '/notifications'; });
-        topbar.appendChild(bell);
+        bellWrap.appendChild(bell);
+
+        topbar.appendChild(bellWrap);
 
         pollNotifications(me.isSuperAdmin);
         setInterval(() => pollNotifications(me.isSuperAdmin), 60000);
         window.addEventListener('notif-changed', () => pollNotifications(me.isSuperAdmin));
+
+        chatWidgetReady.then(() => { if (window.ChatWidget) window.ChatWidget.init(me); });
 
         document.addEventListener('click', () => {
             const menu = sidebar.querySelector('.sidebar-band-menu');

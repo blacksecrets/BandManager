@@ -29,6 +29,8 @@ public class Notification
     public Gig? Gig { get; set; }
     public Guid? RehearsalId { get; set; }
     public Rehearsal? Rehearsal { get; set; }
+    public Guid? ChatMessageId { get; set; }
+    public ChatMessage? ChatMessage { get; set; }
 
     // The Band this notification is about, when it's about one - every
     // Kind except SongEditReviewed (a SuperAdmin action, shown as

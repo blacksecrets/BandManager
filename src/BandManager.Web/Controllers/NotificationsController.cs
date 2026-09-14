@@ -87,6 +87,8 @@ public class NotificationsController(ApplicationDbContext db, IActiveBandAccesso
                 // for one that somehow has neither.
                 fromLabel = n.Kind == NotificationKind.SongEditReviewed
                     ? "SuperAdmin, Band Manager+"
+                    : n.Kind == NotificationKind.ChatMention
+                    ? "Band Chat" + (n.Band != null ? $", {n.Band.Name}" : "")
                     : n.Band != null ? $"Band Manager+, {n.Band.Name}" : "Band Manager+"
             })
             .ToListAsync();
