@@ -40,6 +40,8 @@
             // this reads as "My Attica"/"My Black Secrets" rather than a
             // generic "Band" label sitting next to "Band admin".
             label: 'My band', dynamicLabel: (me) => `My ${me.activeBandName || 'band'}`, bandScoped: true, items: [
+                { href: '/', label: 'Dashboard' },
+                { href: '/calendar', label: 'Calendar' },
                 { href: '/repertoire', label: 'Repertoire' },
                 { href: '/my-accounting', label: 'Accounting' },
             ]
@@ -103,8 +105,16 @@
         document.body.appendChild(shell);
         while (document.body.firstChild !== shell) appMain.appendChild(document.body.firstChild);
 
-        const wordmark = document.createElement('div');
+        // Clicking the wordmark goes to the login Dashboard (/) - the one
+        // page with no link pointing back to it anywhere else in this nav
+        // (Band flow's "Web Presence" goes to /dashboard, a completely
+        // different page - the platform kanban board, not this one).
+        // Standard "click the logo to go home" pattern, with a title since
+        // nothing else marks it as clickable at a glance.
+        const wordmark = document.createElement('a');
+        wordmark.href = '/';
         wordmark.className = 'sidebar-wordmark';
+        wordmark.title = 'Go to your Dashboard';
         wordmark.innerHTML = 'BandManager<span class="plus">+</span>';
         sidebar.appendChild(wordmark);
 

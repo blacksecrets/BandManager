@@ -74,7 +74,8 @@ button, input, select, textarea { font-family: inherit; }
    product name matters far less moment-to-moment than "which band, what
    role", which is the actual thing a multi-band SuperAdmin needs to see
    at a glance. */
-.sidebar-wordmark { font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--text-secondary); padding: 4px 8px; display: flex; align-items: baseline; gap: 3px; }
+.sidebar-wordmark { font-family: var(--font-display); font-weight: 600; font-size: 15px; color: var(--text-secondary); padding: 4px 8px; display: flex; align-items: baseline; gap: 3px; text-decoration: none; border-radius: 6px; }
+.sidebar-wordmark:hover { background: var(--bg-hover); color: var(--text-primary); }
 .sidebar-wordmark .plus { color: var(--accent); }
 
 .sidebar-band-switcher { position: relative; }
