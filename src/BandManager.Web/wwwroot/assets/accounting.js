@@ -120,7 +120,18 @@ async function loadExpensesOversight() {
             method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e.target.checked)
         });
     });
+
+    const yearSelect = document.getElementById('expenses-oversight-export-year');
+    const currentYear = new Date().getFullYear();
+    const years = new Set([currentYear, ...expenses.map((e) => parseInt(e.purchaseDate.slice(0, 4), 10))]);
+    yearSelect.innerHTML = [...years].sort((a, b) => b - a).map((y) => `<option value="${y}">${y}</option>`).join('');
+    yearSelect.value = String(currentYear);
 }
+
+document.getElementById('expenses-oversight-export-btn').addEventListener('click', () => {
+    const year = document.getElementById('expenses-oversight-export-year').value;
+    window.open(`/api/expenses/export-all?year=${encodeURIComponent(year)}`, '_blank');
+});
 
 // --- Payout Terms (D7) ---
 async function loadPayoutTerms() {

@@ -46,7 +46,26 @@ async function loadExpenses() {
         if (!e.target.classList.contains('expense-edit-btn')) return;
         openExpenseModal(expensesCache.find((x) => x.id === e.target.dataset.id));
     });
+
+    populateExportYearSelect();
 }
+
+// Tax-prep spreadsheet export - the year list is built from whatever years
+// this member actually has expenses in (plus the current year, even with
+// none yet, so the dropdown is never empty for a brand-new member).
+function populateExportYearSelect() {
+    const select = document.getElementById('expenses-export-year');
+    const currentYear = new Date().getFullYear();
+    const years = new Set([currentYear, ...expensesCache.map((e) => parseInt(e.purchaseDate.slice(0, 4), 10))]);
+    const sorted = [...years].sort((a, b) => b - a);
+    select.innerHTML = sorted.map((y) => `<option value="${y}">${y}</option>`).join('');
+    select.value = String(currentYear);
+}
+
+document.getElementById('expenses-export-btn').addEventListener('click', () => {
+    const year = document.getElementById('expenses-export-year').value;
+    window.open(`/api/expenses/export?year=${encodeURIComponent(year)}`, '_blank');
+});
 
 function closeExpenseModal() { document.getElementById('expense-modal-backdrop').hidden = true; }
 document.getElementById('expense-modal-close').addEventListener('click', closeExpenseModal);

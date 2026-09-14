@@ -1,9 +1,11 @@
 using BandManager.Data;
 using BandManager.Data.Entities;
+using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace BandManager.Web.Controllers;
 
@@ -68,6 +70,50 @@ public class ExpensesController(ApplicationDbContext db, IActiveBandAccessor act
             .Where(e => e.BandId == bandId)
             .OrderByDescending(e => e.PurchaseDate).ToListAsync();
         return Ok(expenses.Select(Serialize));
+    }
+
+    private string? AbsoluteReceiptUrl(Expense e) =>
+        e.ReceiptFileName is { } fn ? $"{Request.Scheme}://{Request.Host}/receipts/{fn}" : null;
+
+    // Absolute URLs (not the relative /receipts/... Serialize() uses) so a
+    // link opened from the downloaded spreadsheet outside the browser tab
+    // still resolves - still requires being logged in to actually view it,
+    // same as every other MapAuthenticatedStaticFiles mount.
+    [HttpGet("export")]
+    public async Task<IActionResult> Export([FromQuery] int? year)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var userId = User.GetUserId();
+        if (userId is null) return Unauthorized();
+        var y = year ?? DateTime.UtcNow.Year;
+
+        var expenses = await db.Expenses.AsNoTracking()
+            .Where(e => e.BandId == bandId && e.UserId == userId && e.PurchaseDate.Year == y)
+            .OrderBy(e => e.PurchaseDate).ToListAsync();
+
+        var rows = expenses.Select(e => new ExpenseExportRow(
+            e.PurchaseDate.ToString("yyyy-MM-dd"), null, e.Purpose, e.Vendor, e.VendorUrl,
+            e.Amount, e.IsReimbursed, AbsoluteReceiptUrl(e)));
+        var csv = ExpenseCsvExportService.BuildCsv(rows, includeMemberColumn: false);
+        return File(Encoding.UTF8.GetBytes(csv), "text/csv", $"my-expenses-{y}.csv");
+    }
+
+    [HttpGet("export-all")]
+    [Authorize(Policy = "BandAdmin")]
+    public async Task<IActionResult> ExportAll([FromQuery] int? year)
+    {
+        if (RequireActiveBand(out var bandId) is { } err) return err;
+        var y = year ?? DateTime.UtcNow.Year;
+
+        var expenses = await db.Expenses.AsNoTracking().Include(e => e.User)
+            .Where(e => e.BandId == bandId && e.PurchaseDate.Year == y)
+            .OrderBy(e => e.PurchaseDate).ToListAsync();
+
+        var rows = expenses.Select(e => new ExpenseExportRow(
+            e.PurchaseDate.ToString("yyyy-MM-dd"), e.User.DisplayName, e.Purpose, e.Vendor, e.VendorUrl,
+            e.Amount, e.IsReimbursed, AbsoluteReceiptUrl(e)));
+        var csv = ExpenseCsvExportService.BuildCsv(rows, includeMemberColumn: true);
+        return File(Encoding.UTF8.GetBytes(csv), "text/csv", $"band-expenses-{y}.csv");
     }
 
     [HttpPost]
