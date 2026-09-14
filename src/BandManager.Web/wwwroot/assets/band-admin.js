@@ -2,9 +2,24 @@ async function loadBandAdmin() {
     const res = await fetch('/api/profile/me');
     const me = await res.json();
     const noBandEl = document.getElementById('band-admin-no-band');
+    isSuperAdminGlobal = !!me.isSuperAdmin;
+
+    // The Song Catalog is shared across every Band and open to any member
+    // to browse and propose edits on (see SongsController's own doc
+    // comment) - unlike the rest of this page, it needs neither Band Admin
+    // nor an active Band, so it loads unconditionally, before the admin
+    // gate below. This is also where the dashboard's Song Catalog widget's
+    // "Go To" button lands (as a #band-song-catalog-section hash), so it
+    // scrolls straight to it rather than leaving the visitor to find it
+    // among whichever admin sections also happen to be showing.
+    document.getElementById('band-song-catalog-section').hidden = false;
+    loadSongCatalog();
+    if (location.hash === '#band-song-catalog-section') {
+        document.getElementById('band-song-catalog-section').scrollIntoView();
+    }
 
     if (!me.isAdmin) {
-        noBandEl.textContent = 'Band Admin access is required to view this page.';
+        noBandEl.textContent = 'Band Admin access is required to manage the rest of this page.';
         noBandEl.hidden = false;
         return;
     }
@@ -22,10 +37,7 @@ async function loadBandAdmin() {
     document.getElementById('band-gear-section').hidden = !hasBand;
     document.getElementById('band-promoters-section').hidden = !hasBand;
     document.getElementById('band-locations-section').hidden = !hasBand;
-    document.getElementById('band-song-catalog-section').hidden = !hasBand;
     if (!hasBand) return;
-
-    isSuperAdminGlobal = !!me.isSuperAdmin;
 
     loadBandInfo();
     loadControlVisibility();
@@ -36,7 +48,6 @@ async function loadBandAdmin() {
     loadBandGear();
     loadPromoters();
     loadLocations();
-    loadSongCatalog();
 }
 
 let isSuperAdminGlobal = false;

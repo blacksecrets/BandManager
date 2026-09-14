@@ -48,10 +48,17 @@ public class ProfileController(
     private const long MaxBrandBytes = 20 * 1024 * 1024;
 
     // The complete set of widgets the login dashboard (landing.js) knows
-    // how to render for a BandMember/BandAdmin - the one place both this
-    // endpoint's validation and Me()'s default fall back to, so adding a
-    // new widget later only means updating this list plus landing.js.
-    public static readonly string[] KnownDashboardWidgets = ["gigs", "venues", "web-presence", "calendar", "next-two-weeks", "venue-campaign-status", "accounting-graph"];
+    // how to render - the one place both this endpoint's validation and
+    // Me()'s default fall back to, so adding a new widget later only means
+    // updating this list plus landing.js. Same list for every role:
+    // landing.js is what actually restricts adminOnly/superAdminOnly
+    // widgets to who can see them (belt-and-suspenders only, same as
+    // accounting-graph already was - the underlying endpoint each widget
+    // calls is separately authorized regardless of what's in this list).
+    public static readonly string[] KnownDashboardWidgets = [
+        "gigs", "venues", "web-presence", "calendar", "next-two-weeks", "venue-campaign-status", "accounting-graph",
+        "song-catalog", "superadmin-platform", "superadmin-bands"
+    ];
 
     [HttpGet("me")]
     [Authorize]

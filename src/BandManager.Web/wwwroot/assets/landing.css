@@ -54,15 +54,6 @@
     .landing-widget-grid { grid-template-columns: 1fr; }
 }
 
-.landing-superadmin-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-.landing-superadmin-stack[hidden] { display: none; }
-
 .landing-widget {
     background: #1a1a1a;
     border: 1px solid #333;

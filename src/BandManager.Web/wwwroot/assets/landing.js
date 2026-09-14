@@ -1,12 +1,14 @@
-// Role-based Dashboard - the login landing page (was a bare "TBD"
-// placeholder). BandMember/BandAdmin get a 2x2 grid of widgets, each its
-// own small DataGrid summarizing one part of the active Band; SuperAdmin
-// gets a stacked Bands + Connectivity Status view instead, since "the
-// active Band's gigs/venues/calendar" isn't a meaningful SuperAdmin
-// concept. Clicking a widget's header opens a screen-sized modal with an
-// extended version of the same grid (more columns) and its own [Go To]
-// button - the small widget grid stays a genuine, working DataGrid
-// (sortable/searchable/paged), not just a static preview.
+// Role-based, customizable Dashboard - the login landing page (was a bare
+// "TBD" placeholder). Every role picks from the same widget grid (see
+// WIDGETS below) and reorders it via Customize Widgets; a widget scoped to
+// the active Band (bandSpecific) shows "Please select a Band to view"
+// instead of its data when none is selected - this is what lets a
+// SuperAdmin, who may never pick a Band at all, use the same dashboard as
+// everyone else instead of a separate hardcoded page. Clicking most
+// widgets' header opens a screen-sized modal with an extended version of
+// the same grid (more columns) and its own [Go To] button - the small
+// widget grid stays a genuine, working DataGrid (sortable/searchable/
+// paged), not just a static preview.
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str ?? '';
@@ -36,16 +38,22 @@ document.querySelectorAll('.landing-goto-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => { e.stopPropagation(); location.href = btn.dataset.href; });
 });
 
-// Every widget landing.js knows how to render for BandMember/BandAdmin,
-// keyed the same way as ProfileController.KnownDashboardWidgets so the
-// two never drift apart. label is only used by the customize picker.
+// Every widget landing.js knows how to render, keyed the same way as
+// ProfileController.KnownDashboardWidgets so the two never drift apart.
+// label is only used by the customize picker. bandSpecific widgets need
+// an active Band to fetch anything meaningful - contentElId names the
+// container init() fills with a "Please select a Band to view" note
+// instead of calling load() when none is selected, rather than letting
+// the widget try and fail. Widgets with neither bandSpecific nor
+// superAdminOnly (song-catalog) work the same for everyone regardless of
+// which Band, if any, is active - the shared catalog isn't Band data.
 const WIDGETS = [
-    { key: 'gigs', label: 'Our Gigs', load: loadGigsWidget },
-    { key: 'venues', label: 'Our Venues', load: loadVenuesWidget },
-    { key: 'web-presence', label: 'Our Web Presence', load: loadWebPresenceWidget },
-    { key: 'calendar', label: 'Our Calendar', load: loadCalendarWidget },
-    { key: 'next-two-weeks', label: 'My Next Two Weeks', load: loadNextTwoWeeksWidget },
-    { key: 'venue-campaign-status', label: 'Venue Campaign Status', load: loadVenueCampaignStatusWidget },
+    { key: 'gigs', label: 'Our Gigs', load: loadGigsWidget, bandSpecific: true, contentElId: 'landing-gigs-grid' },
+    { key: 'venues', label: 'Our Venues', load: loadVenuesWidget, bandSpecific: true, contentElId: 'landing-venues-grid' },
+    { key: 'web-presence', label: 'Our Web Presence', load: loadWebPresenceWidget, bandSpecific: true, contentElId: 'landing-web-presence-grid' },
+    { key: 'calendar', label: 'Our Calendar', load: loadCalendarWidget, bandSpecific: true, contentElId: 'landing-calendar-grid' },
+    { key: 'next-two-weeks', label: 'My Next Two Weeks', load: loadNextTwoWeeksWidget, bandSpecific: true, contentElId: 'landing-next-two-weeks-content' },
+    { key: 'venue-campaign-status', label: 'Venue Campaign Status', load: loadVenueCampaignStatusWidget, bandSpecific: true, contentElId: 'landing-venue-campaign-status' },
     // adminOnly: hidden from the customize picker entirely for a plain
     // member, not just visibility-gated once added - the widget shows
     // this band's overall gross earnings, which a member has no access
@@ -53,26 +61,39 @@ const WIDGETS = [
     // The underlying endpoint is BandAdmin-only regardless, so this is
     // belt-and-suspenders, not the only thing standing between a member
     // and the data.
-    { key: 'accounting-graph', label: 'Accounting Graph', load: loadAccountingGraphWidget, adminOnly: true }
+    { key: 'accounting-graph', label: 'Accounting Graph', load: loadAccountingGraphWidget, adminOnly: true, bandSpecific: true, contentElId: 'landing-accounting-graph' },
+    // Not bandSpecific - the shared Song Catalog (SongsController's own
+    // doc comment) is the same catalog no matter which Band, if any, is
+    // active, so this works with nothing selected.
+    { key: 'song-catalog', label: 'Song Catalog', load: loadSongCatalogWidget },
+    // superAdminOnly, same shape as adminOnly above but gated on true
+    // SuperAdmin rather than "admin of the active Band" - these replace
+    // what used to be a separate, non-customizable SuperAdmin-only page
+    // state, so a SuperAdmin now picks their own layout exactly like
+    // everyone else, mixing these with Band-specific widgets once they've
+    // selected a Band via the switcher.
+    { key: 'superadmin-platform', label: 'Platform', load: loadPlatformStatsWidget, superAdminOnly: true },
+    { key: 'superadmin-bands', label: 'Bands', load: loadBandsWidget, superAdminOnly: true }
 ];
 
 let dashboardWidgets = WIDGETS.map((w) => w.key);
 let isAdminGlobal = false;
+let isSuperAdminGlobal = false;
 
 // Applies dashboardWidgets (order + which are shown) to the already-in-DOM
 // widget sections via CSS order + hidden, rather than rebuilding markup -
-// there are only ever these 4 known widgets, so a fixed set of sections
+// there are only ever these known widgets, so a fixed set of sections
 // toggled/reordered is simpler than templating them from scratch.
 function applyWidgetLayout() {
     WIDGETS.forEach((w) => {
         const section = document.querySelector(`[data-widget="${w.key}"]`);
         if (!section) return;
-        // An adminOnly widget stays visually hidden for a non-admin even
-        // if it's still sitting in their saved layout (e.g. they were
-        // demoted after picking it) - matches the load loop in init()
-        // skipping it too, so there's never an empty, unloaded section
-        // left showing.
-        const eligible = !w.adminOnly || isAdminGlobal;
+        // An adminOnly/superAdminOnly widget stays visually hidden for
+        // someone who doesn't qualify even if it's still sitting in their
+        // saved layout (e.g. they were demoted after picking it) - matches
+        // the load loop in init() skipping it too, so there's never an
+        // empty, unloaded section left showing.
+        const eligible = (!w.adminOnly || isAdminGlobal) && (!w.superAdminOnly || isSuperAdminGlobal);
         const position = eligible ? dashboardWidgets.indexOf(w.key) : -1;
         section.hidden = position === -1;
         section.style.order = position === -1 ? WIDGETS.length : position;
@@ -83,18 +104,18 @@ async function init() {
     const res = await fetch('/api/profile/me');
     const me = await res.json();
 
-    if (me.isSuperAdmin) {
-        document.getElementById('landing-superadmin-stack').hidden = false;
-        await loadSuperAdminDashboard();
-        return;
-    }
-
-    if (!me.activeBandRole) {
-        document.getElementById('landing-no-band').hidden = false;
-        return;
-    }
-
     isAdminGlobal = !!me.isAdmin;
+    isSuperAdminGlobal = !!me.isSuperAdmin;
+    const hasBand = !!me.activeBandRole;
+
+    // A hint, not a gate - band-specific widgets show their own inline
+    // "Please select a Band to view" below instead of the whole dashboard
+    // disappearing behind this note. Most relevant to a SuperAdmin (who
+    // may never pick a Band at all) but applies the same way to anyone
+    // whose active Band went stale (e.g. it was archived - see
+    // ProfileController.Me()'s comment on that).
+    document.getElementById('landing-no-band').hidden = hasBand;
+
     dashboardWidgets = (me.dashboardWidgets || []).filter((k) => WIDGETS.some((w) => w.key === k));
     applyWidgetLayout();
 
@@ -103,6 +124,12 @@ async function init() {
     for (const w of WIDGETS) {
         if (!dashboardWidgets.includes(w.key)) continue;
         if (w.adminOnly && !isAdminGlobal) continue;
+        if (w.superAdminOnly && !isSuperAdminGlobal) continue;
+        if (w.bandSpecific && !hasBand) {
+            const el = document.getElementById(w.contentElId);
+            if (el) el.innerHTML = '<p class="save-note">Please select a Band to view.</p>';
+            continue;
+        }
         w.load();
     }
     initCustomizeModal();
@@ -335,8 +362,8 @@ async function loadAccountingGraphWidget() {
     `;
 }
 
-// --- SuperAdmin: Bands + Connectivity Status ---
-async function loadSuperAdminDashboard() {
+// --- SuperAdmin: Bands (superAdminOnly - see WIDGETS' note) ---
+async function loadBandsWidget() {
     const [bandsRes, usersRes] = await Promise.all([fetch('/api/superadmin/bands'), fetch('/api/superadmin/users')]);
     const bands = bandsRes.ok ? await bandsRes.json() : [];
     const users = usersRes.ok ? await usersRes.json() : [];
@@ -363,15 +390,14 @@ async function loadSuperAdminDashboard() {
         rows: bandRows, getRowId: (b) => b.id,
         defaultSortKey: 'name', defaultSortDir: 'asc', emptyMessage: 'No bands yet.'
     });
-
-    await loadPlatformStats();
 }
 
+// --- SuperAdmin: Platform stats (superAdminOnly - see WIDGETS' note) ---
 // Whole-platform stats, not scoped to whichever band happens to be active
 // in the switcher - replaces the old Connectivity Status widget, which
 // only ever reflected one band and wasn't a meaningful "how's the
 // platform doing" view for a SuperAdmin.
-async function loadPlatformStats() {
+async function loadPlatformStatsWidget() {
     const [statsRes, pendingRes] = await Promise.all([
         fetch('/api/superadmin/stats'),
         fetch('/api/song-edit-requests/pending-count')
@@ -395,6 +421,37 @@ async function loadPlatformStats() {
     `).join('');
 }
 
+// --- Song Catalog (open to any user, not bandSpecific - see WIDGETS' note) ---
+// "Summarize and navigate," not browse in place - band-admin.js's own
+// Song Catalog section already has the real search/filter/edit UI, so this
+// widget stays a small pointer to it rather than duplicating that grid.
+async function loadSongCatalogWidget() {
+    const container = document.getElementById('landing-song-catalog-stats');
+    const res = await fetch('/api/songs');
+    if (!res.ok) {
+        // Belt-and-suspenders, same idea as the Accounting Graph widget's
+        // own fallback: GET /api/songs still requires a resolvable active
+        // Band today for anyone but a SuperAdmin (see SongsController), so
+        // a member with no Band selected and more than one membership can
+        // land here. Explain plainly rather than a blank stat row.
+        container.innerHTML = '<p class="save-note">—</p>';
+        return;
+    }
+    const songs = await res.json();
+    const underReview = songs.filter((s) => s.status === 'PendingReview' || s.pendingEditRequestId).length;
+
+    const tiles = [
+        { label: 'Songs in catalog', value: songs.length },
+        { label: 'Under review', value: underReview }
+    ];
+    container.innerHTML = tiles.map((t) => `
+        <div class="landing-stat-tile">
+            <span class="landing-stat-value">${t.value}</span>
+            <span class="landing-stat-label">${escapeHtml(t.label)}</span>
+        </div>
+    `).join('');
+}
+
 // --- Customize Widgets: pick which show, drag to reorder ---
 function initCustomizeModal() {
     const backdrop = document.getElementById('landing-customize-modal-backdrop');
@@ -406,7 +463,7 @@ function initCustomizeModal() {
         // one appended in its shipped default order - so a widget the
         // user has hidden is still there to re-check, without needing its
         // own separate "add back" affordance.
-        const pickable = WIDGETS.filter((w) => !w.adminOnly || isAdminGlobal).map((w) => w.key);
+        const pickable = WIDGETS.filter((w) => (!w.adminOnly || isAdminGlobal) && (!w.superAdminOnly || isSuperAdminGlobal)).map((w) => w.key);
         const hiddenInDefaultOrder = pickable.filter((k) => !dashboardWidgets.includes(k));
         const orderedKeys = [...dashboardWidgets.filter((k) => pickable.includes(k)), ...hiddenInDefaultOrder];
 
