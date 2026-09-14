@@ -42,6 +42,14 @@ public class Song
     public string? SpotifyUrl { get; set; }
     public string? SongsterrUrl { get; set; }
 
+    // Plain lyrics text for the stage teleprompter (LyricsPromptController/
+    // prompter.html) - blank-line-separated sections are what the
+    // prompter's pedal-advance treats as one scroll "page". Shared across
+    // every Band using this Song, same as Tunings - edited immediately by
+    // anyone, no review queue, for the same reason SetTuning skips one
+    // (organically filled in by whoever has it, not curated metadata).
+    public string? LyricsText { get; set; }
+
     // Instrument name -> tuning (e.g. "Guitar" -> "Drop D") - free-form
     // both sides since instrument rosters/naming vary per Band (see
     // BandInstrument). Whichever Band figures out a tuning first benefits

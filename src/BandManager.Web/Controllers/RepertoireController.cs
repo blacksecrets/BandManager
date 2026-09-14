@@ -48,7 +48,8 @@ public class RepertoireController(ApplicationDbContext db, IActiveBandAccessor a
         youTubeUrl = s.YouTubeUrl,
         spotifyUrl = s.SpotifyUrl,
         songsterrUrl = s.SongsterrUrl,
-        tunings
+        tunings,
+        lyricsText = s.LyricsText
     };
 
     [HttpGet]

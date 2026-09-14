@@ -178,3 +178,11 @@ tr.repertoire-row-inprogress { background: rgba(220, 190, 60, 0.10); }
 #repertoire-detail-links.song-links { margin-bottom: 14px; }
 #repertoire-detail-tunings { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
 #repertoire-detail-tunings label { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; margin: 0; }
+
+/* The repertoire detail modal sits outside .repertoire-main (a sibling
+   overlay, not nested in it), so .repertoire-main label above never
+   applied here - its "My note"/"Lyrics" labels were falling back to the
+   browser's default inline label, which let them run onto the same row
+   once a second one followed "My note" (Lyrics, for the teleprompter). */
+.detail-field { display: block; margin: 14px 0; font-size: 0.85rem; color: #ccc; }
+.detail-field input[type="text"], .detail-field textarea { display: block; width: 100%; margin-top: 6px; font-family: inherit; }

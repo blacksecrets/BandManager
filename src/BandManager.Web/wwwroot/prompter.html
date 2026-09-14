@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleprompter</title>
+<link rel="stylesheet" href="/assets/prompter.css">
+</head>
+<body>
+    <div id="prompter-bar" class="prompter-bar">
+        <button type="button" id="prompter-songlist-toggle" title="Show/hide song list">☰ Songs</button>
+        <span id="prompter-song-title" class="prompter-bar-title">Loading...</span>
+        <span class="prompter-bar-spacer"></span>
+        <button type="button" id="prompter-font-smaller" title="Smaller text">A−</button>
+        <button type="button" id="prompter-font-bigger" title="Bigger text">A+</button>
+        <button type="button" id="prompter-help-toggle" title="Pedal &amp; keyboard controls">?</button>
+        <a href="/gig-sets.html" id="prompter-exit" title="Exit to Gig Management">Exit</a>
+    </div>
+
+    <div id="prompter-songlist" class="prompter-songlist" hidden></div>
+
+    <main id="prompter-stage" class="prompter-stage">
+        <p id="prompter-artist" class="prompter-artist"></p>
+        <div id="prompter-lyrics" class="prompter-lyrics"></div>
+    </main>
+
+    <div id="prompter-nav" class="prompter-nav">
+        <button type="button" id="prompter-prev-btn">‹ Previous</button>
+        <span id="prompter-position" class="prompter-position"></span>
+        <button type="button" id="prompter-next-btn">Next ›</button>
+    </div>
+
+    <div id="prompter-help-backdrop" class="prompter-help-backdrop" hidden>
+        <div class="prompter-help-card">
+            <button type="button" class="prompter-help-close" id="prompter-help-close">&times;</button>
+            <h2>Pedal &amp; keyboard controls</h2>
+            <p>Pair your AirTurn (or any Bluetooth page-turner) in your device's OS Bluetooth settings, the same way you'd pair a wireless keyboard - no setup needed in BandManager+ itself. Once paired, this page reads whatever key the pedal sends.</p>
+            <ul>
+                <li><strong>Next section / song</strong> - Right arrow, Down arrow, Page Down, or Space</li>
+                <li><strong>Previous section / song</strong> - Left arrow, Up arrow, or Page Up</li>
+                <li><strong>Jump to a song</strong> - open the song list (☰) and click one</li>
+            </ul>
+            <p class="save-note">A song's lyrics can be split into pedal-advance sections by leaving a blank line between them, back on its Repertoire detail page.</p>
+        </div>
+    </div>
+
+    <script src="/assets/prompter.js"></script>
+</body>
+</html>

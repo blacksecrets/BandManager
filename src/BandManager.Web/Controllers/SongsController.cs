@@ -14,6 +14,7 @@ public record CreateSongRequest(string Title, string? OriginalArtist, string? Al
 public record UpdateSongRequest(string Title, string? OriginalArtist, string? Album, string? Key,
     int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl);
 public record SetTuningRequest(string Instrument, string Tuning);
+public record SetLyricsRequest(string? LyricsText);
 public record ResolveNewSongRequest(string Message);
 public record BulkResolveNewSongsRequest(List<Guid> Ids, string Message);
 
@@ -53,6 +54,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         spotifyUrl = s.SpotifyUrl,
         songsterrUrl = s.SongsterrUrl,
         tunings = s.Tunings ?? new Dictionary<string, string>(),
+        lyricsText = s.LyricsText,
         status = s.Status.ToString(),
         pendingEditRequestId
     };
@@ -421,6 +423,20 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         if (tuning.Length == 0) tunings.Remove(instrument);
         else tunings[instrument] = tuning;
         song.Tunings = tunings;
+        await db.SaveChangesAsync();
+        return Ok(Serialize(song));
+    }
+
+    // Immediate, no review - same reasoning as SetTuning above: lyrics
+    // text is a performance aid that's useful the moment someone adds it,
+    // not curated metadata worth gating behind SuperAdmin approval.
+    [HttpPut("{id:guid}/lyrics")]
+    public async Task<IActionResult> SetLyrics(Guid id, [FromBody] SetLyricsRequest request)
+    {
+        var song = await db.Songs.FindAsync(id);
+        if (song is null) return NotFound(new { error = "Not found" });
+
+        song.LyricsText = string.IsNullOrWhiteSpace(request.LyricsText) ? null : request.LyricsText.Trim();
         await db.SaveChangesAsync();
         return Ok(Serialize(song));
     }

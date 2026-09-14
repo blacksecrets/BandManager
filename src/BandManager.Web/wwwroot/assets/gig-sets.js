@@ -1081,6 +1081,11 @@ document.getElementById('gig-prep-print-one-btn').addEventListener('click', () =
     const params = new URLSearchParams({ gigRef: selectedGigRef, listType: gigPrepActiveType });
     window.open(`/print-gig-prep.html?${params.toString()}`, '_blank');
 });
+document.getElementById('gig-set-prompter-btn').addEventListener('click', () => {
+    if (!selectedGigRef) return;
+    window.open(`/prompter.html?gigRef=${encodeURIComponent(selectedGigRef)}`, '_blank');
+});
+
 document.getElementById('gig-prep-print-all-btn').addEventListener('click', () => {
     const params = new URLSearchParams({ gigRef: selectedGigRef });
     window.open(`/print-gig-prep.html?${params.toString()}`, '_blank');

@@ -68,6 +68,10 @@ public class GigSetsController(ApplicationDbContext db, IActiveBandAccessor acti
         // song, unlike YouTube/Spotify there's no separate Manual* column
         // for it on GigSetSong at all.
         songsterrUrl = gs.Song?.SongsterrUrl,
+        // Null for a manual/ad-hoc entry (no catalog Song to hold it) -
+        // the prompter view (prompter.html) shows its own "no lyrics yet"
+        // state for those rather than treating it as an error.
+        lyricsText = gs.Song?.LyricsText,
         isManual = gs.SongId is null
     };
 

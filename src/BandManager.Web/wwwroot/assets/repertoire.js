@@ -331,6 +331,8 @@ function openRepertoireDetail(entry) {
     const noteInput = document.getElementById('repertoire-detail-note');
     noteInput.value = myNotes[entry.id] || '';
 
+    document.getElementById('repertoire-detail-lyrics').value = song.lyricsText || '';
+
     document.getElementById('repertoire-detail-remove-btn').hidden = !isAdmin;
     document.getElementById('repertoire-detail-modal-backdrop').hidden = false;
 }
@@ -376,6 +378,22 @@ document.getElementById('repertoire-detail-note').addEventListener('input', (e) 
             body: JSON.stringify({ text })
         });
         myNotes[entryId] = text;
+    }, 500);
+});
+
+let detailLyricsSaveTimer = null;
+document.getElementById('repertoire-detail-lyrics').addEventListener('input', (e) => {
+    if (!detailEntry) return;
+    const songId = detailEntry.song.id;
+    clearTimeout(detailLyricsSaveTimer);
+    detailLyricsSaveTimer = setTimeout(async () => {
+        const text = e.target.value;
+        await fetch(`/api/songs/${songId}/lyrics`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lyricsText: text })
+        });
+        detailEntry.song.lyricsText = text.trim() || null;
     }, 500);
 });
 
