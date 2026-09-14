@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expenses</title>
+<link rel="stylesheet" href="/assets/site-theme.css">
+<link rel="stylesheet" href="/assets/dashboard.css">
+<link rel="stylesheet" href="/assets/settings.css">
+<link rel="stylesheet" href="/assets/profile.css">
+<link rel="stylesheet" href="/assets/dataGrid.css">
+</head>
+<body>
+    <header class="topbar">
+        <span class="brand-logo-slot"></span>
+        <span class="role-badge" id="role-badge" hidden></span>
+        <h1>Expenses</h1>
+        <nav class="main-nav" id="main-nav"></nav>
+        <form method="POST" action="/logout"><button class="logout-btn" type="submit">Log out</button></form>
+    </header>
+
+    <main class="settings-main">
+        <p id="expenses-no-band" class="save-note" hidden>Select a band from the switcher above to log an expense.</p>
+
+        <section class="platform-card" id="expenses-content" hidden>
+            <h2>Your Expenses</h2>
+            <p>Reimbursable purchases for this band - gas, gear, supplies. Attach a receipt (photo or PDF) so it's on hand at tax time.</p>
+
+            <div id="expenses-grid"></div>
+            <button type="button" id="add-expense-btn" class="upload-btn">+ Add an Expense</button>
+        </section>
+    </main>
+
+    <div id="expense-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="expense-modal-close">&times;</button>
+            <h2 id="expense-modal-title">Add an Expense</h2>
+            <form id="expense-form" class="cred-form">
+                <label>Purpose <input type="text" name="purpose" maxlength="300" required placeholder="e.g. Guitar strings for Saturday's gig"></label>
+                <label>Vendor <input type="text" name="vendor" maxlength="200"></label>
+                <label>Vendor URL <input type="url" name="vendorUrl" maxlength="500" placeholder="https://"></label>
+                <label>Purchase date <input type="date" name="purchaseDate" required></label>
+                <label>Amount <input type="number" name="amount" step="0.01" min="0.01" required></label>
+                <div class="cred-form-buttons">
+                    <button type="submit">Save</button>
+                    <button type="button" id="expense-delete-btn" hidden>Delete</button>
+                </div>
+                <p id="expense-form-status" class="save-note"></p>
+            </form>
+
+            <div id="expense-receipt-section" hidden>
+                <h3>Receipt</h3>
+                <p class="save-note" id="expense-receipt-status"></p>
+                <label class="upload-btn">Choose file<input type="file" id="expense-receipt-input" accept="image/*,.pdf" hidden></label>
+            </div>
+        </div>
+    </div>
+
+    <script src="/assets/dataGrid.js"></script>
+    <script src="/assets/expenses.js"></script>
+    <script src="/assets/branding.js"></script>
+    <script src="/assets/userAvatar.js"></script>
+    <script src="/assets/topNav.js"></script>
+    <script src="/assets/testModeBanner.js"></script>
+</body>
+</html>

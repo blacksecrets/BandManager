@@ -81,6 +81,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserTravelProfile> UserTravelProfiles => Set<UserTravelProfile>();
     public DbSet<BandLocation> BandLocations => Set<BandLocation>();
     public DbSet<Trip> Trips => Set<Trip>();
+    public DbSet<Expense> Expenses => Set<Expense>();
 
     public DbSet<TestCase> TestCases => Set<TestCase>();
 
@@ -528,6 +529,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasIndex(x => new { x.UserId, x.BandId, x.Date });
+        });
+
+        builder.Entity<Expense>(b =>
+        {
+            b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.UserId, x.BandId, x.PurchaseDate });
         });
 
         builder.Entity<TestCase>(b =>

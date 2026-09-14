@@ -122,6 +122,7 @@ var flyerCacheRootPath = Path.Combine(builder.Environment.ContentRootPath, "data
 var bandBrandingRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "band-branding");
 var customFontsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "fonts");
 var avatarsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "avatars");
+var receiptsRootPath = Path.Combine(builder.Environment.ContentRootPath, "data", "receipts");
 
 builder.Services.AddHttpClient(); // generic IHttpClientFactory, for FlyerCache/CatalogStore below
 
@@ -260,6 +261,7 @@ MapAuthenticatedStaticFiles("/uploads", uploadsRootPath);
 MapAuthenticatedStaticFiles("/band-branding", bandBrandingRootPath);
 MapAuthenticatedStaticFiles("/custom-fonts", customFontsRootPath);
 MapAuthenticatedStaticFiles("/avatars", avatarsRootPath);
+MapAuthenticatedStaticFiles("/receipts", receiptsRootPath);
 // Extensionless page routes - the reused frontend's nav links (topbar
 // <a href="/settings">, etc., carried over unchanged from the old app)
 // point at these, not the .html filenames directly. The .html files stay
@@ -267,7 +269,7 @@ MapAuthenticatedStaticFiles("/avatars", avatarsRootPath);
 // disclosed gap: unlike the old app, that path doesn't require login -
 // no secrets live in the page shells themselves, just markup/JS, but
 // worth tightening later if that stops being true).
-foreach (var page in new[] { "dashboard", "settings", "cadence", "catalog", "profile", "band-admin", "superadmin", "repertoire", "gig-sets", "notifications", "calendar", "print-setlist", "venue-campaigns", "print-gig-prep", "accounting", "my-accounting", "test-suite" })
+foreach (var page in new[] { "dashboard", "settings", "cadence", "catalog", "profile", "band-admin", "superadmin", "repertoire", "gig-sets", "notifications", "calendar", "print-setlist", "venue-campaigns", "print-gig-prep", "accounting", "my-accounting", "expenses", "test-suite" })
 {
     // Plain "logged in" (not the BandMember policy) - same as "/" (the
     // Dashboard, served unconditionally above) needs no active Band just

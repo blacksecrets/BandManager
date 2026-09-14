@@ -44,6 +44,7 @@
                 { href: '/calendar', label: 'Calendar' },
                 { href: '/repertoire', label: 'Repertoire' },
                 { href: '/my-accounting', label: 'Accounting' },
+                { href: '/expenses', label: 'Expenses' },
             ]
         },
         {

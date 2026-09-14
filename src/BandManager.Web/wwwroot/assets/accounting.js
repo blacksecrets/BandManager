@@ -29,6 +29,9 @@ async function loadAccounting() {
     noBand.hidden = true;
     content.hidden = false;
 
+    document.getElementById('expenses-oversight-content').hidden = false;
+    await loadExpensesOversight();
+
     document.getElementById('payout-terms-content').hidden = false;
     await loadPayoutTerms();
 
@@ -89,6 +92,33 @@ async function loadFinancialSummary() {
         ],
         rows: data.byMember, getRowId: (m) => m.userId,
         searchable: false, pageSize: 1000, emptyMessage: 'No payout recipients set up yet.'
+    });
+}
+
+// --- Member Expenses oversight (mark reimbursed) ---
+async function loadExpensesOversight() {
+    const res = await fetch('/api/expenses/all');
+    const expenses = res.ok ? await res.json() : [];
+    const usdFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD' });
+
+    window.DataGrid.render(document.getElementById('expenses-oversight-grid'), {
+        columns: [
+            { key: 'purchaseDate', label: 'Date', render: (e) => escapeHtmlAccounting(e.purchaseDate) },
+            { key: 'memberName', label: 'Member', render: (e) => escapeHtmlAccounting(e.memberName) },
+            { key: 'purpose', label: 'Purpose', render: (e) => escapeHtmlAccounting(e.purpose) },
+            { key: 'amount', label: 'Amount', sortValue: (e) => e.amount, render: (e) => usdFmt.format(e.amount) },
+            { key: 'receipt', label: 'Receipt', sortable: false, render: (e) => e.receiptUrl ? `<a href="${escapeHtmlAccounting(e.receiptUrl)}" target="_blank" rel="noopener">View</a>` : '—' },
+            { key: 'isReimbursed', label: 'Reimbursed', sortable: false, searchable: false, render: (e) => `<input type="checkbox" class="expense-reimbursed-toggle" data-id="${e.id}" ${e.isReimbursed ? 'checked' : ''}>` }
+        ],
+        rows: expenses, getRowId: (e) => e.id,
+        defaultSortKey: 'purchaseDate', defaultSortDir: 'desc', emptyMessage: 'No expenses logged by anyone yet.'
+    });
+
+    document.getElementById('expenses-oversight-grid').addEventListener('change', async (e) => {
+        if (!e.target.classList.contains('expense-reimbursed-toggle')) return;
+        await fetch(`/api/expenses/${e.target.dataset.id}/reimbursed`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e.target.checked)
+        });
     });
 }
 
