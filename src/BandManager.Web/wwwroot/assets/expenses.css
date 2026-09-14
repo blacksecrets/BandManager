@@ -1,0 +1,76 @@
+.tax-export-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 14px 0 4px;
+    flex-wrap: wrap;
+}
+.tax-export-row select {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #444;
+    background: #151515;
+    color: #eee;
+}
+.tax-export-row button {
+    background: #333;
+    color: #eee;
+    border: 1px solid #555;
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.tax-export-row button:hover { background: #444; }
+
+/* --- Receipt upload/preview (expense modal) --- */
+.expense-receipt-buttons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+#expense-receipt-preview { margin: 8px 0; }
+#expense-receipt-preview-img {
+    max-width: 220px;
+    max-height: 220px;
+    border-radius: 6px;
+    border: 1px solid #444;
+    display: block;
+}
+
+/* --- Receipt camera modal --- */
+.receipt-camera-modal { width: 480px; max-width: 94vw; }
+
+.receipt-camera-video-wrap {
+    position: relative;
+    width: 100%;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    line-height: 0;
+}
+.receipt-camera-video-wrap video,
+.receipt-camera-video-wrap canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+.receipt-camera-video-wrap svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+}
+
+.receipt-crop-outline {
+    fill: rgba(91, 141, 239, 0.15);
+    stroke: #5b8def;
+    stroke-width: 0.6;
+    vector-effect: non-scaling-stroke;
+}
+.receipt-crop-handle {
+    fill: #5b8def;
+    stroke: #fff;
+    stroke-width: 0.4;
+    cursor: grab;
+    vector-effect: non-scaling-stroke;
+}
+.receipt-crop-handle:active { cursor: grabbing; fill: #3a5fab; }
+
+#receipt-camera-work-canvas { display: none; }

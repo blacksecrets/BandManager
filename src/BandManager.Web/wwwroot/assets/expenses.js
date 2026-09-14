@@ -96,11 +96,24 @@ function openExpenseModal(expense) {
     // section until the first Save creates the record.
     const receiptSection = document.getElementById('expense-receipt-section');
     receiptSection.hidden = !expense;
+    const previewBox = document.getElementById('expense-receipt-preview');
     if (expense) {
-        document.getElementById('expense-receipt-status').textContent = expense.receiptUrl ? 'A receipt is attached - choosing a new file replaces it.' : 'No receipt attached yet.';
+        document.getElementById('expense-receipt-status').textContent = expense.receiptUrl ? 'A receipt is attached - choosing a new file or taking a new photo replaces it.' : 'No receipt attached yet.';
+        if (expense.receiptUrl && isImageReceiptUrl(expense.receiptUrl)) {
+            document.getElementById('expense-receipt-preview-img').src = expense.receiptUrl;
+            previewBox.hidden = false;
+        } else {
+            previewBox.hidden = true;
+        }
+    } else {
+        previewBox.hidden = true;
     }
 
     document.getElementById('expense-modal-backdrop').hidden = false;
+}
+
+function isImageReceiptUrl(url) {
+    return /\.(jpe?g|png|gif|webp|bmp)$/i.test(url);
 }
 
 document.getElementById('add-expense-btn').addEventListener('click', () => openExpenseModal(null));
@@ -135,8 +148,11 @@ document.getElementById('expense-form').addEventListener('submit', async (e) => 
     await loadExpenses();
 });
 
-document.getElementById('expense-receipt-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0];
+// Shared by both the plain file-picker and the camera-capture flow below
+// (the camera hands back a cropped-JPEG File too, same shape) - one
+// upload path, one place that keeps the instant preview and the grid in
+// sync.
+async function uploadReceiptFile(file) {
     if (!file || !editingExpenseId) return;
     const status = document.getElementById('expense-receipt-status');
     status.textContent = 'Uploading...';
@@ -146,7 +162,22 @@ document.getElementById('expense-receipt-input').addEventListener('change', asyn
     const resBody = await res.json().catch(() => ({}));
     if (!res.ok) { status.textContent = resBody.error || 'Could not upload receipt.'; return; }
     status.textContent = 'Receipt attached.';
+    // Instant preview from the file just uploaded, rather than waiting on
+    // a fresh fetch round-trip to get the same bytes back as a thumbnail.
+    if (file.type.startsWith('image/')) {
+        document.getElementById('expense-receipt-preview-img').src = URL.createObjectURL(file);
+        document.getElementById('expense-receipt-preview').hidden = false;
+    }
     await loadExpenses();
+}
+
+document.getElementById('expense-receipt-input').addEventListener('change', (e) => {
+    uploadReceiptFile(e.target.files[0]);
+});
+
+document.getElementById('expense-receipt-camera-btn').addEventListener('click', async () => {
+    const file = await window.ReceiptCamera.open();
+    if (file) await uploadReceiptFile(file);
 });
 
 loadExpenses();

@@ -125,7 +125,26 @@ async function loadTravelTrips() {
     const res = await fetch('/api/travel/trips');
     travelTrips = res.ok ? await res.json() : [];
     renderTravelTripsGrid();
+    populateTravelExportYearSelect();
 }
+
+// Tax-prep spreadsheet export - same "year list from whatever years this
+// member actually has rows in, plus the current year" convention as
+// expenses.js's populateExportYearSelect.
+function populateTravelExportYearSelect() {
+    const select = document.getElementById('travel-export-year');
+    if (!select) return;
+    const currentYear = new Date().getFullYear();
+    const years = new Set([currentYear, ...travelTrips.map((t) => parseInt(t.date.slice(0, 4), 10))]);
+    const sorted = [...years].sort((a, b) => b - a);
+    select.innerHTML = sorted.map((y) => `<option value="${y}">${y}</option>`).join('');
+    select.value = String(currentYear);
+}
+
+document.getElementById('travel-export-btn')?.addEventListener('click', () => {
+    const year = document.getElementById('travel-export-year').value;
+    window.open(`/api/travel/trips/export?year=${encodeURIComponent(year)}`, '_blank');
+});
 
 async function initTravel() {
     const profile = await loadTravelProfile();

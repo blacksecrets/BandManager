@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/assets/settings.css">
 <link rel="stylesheet" href="/assets/profile.css">
 <link rel="stylesheet" href="/assets/dataGrid.css">
+<link rel="stylesheet" href="/assets/expenses.css">
 </head>
 <body>
     <header class="topbar">
@@ -20,6 +21,8 @@
     </header>
 
     <main class="settings-main">
+        <p class="save-note">Purchases and mileage in one place - a one-stop shop for expense tracking and tax reporting, for the currently active band.</p>
+
         <p id="expenses-no-band" class="save-note" hidden>Select a band from the switcher above to log an expense.</p>
 
         <section class="platform-card" id="expenses-content" hidden>
@@ -29,9 +32,44 @@
             <div id="expenses-grid"></div>
             <button type="button" id="add-expense-btn" class="upload-btn">+ Add an Expense</button>
 
-            <div class="gig-set-actions" id="expenses-export-row">
+            <div class="tax-export-row" id="expenses-export-row">
                 <label>Tax year <select id="expenses-export-year"></select></label>
                 <button type="button" id="expenses-export-btn">Download Spreadsheet (CSV)</button>
+            </div>
+        </section>
+
+        <section class="platform-card">
+            <h2>Mileage</h2>
+            <p class="save-note">Your personal mileage log for band-related driving, for the currently active band - switch bands above to see another band's log.</p>
+
+            <form id="travel-cadence-form" class="cred-form">
+                <fieldset class="ticket-mode-fieldset cred-radio-group">
+                    <legend>Tax return cadence</legend>
+                    <label class="radio-label"><input type="radio" name="cadence" value="Yearly"> Yearly</label>
+                    <label class="radio-label"><input type="radio" name="cadence" value="Quarterly"> Quarterly</label>
+                </fieldset>
+                <button type="submit">Save cadence</button>
+                <p id="travel-cadence-status" class="save-note"></p>
+            </form>
+
+            <form id="travel-vehicle-form" class="cred-form">
+                <h3>Vehicle</h3>
+                <p class="save-note">The vehicle used for band-related travel in the current timeframe.</p>
+                <label>Make <input type="text" name="vehicleMake" maxlength="100"></label>
+                <label>Model <input type="text" name="vehicleModel" maxlength="100"></label>
+                <label>Year <input type="number" name="vehicleYear" min="1900" max="2100"></label>
+                <label>Starting mileage for this timeframe <input type="number" name="startingMileage" min="0"></label>
+                <button type="submit">Save vehicle</button>
+                <p id="travel-vehicle-status" class="save-note"></p>
+            </form>
+
+            <h3>Trips</h3>
+            <button type="button" id="travel-new-trip-btn">+ New Trip</button>
+            <div id="travel-trips-grid"></div>
+
+            <div class="tax-export-row" id="travel-export-row">
+                <label>Tax year <select id="travel-export-year"></select></label>
+                <button type="button" id="travel-export-btn">Download Spreadsheet (CSV)</button>
             </div>
         </section>
     </main>
@@ -56,13 +94,136 @@
             <div id="expense-receipt-section" hidden>
                 <h3>Receipt</h3>
                 <p class="save-note" id="expense-receipt-status"></p>
-                <label class="upload-btn">Choose file<input type="file" id="expense-receipt-input" accept="image/*,.pdf" hidden></label>
+                <div id="expense-receipt-preview" hidden><img id="expense-receipt-preview-img" alt="Receipt preview"></div>
+                <div class="expense-receipt-buttons">
+                    <label class="upload-btn">Choose file<input type="file" id="expense-receipt-input" accept="image/*,.pdf" hidden></label>
+                    <button type="button" id="expense-receipt-camera-btn">Take Photo</button>
+                </div>
             </div>
         </div>
     </div>
 
+    <div id="receipt-camera-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal receipt-camera-modal">
+            <button type="button" class="detail-modal-close" id="receipt-camera-close">&times;</button>
+            <h2>Take a Photo of the Receipt</h2>
+            <p class="save-note" id="receipt-camera-status">Line the receipt up on a plain background - the corners are detected automatically.</p>
+
+            <div id="receipt-camera-live-pane">
+                <div class="receipt-camera-video-wrap">
+                    <video id="receipt-camera-video" autoplay playsinline muted></video>
+                </div>
+                <div class="cred-form-buttons">
+                    <button type="button" id="receipt-camera-shoot-btn">Capture</button>
+                    <button type="button" id="receipt-camera-cancel-btn">Cancel</button>
+                </div>
+            </div>
+
+            <div id="receipt-camera-crop-pane" hidden>
+                <div class="receipt-camera-video-wrap">
+                    <canvas id="receipt-camera-still-canvas"></canvas>
+                    <svg id="receipt-camera-crop-overlay"></svg>
+                </div>
+                <p class="save-note">Drag a corner if the detected edges are off, then use this crop.</p>
+                <div class="cred-form-buttons">
+                    <button type="button" id="receipt-camera-use-btn">Use This Crop</button>
+                    <button type="button" id="receipt-camera-retake-btn">Retake</button>
+                </div>
+            </div>
+
+            <canvas id="receipt-camera-work-canvas" hidden></canvas>
+        </div>
+    </div>
+
+    <div id="trip-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <button type="button" class="detail-modal-close" id="trip-modal-close">&times;</button>
+            <h2 id="trip-modal-title">New Trip</h2>
+            <form id="trip-form" class="cred-form">
+                <label>Date <input type="date" name="date" required></label>
+
+                <fieldset class="trip-endpoint-fieldset" data-endpoint="from">
+                    <legend>From</legend>
+                    <label class="checkbox-label"><input type="checkbox" name="fromIsHome" checked> Use my home address</label>
+                    <div class="trip-endpoint-manual">
+                        <label>Name <input type="text" name="fromName" maxlength="200"></label>
+                        <label>Address <input type="text" name="fromAddressLine1" maxlength="200"></label>
+                        <label>City <input type="text" name="fromCity" maxlength="100"></label>
+                        <label>State <input type="text" name="fromState" maxlength="2" placeholder="e.g. VA"></label>
+                        <label>ZIP <input type="text" name="fromPostalCode" maxlength="10"></label>
+                    </div>
+                </fieldset>
+
+                <fieldset class="trip-endpoint-fieldset" data-endpoint="to">
+                    <legend>To</legend>
+                    <label class="checkbox-label"><input type="checkbox" name="toIsHome"> Use my home address</label>
+                    <div class="trip-endpoint-manual">
+                        <label>Name <input type="text" name="toName" maxlength="200"></label>
+                        <label>Address <input type="text" name="toAddressLine1" maxlength="200"></label>
+                        <label>City <input type="text" name="toCity" maxlength="100"></label>
+                        <label>State <input type="text" name="toState" maxlength="2" placeholder="e.g. VA"></label>
+                        <label>ZIP <input type="text" name="toPostalCode" maxlength="10"></label>
+                    </div>
+                </fieldset>
+
+                <label class="checkbox-label"><input type="checkbox" name="roundTrip"> Round trip</label>
+
+                <fieldset class="ticket-mode-fieldset cred-radio-group">
+                    <legend>Trip reason</legend>
+                    <label class="radio-label"><input type="radio" name="reason" value="Rehearsal" checked> Rehearsal</label>
+                    <label class="radio-label"><input type="radio" name="reason" value="Gig"> Gig</label>
+                    <label class="radio-label"><input type="radio" name="reason" value="Other"> Other</label>
+                </fieldset>
+                <div id="trip-gig-picker" hidden>
+                    <label>Gig <select name="gigRef"></select></label>
+                </div>
+                <div id="trip-other-reason" hidden>
+                    <label>Reason <input type="text" name="otherReasonText" maxlength="200"></label>
+                </div>
+
+                <div class="cred-form-buttons">
+                    <button type="submit" id="trip-save-btn" disabled>Save</button>
+                    <button type="button" id="trip-cancel-btn">Cancel</button>
+                </div>
+                <p id="trip-status" class="save-note"></p>
+            </form>
+        </div>
+    </div>
+
+    <div id="trip-reuse-location-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <h2>Use saved location?</h2>
+            <p id="trip-reuse-location-text"></p>
+            <div class="cred-form-buttons">
+                <button type="button" id="trip-reuse-location-yes-btn">Yes, use that one</button>
+                <button type="button" id="trip-reuse-location-no-btn">No, enter a new name</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="trip-home-address-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal">
+            <h2>Complete your home address</h2>
+            <p class="save-note">Your home address isn't fully filled out in your Profile yet - it's needed before a trip can use it.</p>
+            <form id="trip-home-address-form" class="cred-form">
+                <label>Address line 1 <input type="text" name="addressLine1" maxlength="200"></label>
+                <label>Address line 2 <input type="text" name="addressLine2" maxlength="200"></label>
+                <label>City <input type="text" name="city" maxlength="100"></label>
+                <label>State <input type="text" name="state" maxlength="2" placeholder="e.g. VA"></label>
+                <label>ZIP code <input type="text" name="postalCode" maxlength="10"></label>
+                <div class="cred-form-buttons">
+                    <button type="submit">Save address</button>
+                    <button type="button" id="trip-home-address-cancel-btn">Cancel</button>
+                </div>
+                <p id="trip-home-address-status" class="save-note"></p>
+            </form>
+        </div>
+    </div>
+
     <script src="/assets/dataGrid.js"></script>
+    <script src="/assets/receiptCamera.js"></script>
     <script src="/assets/expenses.js"></script>
+    <script src="/assets/travel.js"></script>
     <script src="/assets/branding.js"></script>
     <script src="/assets/userAvatar.js"></script>
     <script src="/assets/topNav.js"></script>

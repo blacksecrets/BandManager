@@ -1,10 +1,12 @@
 using BandManager.Data;
 using BandManager.Data.Entities;
+using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Text;
 
 namespace BandManager.Web.Controllers;
 
@@ -174,6 +176,42 @@ public class TravelController(ApplicationDbContext db, IActiveBandAccessor activ
             : await db.Gigs.AsNoTracking().Where(g => g.BandId == band.Id && gigRefs.Contains(g.Ref)).ToDictionaryAsync(g => g.Ref, g => g.Title);
 
         return Ok(trips.Select(t => SerializeTrip(t, gigTitles)));
+    }
+
+    // The mileage-log counterpart to ExpensesController.Export - same
+    // "one-stop shop for tax reporting" download, same year-scoped/
+    // caller's-own-rows shape. See TripCsvExportService's own comment on
+    // why there's no dollar column.
+    [HttpGet("trips/export")]
+    public async Task<IActionResult> ExportTrips([FromQuery] int? year)
+    {
+        var (band, err) = await RequireActiveBandAsync();
+        if (err is not null) return err;
+        var userId = User.GetUserId()!.Value;
+        var y = year ?? DateTime.UtcNow.Year;
+
+        var trips = await db.Trips.AsNoTracking()
+            .Where(t => t.BandId == band.Id && t.UserId == userId && t.Date.Year == y)
+            .OrderBy(t => t.Date).ToListAsync();
+
+        var gigRefs = trips.Where(t => t.Reason == TripReason.Gig && t.GigRef is not null).Select(t => t.GigRef!).Distinct().ToList();
+        var gigTitles = gigRefs.Count == 0 ? new Dictionary<string, string>()
+            : await db.Gigs.AsNoTracking().Where(g => g.BandId == band.Id && gigRefs.Contains(g.Ref)).ToDictionaryAsync(g => g.Ref, g => g.Title);
+
+        var rows = trips.Select(t => new TripExportRow(
+            t.Date.ToString("yyyy-MM-dd"),
+            t.FromIsHome ? "Home" : ComposeAddress(t.FromAddressLine1, t.FromCity, t.FromState, t.FromPostalCode),
+            t.ToIsHome ? "Home" : ComposeAddress(t.ToAddressLine1, t.ToCity, t.ToState, t.ToPostalCode),
+            t.RoundTrip,
+            t.Reason switch
+            {
+                TripReason.Rehearsal => "Rehearsal",
+                TripReason.Gig => t.GigRef is not null && gigTitles.TryGetValue(t.GigRef, out var title) ? title : "Gig",
+                _ => t.OtherReasonText ?? "Other"
+            },
+            t.DistanceMiles is { } d ? Math.Round(d * (t.RoundTrip ? 2 : 1), 1) : (double?)null));
+        var csv = TripCsvExportService.BuildCsv(rows);
+        return File(Encoding.UTF8.GetBytes(csv), "text/csv", $"my-mileage-{y}.csv");
     }
 
     // For the gig-reason selector in the Trip modal - active band's gigs,
