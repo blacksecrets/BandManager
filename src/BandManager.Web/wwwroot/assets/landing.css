@@ -113,3 +113,19 @@
 
 .status-connected { color: #5fb86a; font-weight: bold; }
 .status-not-connected { color: #999; }
+
+.landing-stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.landing-stat-tile {
+    background: #222;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-decoration: none;
+    color: inherit;
+}
+a.landing-stat-tile:hover { border-color: #5b8def; background: #262a33; }
+.landing-stat-value { font-size: 1.6rem; font-weight: 600; color: #e6b563; font-variant-numeric: tabular-nums; }
+.landing-stat-label { font-size: 0.8rem; color: #999; }

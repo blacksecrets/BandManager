@@ -11,6 +11,13 @@ public class ApplicationUser : IdentityUser<Guid>
 {
     public bool IsSuperAdmin { get; set; }
 
+    // Null for every account that predates this field - deliberately NOT
+    // backfilled to "now" on the migration that adds it, since that would
+    // make every existing user look like a fresh signup the first time a
+    // "joined in the last N days" stat runs. New accounts always get a
+    // real timestamp from this default; only pre-existing rows are null.
+    public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
+
     // Set whenever an admin creates an account or resets someone's
     // password on their behalf (they know the temp password, the account
     // owner doesn't yet have their own) - checked at login to redirect

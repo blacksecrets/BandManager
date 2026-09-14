@@ -289,28 +289,35 @@ async function loadSuperAdminDashboard() {
         defaultSortKey: 'name', defaultSortDir: 'asc', emptyMessage: 'No bands yet.'
     });
 
-    // Connectivity is per-Band (credentials are stored per-Band) - shows
-    // for whichever Band is currently active via the switcher, same as
-    // every other Band-scoped SuperAdmin view in this app.
-    const note = document.getElementById('landing-connectivity-note');
-    const me = await (await fetch('/api/profile/me')).json();
-    if (!me.activeBandRole) {
-        note.textContent = 'Select a band from the switcher above to see its connectivity status.';
-        return;
-    }
-    note.textContent = `Showing ${me.activeBandName}'s connected platforms.`;
-    const [platformsRes, credsRes] = await Promise.all([fetch('/api/platforms'), fetch('/api/settings/credentials')]);
-    const platforms = platformsRes.ok ? await platformsRes.json() : [];
-    const creds = credsRes.ok ? await credsRes.json() : {};
-    const connectivityRows = platforms.map((p) => ({ id: p.id, displayName: p.display_name, connected: !!creds[p.id]?.configured }));
-    window.DataGrid.render(document.getElementById('landing-connectivity-grid'), {
-        columns: [
-            { key: 'displayName', label: 'Platform', render: (p) => escapeHtml(p.displayName) },
-            { key: 'connected', label: 'Status', sortValue: (p) => (p.connected ? 1 : 0), render: (p) => p.connected ? '<span class="status-connected">Connected</span>' : '<span class="status-not-connected">Not connected</span>' }
-        ],
-        rows: connectivityRows, getRowId: (p) => p.id,
-        defaultSortKey: 'displayName', defaultSortDir: 'asc', searchable: false, emptyMessage: 'No platforms configured.'
-    });
+    await loadPlatformStats();
+}
+
+// Whole-platform stats, not scoped to whichever band happens to be active
+// in the switcher - replaces the old Connectivity Status widget, which
+// only ever reflected one band and wasn't a meaningful "how's the
+// platform doing" view for a SuperAdmin.
+async function loadPlatformStats() {
+    const [statsRes, pendingRes] = await Promise.all([
+        fetch('/api/superadmin/stats'),
+        fetch('/api/song-edit-requests/pending-count')
+    ]);
+    const stats = statsRes.ok ? await statsRes.json() : {};
+    const pending = pendingRes.ok ? await pendingRes.json() : { count: 0 };
+
+    const tiles = [
+        { label: 'Active bands', value: stats.activeBands ?? '—' },
+        { label: 'Archived bands', value: stats.archivedBands ?? '—' },
+        { label: 'Total users', value: stats.totalUsers ?? '—' },
+        { label: 'Signed up, last 30 days', value: stats.signupsLast30Days ?? '—' },
+        { label: 'Pending song reviews', value: pending.count ?? 0, href: '/notifications' }
+    ];
+
+    document.getElementById('landing-platform-stats').innerHTML = tiles.map((t) => `
+        <${t.href ? 'a href="' + t.href + '"' : 'div'} class="landing-stat-tile">
+            <span class="landing-stat-value">${t.value}</span>
+            <span class="landing-stat-label">${escapeHtml(t.label)}</span>
+        </${t.href ? 'a' : 'div'}>
+    `).join('');
 }
 
 // --- Customize Widgets: pick which show, drag to reorder ---

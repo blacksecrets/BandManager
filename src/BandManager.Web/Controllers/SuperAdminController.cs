@@ -335,6 +335,32 @@ public class SuperAdminController(
         return Ok(result);
     }
 
+    // Backs the SuperAdmin login dashboard's global widgets - deliberately
+    // NOT band-scoped, unlike the Connectivity widget it replaced there
+    // (that one only ever showed whichever band happened to be active in
+    // the switcher, which isn't a meaningful "the whole platform" view for
+    // a SuperAdmin). signupsLast30Days only counts users whose CreatedAt
+    // is actually set - accounts older than that field existing are
+    // excluded rather than miscounted as "recent" (see ApplicationUser.CreatedAt).
+    [HttpGet("stats")]
+    public async Task<IActionResult> GetStats()
+    {
+        var totalBands = await db.Bands.CountAsync();
+        var archivedBands = await db.Bands.CountAsync(b => b.IsArchived);
+        var totalUsers = await db.Users.CountAsync();
+        var cutoff = DateTime.UtcNow.AddDays(-30);
+        var signupsLast30Days = await db.Users.CountAsync(u => u.CreatedAt != null && u.CreatedAt >= cutoff);
+
+        return Ok(new
+        {
+            totalBands,
+            activeBands = totalBands - archivedBands,
+            archivedBands,
+            totalUsers,
+            signupsLast30Days
+        });
+    }
+
     // Creates a new account at whatever level is picked: a bare SuperAdmin
     // (Memberships ignored - SuperAdmin already sees/manages every band
     // without one), or a BandAdmin/User of each band listed in
