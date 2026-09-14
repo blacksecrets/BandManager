@@ -31,7 +31,15 @@ public record BulkResolveNewSongsRequest(List<Guid> Ids, string Message);
 /// </summary>
 [ApiController]
 [Route("/api/songs")]
-[Authorize(Policy = "BandMember")]
+// Bare [Authorize] at class level, not "BandMember" - List() below is read
+// by the dashboard's Song Catalog widget, which (per this class's own doc
+// comment) is meant to work for any user, no Band needed. The "BandMember"
+// policy denies exactly that for a non-SuperAdmin with zero or 2+
+// memberships and no resolvable active Band (it already always passes for
+// a SuperAdmin regardless of Band selection - see BandAccessCheck). Every
+// other action below gets its own explicit, unchanged "BandMember" (or
+// stronger) policy, so this only actually loosens List().
+[Authorize]
 public class SongsController(ApplicationDbContext db, SongSearchService songSearch, IActiveBandAccessor activeBand) : ControllerBase
 {
     private IActionResult? RequireActiveBand(out Guid bandId)
@@ -80,6 +88,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // not just this Band's own repertoire (that's the whole point: find
     // one someone else already filled in before creating a duplicate).
     [HttpGet("search")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> Search([FromQuery] string? q)
     {
         var query = q?.Trim() ?? "";
@@ -103,6 +112,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // same job as Search above (free-text, up to 25 loose matches) - this
     // is a single yes/no lookup for one specific pair.
     [HttpGet("match")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> Match([FromQuery] string title, [FromQuery] string? artist)
     {
         var titleTrimmed = title?.Trim() ?? "";
@@ -122,6 +132,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // likely duplicate that title-cased or "(Live)"-suffixed its way
     // past the exact check, not to resolve anything automatically.
     [HttpGet("{id:guid}/fuzzy-matches")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> FuzzyMatches(Guid id)
     {
         var song = await db.Songs.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
@@ -144,6 +155,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // SongSearchService's doc comment), so it's never part of this result
     // set; the songsterrUrl field is always filled in by hand.
     [HttpGet("search-web")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> SearchWeb([FromQuery] string? q)
     {
         var query = q?.Trim() ?? "";
@@ -162,6 +174,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     }
 
     [HttpGet("{id:guid}")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> Get(Guid id)
     {
         var song = await db.Songs.AsNoTracking().FirstOrDefaultAsync(s => s.Id == id);
@@ -232,6 +245,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // already under review can't take a second proposal - both mirror
     // RepertoireController.Add's existing duplicate-check idiom).
     [HttpPost("{id:guid}/propose-edit")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> ProposeEdit(Guid id, [FromBody] UpdateSongRequest request)
     {
         if (RequireActiveBand(out var bandId) is { } err) return err;
@@ -277,6 +291,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // member, unlike Create (BandAdmin-only) - proposing something for
     // review is a lower bar than directly publishing to the shared catalog.
     [HttpPost("propose-new")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> ProposeNew([FromBody] CreateSongRequest request)
     {
         var userId = User.GetUserId();
@@ -410,6 +425,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // whatever instrument name this Band uses (see BandInstrument), so it
     // organically fills in for every Band as more of them contribute.
     [HttpPut("{id:guid}/tuning")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> SetTuning(Guid id, [FromBody] SetTuningRequest request)
     {
         var instrument = request.Instrument?.Trim();
@@ -431,6 +447,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // text is a performance aid that's useful the moment someone adds it,
     // not curated metadata worth gating behind SuperAdmin approval.
     [HttpPut("{id:guid}/lyrics")]
+    [Authorize(Policy = "BandMember")]
     public async Task<IActionResult> SetLyrics(Guid id, [FromBody] SetLyricsRequest request)
     {
         var song = await db.Songs.FindAsync(id);
