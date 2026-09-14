@@ -30,7 +30,11 @@ function renderGigPrepTabs(tabsEl, activeType, onSwitch) {
 }
 
 // items: this tab's items only, in order: [{id, text, isChecked?}]
-// options: { showCheckbox, onToggle(id, checked), onRemove(id), onReorder(idsInNewOrder), readOnly? }
+// options: { showCheckbox, onToggle(id, checked), onRemove(id), onReorder(idsInNewOrder), readOnly?, noDrag?, renderExtra(item, li)? }
+// renderExtra is an optional hook (used by Load Crew's assignee dropdown)
+// called after the item's text is appended and before its Remove button -
+// keeps this list generic for any per-item extra control without every
+// caller needing its own copy of the drag/reorder/checkbox plumbing.
 // readOnly (used by the "Copy from another Act or Band" preview) drops
 // the drag handle and Remove button entirely - just the text, nothing
 // that could mutate what's meant to be a look-before-you-copy view.
@@ -45,7 +49,7 @@ function renderGigPrepList(listEl, items, options) {
         li.className = 'gig-prep-item';
         li.dataset.id = item.id;
 
-        if (!options.readOnly) {
+        if (!options.readOnly && !options.noDrag) {
             const handle = document.createElement('span');
             handle.className = 'drag-handle';
             handle.textContent = '⠿';
@@ -66,6 +70,8 @@ function renderGigPrepList(listEl, items, options) {
         text.textContent = item.text;
         if (options.showCheckbox && item.isChecked) text.classList.add('gig-prep-item-done');
         li.appendChild(text);
+
+        if (options.renderExtra) options.renderExtra(item, li);
 
         if (!options.readOnly) {
             const removeBtn = document.createElement('button');

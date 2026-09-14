@@ -48,6 +48,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<PrintPreference> PrintPreferences => Set<PrintPreference>();
     public DbSet<GigPrepDefaultItem> GigPrepDefaultItems => Set<GigPrepDefaultItem>();
     public DbSet<GigPrepChecklistItem> GigPrepChecklistItems => Set<GigPrepChecklistItem>();
+    public DbSet<LoadCrewDefaultItem> LoadCrewDefaultItems => Set<LoadCrewDefaultItem>();
+    public DbSet<LoadCrewChecklistItem> LoadCrewChecklistItems => Set<LoadCrewChecklistItem>();
 
     // --- Site content, now DB-backed (source of truth), site is an
     // optional best-effort publish target - see Gig.cs's doc comment ---
@@ -331,6 +333,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         {
             b.HasOne(x => x.Gig).WithMany().HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<LoadCrewDefaultItem>(b =>
+        {
+            b.HasOne(x => x.Act).WithMany().HasForeignKey(x => x.ActId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<LoadCrewChecklistItem>(b =>
+        {
+            b.HasOne(x => x.Gig).WithMany().HasForeignKey(x => x.GigId).OnDelete(DeleteBehavior.Cascade);
+            b.HasOne(x => x.AssigneeUser).WithMany().HasForeignKey(x => x.AssigneeUserId).OnDelete(DeleteBehavior.SetNull);
         });
 
         // --- Site content (Gigs/Media/Gallery), DB-backed ---

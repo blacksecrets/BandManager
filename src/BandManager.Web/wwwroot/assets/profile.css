@@ -305,6 +305,7 @@
 .gig-prep-item-text { flex: 1; }
 .gig-prep-item-text.gig-prep-item-done { text-decoration: line-through; color: #888; }
 .gig-prep-item .remove-btn { padding: 3px 8px; font-size: 0.75rem; }
+.load-crew-assignee-select { width: auto; max-width: 140px; font-size: 0.8rem; padding: 3px 6px; }
 
 .gig-prep-gear-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 14px; }
 .gig-prep-gear-item {

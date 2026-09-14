@@ -1086,6 +1086,176 @@ document.getElementById('gig-prep-print-all-btn').addEventListener('click', () =
     window.open(`/print-gig-prep.html?${params.toString()}`, '_blank');
 });
 
+// --- Load Crew (who sets up/tears down what) - shared with the whole
+// band, unlike Gig Prep above which is deliberately private per member.
+// Reuses gigPrepShared.js's tab/list/drag-reorder rendering (it's generic
+// over the item shape) but with its own 2-tab set and an assignee
+// dropdown injected per row via renderGigPrepList's renderExtra hook. ---
+
+const LOAD_CREW_LIST_TYPES = [
+    { value: 0, label: 'Load-In' },
+    { value: 1, label: 'Load-Out' }
+];
+
+function renderLoadCrewTabs(tabsEl, activeType, onSwitch) {
+    tabsEl.innerHTML = '';
+    for (const t of LOAD_CREW_LIST_TYPES) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'gig-prep-tab' + (t.value === activeType ? ' active' : '');
+        btn.textContent = t.label;
+        btn.addEventListener('click', () => onSwitch(t.value));
+        tabsEl.appendChild(btn);
+    }
+}
+
+function renderLoadCrewAssignee(item, li, onAssign) {
+    const select = document.createElement('select');
+    select.className = 'load-crew-assignee-select';
+    select.innerHTML = '<option value="">(unassigned)</option>' +
+        bandMembers.map((m) => `<option value="${m.id}">${escapeHtml(m.firstName)}</option>`).join('');
+    select.value = item.assigneeUserId || '';
+    select.addEventListener('change', () => onAssign(item.id, select.value || null));
+    li.appendChild(select);
+}
+
+let loadCrewItems = [];
+let loadCrewActiveType = 0;
+let loadCrewGigActId = null;
+
+function closeLoadCrewModal() { document.getElementById('load-crew-modal-backdrop').hidden = true; }
+document.getElementById('load-crew-modal-close').addEventListener('click', closeLoadCrewModal);
+document.getElementById('load-crew-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'load-crew-modal-backdrop') closeLoadCrewModal(); });
+
+document.getElementById('gig-set-load-crew-btn').addEventListener('click', async () => {
+    if (!selectedGigRef) return;
+    document.getElementById('load-crew-modal-backdrop').hidden = false;
+    loadCrewActiveType = 0;
+
+    const gigRes = await fetch(`/api/gigs/${encodeURIComponent(selectedGigRef)}`);
+    loadCrewGigActId = gigRes.ok ? (await gigRes.json()).actId : null;
+    document.getElementById('load-crew-edit-defaults-btn').hidden = !isBandAdmin || !loadCrewGigActId;
+
+    const res = await fetch(`/api/load-crew/${encodeURIComponent(selectedGigRef)}`);
+    loadCrewItems = res.ok ? await res.json() : [];
+    renderLoadCrewTabsAndList();
+});
+
+function renderLoadCrewTabsAndList() {
+    renderLoadCrewTabs(document.getElementById('load-crew-tabs'), loadCrewActiveType, (type) => {
+        loadCrewActiveType = type;
+        renderLoadCrewTabsAndList();
+    });
+    const items = loadCrewItems.filter((i) => i.listType === loadCrewActiveType);
+    renderGigPrepList(document.getElementById('load-crew-list'), items, {
+        showCheckbox: true,
+        onToggle: async (id, checked) => {
+            await fetch(`/api/load-crew/${encodeURIComponent(selectedGigRef)}/items/${id}/check`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(checked)
+            });
+            const item = loadCrewItems.find((i) => i.id === id);
+            if (item) item.isChecked = checked;
+        },
+        onRemove: async (id) => {
+            await fetch(`/api/load-crew/${encodeURIComponent(selectedGigRef)}/items/${id}`, { method: 'DELETE' });
+            loadCrewItems = loadCrewItems.filter((i) => i.id !== id);
+            renderLoadCrewTabsAndList();
+        },
+        onReorder: async (ids) => {
+            const byId = new Map(loadCrewItems.filter((i) => i.listType === loadCrewActiveType).map((i) => [i.id, i]));
+            const others = loadCrewItems.filter((i) => i.listType !== loadCrewActiveType);
+            loadCrewItems = [...others, ...ids.map((id) => byId.get(id))];
+            renderLoadCrewTabsAndList();
+            await fetch(`/api/load-crew/${encodeURIComponent(selectedGigRef)}/reorder`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ listType: loadCrewActiveType, ids })
+            });
+        },
+        renderExtra: (item, li) => renderLoadCrewAssignee(item, li, async (id, assigneeUserId) => {
+            await fetch(`/api/load-crew/${encodeURIComponent(selectedGigRef)}/items/${id}/assignee`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(assigneeUserId)
+            });
+            const found = loadCrewItems.find((i) => i.id === id);
+            if (found) found.assigneeUserId = assigneeUserId;
+        })
+    });
+}
+
+document.getElementById('load-crew-add-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const text = form.text.value.trim();
+    if (!text) return;
+    const res = await fetch(`/api/load-crew/${encodeURIComponent(selectedGigRef)}/items`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listType: loadCrewActiveType, text })
+    });
+    if (res.ok) {
+        loadCrewItems.push(await res.json());
+        form.reset();
+        renderLoadCrewTabsAndList();
+    }
+});
+
+// --- Load Crew default template (per Act, Band Admin only) ---
+
+let loadCrewDefaultItems = [];
+let loadCrewDefaultsActiveType = 0;
+
+function closeLoadCrewDefaultsModal() { document.getElementById('load-crew-defaults-modal-backdrop').hidden = true; }
+document.getElementById('load-crew-defaults-close').addEventListener('click', closeLoadCrewDefaultsModal);
+document.getElementById('load-crew-defaults-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'load-crew-defaults-modal-backdrop') closeLoadCrewDefaultsModal(); });
+
+document.getElementById('load-crew-edit-defaults-btn').addEventListener('click', async () => {
+    if (!loadCrewGigActId) return;
+    document.getElementById('load-crew-defaults-modal-backdrop').hidden = false;
+    loadCrewDefaultsActiveType = 0;
+
+    const actRes = await fetch(`/api/acts/${loadCrewGigActId}`);
+    const act = actRes.ok ? await actRes.json() : null;
+    document.getElementById('load-crew-defaults-title').textContent = act ? `Default checklist - ${act.name}` : 'Default checklist';
+
+    const res = await fetch(`/api/load-crew/defaults/${loadCrewGigActId}`);
+    loadCrewDefaultItems = res.ok ? await res.json() : [];
+    renderLoadCrewDefaultsTabsAndList();
+});
+
+function renderLoadCrewDefaultsTabsAndList() {
+    renderLoadCrewTabs(document.getElementById('load-crew-defaults-tabs'), loadCrewDefaultsActiveType, (type) => {
+        loadCrewDefaultsActiveType = type;
+        renderLoadCrewDefaultsTabsAndList();
+    });
+    const items = loadCrewDefaultItems.filter((i) => i.listType === loadCrewDefaultsActiveType);
+    renderGigPrepList(document.getElementById('load-crew-defaults-list'), items, {
+        showCheckbox: false,
+        // No reorder endpoint for the default template this pass - it's
+        // only ever copied wholesale onto a new gig's checklist, where
+        // the per-gig checklist above (which IS reorderable) takes over.
+        noDrag: true,
+        onRemove: async (id) => {
+            await fetch(`/api/load-crew/defaults/${id}`, { method: 'DELETE' });
+            loadCrewDefaultItems = loadCrewDefaultItems.filter((i) => i.id !== id);
+            renderLoadCrewDefaultsTabsAndList();
+        }
+    });
+}
+
+document.getElementById('load-crew-defaults-add-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const text = form.text.value.trim();
+    if (!text || !loadCrewGigActId) return;
+    const res = await fetch(`/api/load-crew/defaults/${loadCrewGigActId}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ listType: loadCrewDefaultsActiveType, text })
+    });
+    if (res.ok) {
+        loadCrewDefaultItems.push(await res.json());
+        form.reset();
+        renderLoadCrewDefaultsTabsAndList();
+    }
+});
+
 // --- Accounting (per-gig payout) - viewable by any band member, editable
 // by a BandAdmin/SuperAdmin only (AccountingController enforces this
 // server-side too; the form/grid here just disables itself so a viewer

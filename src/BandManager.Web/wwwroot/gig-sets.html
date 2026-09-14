@@ -56,6 +56,7 @@
                         <button type="button" id="gig-set-print-btn">Print Setlist</button>
                         <button type="button" id="gig-set-spotify-btn">Save as Spotify Playlist</button>
                         <button type="button" id="gig-set-prep-btn">Gig Prep</button>
+                        <button type="button" id="gig-set-load-crew-btn">Load Crew</button>
                         <button type="button" id="gig-set-accounting-btn">Accounting</button>
                         <button type="button" id="gig-set-archive-btn" class="gig-set-archive-btn">Archive</button>
                     </div>
@@ -312,6 +313,42 @@
                 <button type="button" id="gig-prep-copy-preview-use-btn"></button>
                 <button type="button" id="gig-prep-copy-preview-cancel-btn">Cancel</button>
             </div>
+        </div>
+    </div>
+
+    <div id="load-crew-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal gig-prep-modal">
+            <button type="button" class="detail-modal-close" id="load-crew-modal-close">&times;</button>
+            <h2>Load Crew</h2>
+            <p class="save-note">Who's setting up what, and who's tearing it down - shared with the whole band, not just you.</p>
+
+            <div class="gig-prep-tabs" id="load-crew-tabs"></div>
+            <ol class="gig-prep-list" id="load-crew-list"></ol>
+
+            <form id="load-crew-add-form" class="cred-form">
+                <label>Add item <input type="text" name="text" maxlength="300" placeholder="e.g. Set up drums"></label>
+                <button type="submit">Add</button>
+            </form>
+
+            <div class="gig-set-actions">
+                <button type="button" id="load-crew-edit-defaults-btn" hidden>Edit default checklist for this Act</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="load-crew-defaults-modal-backdrop" class="detail-modal-backdrop" hidden>
+        <div class="detail-modal gig-prep-modal">
+            <button type="button" class="detail-modal-close" id="load-crew-defaults-close">&times;</button>
+            <h2 id="load-crew-defaults-title">Default checklist</h2>
+            <p class="save-note">Starting content copied onto every new gig this Act plays - editing it won't change this gig's own checklist.</p>
+
+            <div class="gig-prep-tabs" id="load-crew-defaults-tabs"></div>
+            <ol class="gig-prep-list" id="load-crew-defaults-list"></ol>
+
+            <form id="load-crew-defaults-add-form" class="cred-form">
+                <label>Add item <input type="text" name="text" maxlength="300" placeholder="e.g. Set up drums"></label>
+                <button type="submit">Add</button>
+            </form>
         </div>
     </div>
 
