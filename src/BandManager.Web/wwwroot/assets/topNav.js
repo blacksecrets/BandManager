@@ -45,6 +45,36 @@
         });
     }
 
+    // Compose (Notifications + real email) - same self-injecting shape as
+    // Band Chat above, plus its own shared modalShell.css/js dependency
+    // (loaded first, since compose.js calls window.ModalShell.create on
+    // open).
+    for (const href of ['/assets/modalShell.css', '/assets/compose.css']) {
+        if (!document.querySelector(`link[href="${href}"]`)) {
+            const l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.href = href;
+            document.head.appendChild(l);
+        }
+    }
+    let composeWidgetReady = Promise.resolve();
+    if (!document.querySelector('script[src="/assets/modalShell.js"]')) {
+        composeWidgetReady = new Promise((resolve) => {
+            const s = document.createElement('script');
+            s.src = '/assets/modalShell.js';
+            s.onload = resolve;
+            document.head.appendChild(s);
+        });
+    }
+    if (!document.querySelector('script[src="/assets/compose.js"]')) {
+        composeWidgetReady = composeWidgetReady.then(() => new Promise((resolve) => {
+            const s = document.createElement('script');
+            s.src = '/assets/compose.js';
+            s.onload = resolve;
+            document.head.appendChild(s);
+        }));
+    }
+
     const NAV_SECTIONS = [
         {
             label: 'Band flow', bandScoped: true, items: [
@@ -147,6 +177,16 @@
         const bellWrap = document.createElement('span');
         bellWrap.className = 'topbar-bells';
 
+        // Compose - an action, not a status bell, so it leads the group.
+        const composeBtn = document.createElement('button');
+        composeBtn.type = 'button';
+        composeBtn.className = 'chat-bell';
+        composeBtn.title = 'Compose';
+        composeBtn.setAttribute('aria-label', 'Compose a notification or email');
+        composeBtn.innerHTML = '&#9999;&#65039;';
+        composeBtn.addEventListener('click', () => { composeWidgetReady.then(() => window.ComposeWidget && window.ComposeWidget.toggleModal()); });
+        bellWrap.appendChild(composeBtn);
+
         // Band Chat bell sits to the left of Notifications, per its own
         // spec - DOM order within this flex wrapper is visual order.
         const chatBell = document.createElement('button');
@@ -174,6 +214,7 @@
         window.addEventListener('notif-changed', () => pollNotifications(me.isSuperAdmin));
 
         chatWidgetReady.then(() => { if (window.ChatWidget) window.ChatWidget.init(me); });
+        composeWidgetReady.then(() => { if (window.ComposeWidget) window.ComposeWidget.init(me); });
 
         document.addEventListener('click', () => {
             const menu = sidebar.querySelector('.sidebar-band-menu');

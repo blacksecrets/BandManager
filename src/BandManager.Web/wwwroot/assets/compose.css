@@ -1,0 +1,113 @@
+/* Compose modal body - Gmail-style To/Subject/Body fields inside the
+   shared ModalShell chrome (see modalShell.css). */
+
+.compose-field-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; flex-shrink: 0; }
+
+.compose-to-row {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 0.5px solid var(--border);
+}
+.compose-to-row .compose-field-label { padding-top: 6px; }
+.compose-to-chips {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+}
+.compose-to-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg-hover);
+    border: 0.5px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 6px 3px 10px;
+    font-size: 0.8rem;
+    color: var(--text-primary);
+}
+.compose-to-chip button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 0 3px;
+    line-height: 1;
+}
+.compose-to-chip button:hover { color: var(--danger); }
+.compose-to-input {
+    flex: 1;
+    min-width: 120px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    padding: 4px 2px;
+}
+.compose-to-input:focus { outline: none; }
+.compose-to-menu {
+    position: absolute;
+    top: 100%; left: 14px; right: 14px;
+    background: var(--bg-raised);
+    border: 0.5px solid var(--border-strong);
+    border-radius: 8px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+    max-height: 160px;
+    overflow-y: auto;
+    z-index: 5;
+}
+.compose-to-menu[hidden] { display: none; }
+.compose-to-item { padding: 7px 12px; font-size: 0.83rem; color: var(--text-primary); cursor: pointer; }
+.compose-to-item:hover { background: var(--bg-hover); }
+
+.compose-subject-input {
+    background: none;
+    border: none;
+    border-bottom: 0.5px solid var(--border);
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    padding: 10px 14px;
+}
+.compose-subject-input:focus { outline: none; border-bottom-color: var(--accent); }
+
+.compose-body-textarea {
+    flex: 1;
+    resize: none;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.87rem;
+    font-family: inherit;
+    line-height: 1.5;
+    padding: 12px 14px;
+    min-height: 120px;
+}
+.compose-body-textarea:focus { outline: none; }
+
+.compose-options-row {
+    display: flex;
+    gap: 16px;
+    padding: 8px 14px;
+    border-top: 0.5px solid var(--border);
+}
+.compose-option { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--text-secondary); cursor: pointer; }
+.compose-option input { width: auto; }
+
+.compose-status { margin: 0; padding: 0 14px; font-size: 0.78rem; color: var(--danger); min-height: 1.2em; }
+
+.compose-send-row { display: flex; justify-content: flex-end; padding: 8px 14px 14px; }
+.compose-send-btn {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border: none;
+    border-radius: 8px;
+    padding: 9px 22px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+}

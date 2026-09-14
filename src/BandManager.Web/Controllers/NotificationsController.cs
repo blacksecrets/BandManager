@@ -1,6 +1,8 @@
+using System.Net;
 using BandManager.Data;
 using BandManager.Data.Entities;
 using BandManager.Web.Auth;
+using BandManager.Web.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -9,6 +11,7 @@ namespace BandManager.Web.Controllers;
 
 public record NotificationBulkIdsRequest(List<Guid> Ids);
 public record SendBroadcastRequest(string Message);
+public record SendDirectMessageRequest(List<Guid> RecipientUserIds, string? Subject, string Body, bool SendNotification, bool SendEmail);
 
 /// <summary>
 /// A generic per-user inbox - deliberately not song-specific, even though
@@ -20,7 +23,7 @@ public record SendBroadcastRequest(string Message);
 [ApiController]
 [Route("/api/notifications")]
 [Authorize]
-public class NotificationsController(ApplicationDbContext db, IActiveBandAccessor activeBand) : ControllerBase
+public class NotificationsController(ApplicationDbContext db, IActiveBandAccessor activeBand, IEmailSender emailSender) : ControllerBase
 {
     // D14: a BandAdmin/SuperAdmin's "tell everyone at once" tool - every
     // other Notification here is system-generated off some other event
@@ -59,6 +62,69 @@ public class NotificationsController(ApplicationDbContext db, IActiveBandAccesso
         }
         await db.SaveChangesAsync();
         return Ok(new { ok = true, recipientCount = memberIds.Count });
+    }
+
+    // The Compose modal's own send action - open to any band member
+    // (unlike Broadcast above, which is BandAdmin-only and always targets
+    // everyone), targeting whichever recipients were actually picked, via
+    // a Notification, a real email, or both. Email goes through the
+    // registered IEmailSender exactly like the forgot-password flow does -
+    // until a real provider is configured that's LoggingEmailSender (logs
+    // it and mirrors a copy to every SuperAdmin as OutboundEmailCopy), not
+    // an actual inbox delivery; nothing else about this endpoint changes
+    // once a real provider is wired in.
+    [HttpPost("send")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> SendDirectMessage([FromBody] SendDirectMessageRequest request)
+    {
+        var bandId = activeBand.GetActiveBandId();
+        if (bandId is null) return BadRequest(new { error = "No active band selected." });
+        if (request.RecipientUserIds is not { Count: > 0 }) return BadRequest(new { error = "Pick at least one recipient." });
+        if (!request.SendNotification && !request.SendEmail) return BadRequest(new { error = "Choose to send a notification, an email, or both." });
+
+        var body = request.Body?.Trim();
+        if (string.IsNullOrEmpty(body)) return BadRequest(new { error = "A message is required." });
+        if (body.Length > 5000) return BadRequest(new { error = "Message is too long (5000 characters max)." });
+        var subject = string.IsNullOrWhiteSpace(request.Subject) ? null : request.Subject.Trim();
+
+        var senderId = User.GetUserId();
+        if (senderId is null) return Unauthorized();
+        var senderName = await db.Users.Where(u => u.Id == senderId).Select(u => u.DisplayName).FirstOrDefaultAsync() ?? "Someone";
+
+        // Only real members of the active band can be targeted, regardless
+        // of what ids the client sent - same membership-scoping every
+        // other recipient-list endpoint in this app already applies.
+        var recipients = await db.BandMemberships.Include(m => m.User)
+            .Where(m => m.BandId == bandId && request.RecipientUserIds.Contains(m.UserId))
+            .Select(m => m.User).ToListAsync();
+        if (recipients.Count == 0) return BadRequest(new { error = "None of the selected recipients are members of this band." });
+
+        var notifiedCount = 0;
+        var emailedCount = 0;
+
+        if (request.SendNotification)
+        {
+            var notifMessage = subject is not null ? $"{senderName}: {subject} - {body}" : $"{senderName}: {body}";
+            foreach (var r in recipients)
+            {
+                db.Notifications.Add(new Notification { UserId = r.Id, BandId = bandId, Kind = NotificationKind.DirectMessage, Message = notifMessage });
+            }
+            await db.SaveChangesAsync();
+            notifiedCount = recipients.Count;
+        }
+
+        if (request.SendEmail)
+        {
+            var htmlBody = $"<p>{WebUtility.HtmlEncode(body).Replace("\n", "<br>")}</p><p style=\"color:#888;font-size:0.85em;\">Sent via BandManager+ by {WebUtility.HtmlEncode(senderName)}.</p>";
+            var emailSubject = subject ?? $"Message from {senderName}";
+            foreach (var r in recipients.Where(r => !string.IsNullOrEmpty(r.Email)))
+            {
+                await emailSender.SendAsync(r.Email!, emailSubject, htmlBody);
+                emailedCount++;
+            }
+        }
+
+        return Ok(new { ok = true, notifiedCount, emailedCount });
     }
 
     [HttpGet]

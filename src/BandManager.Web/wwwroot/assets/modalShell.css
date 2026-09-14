@@ -1,0 +1,85 @@
+/* Generic reusable modal window chrome - resizable, maximizable, and
+   minimizable to a small floating bubble (SignalR-chat-style, not
+   Gmail's minimize-to-bar) - the same "sizable, expandable, closable"
+   behavior chat.css's .chat-modal established, factored out here so any
+   new widget (Compose, etc.) can get it without duplicating ~150 lines
+   of chrome wiring. Deliberately its own component rather than a retrofit
+   of chat.js's own inline chrome - chat.js stays untouched to avoid any
+   regression risk to that already-shipped, verified feature. */
+
+.modalshell-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+}
+.modalshell-backdrop[hidden] { display: none; }
+
+.modalshell-modal {
+    display: flex;
+    flex-direction: column;
+    min-width: 340px;
+    min-height: 280px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    background: var(--bg-surface);
+    border: 0.5px solid var(--border-strong);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+    position: relative;
+}
+.modalshell-modal.maximized {
+    width: calc(100vw - 24px) !important;
+    height: calc(100vh - 24px) !important;
+}
+
+.modalshell-titlebar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--bg-raised);
+    border-bottom: 0.5px solid var(--border);
+    flex-shrink: 0;
+}
+.modalshell-titlebar-label { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.modalshell-titlebar-spacer { flex: 1; }
+.modalshell-titlebar button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.95rem;
+    padding: 3px 7px;
+    border-radius: 5px;
+    line-height: 1;
+}
+.modalshell-titlebar button:hover { background: var(--bg-hover); color: var(--text-primary); }
+.modalshell-titlebar .modalshell-close-btn:hover { background: var(--danger); color: #fff; }
+
+.modalshell-body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+.modalshell-resize-handle {
+    position: absolute;
+    right: 0; bottom: 0;
+    width: 16px; height: 16px;
+    cursor: nwse-resize;
+    background: linear-gradient(135deg, transparent 50%, var(--border-strong) 50%);
+}
+.modalshell-modal.maximized .modalshell-resize-handle { display: none; }
+
+.modalshell-bubble {
+    position: fixed;
+    bottom: 20px; right: 90px;
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+    z-index: 199;
+}
+.modalshell-bubble[hidden] { display: none; }
