@@ -285,6 +285,7 @@ function renderCampaignDetail(body, c) {
         <h2>${escapeHtml(c.venue.name)}</h2>
         <p class="save-note">
             ${[c.venue.addressLine1, c.venue.city, c.venue.state, c.venue.postalCode].filter(Boolean).map(escapeHtml).join(', ')}
+            ${c.venue.mapsUrl ? ` · <a href="${escapeHtml(c.venue.mapsUrl)}" target="_blank" rel="noopener">Get Directions</a>` : ''}
             ${c.venue.phone ? ' · ' + escapeHtml(c.venue.phone) : ''}
             ${c.venue.website ? ` · <a href="${escapeHtml(c.venue.website)}" target="_blank">Website</a>` : ''}
         </p>

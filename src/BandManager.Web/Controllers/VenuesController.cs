@@ -53,6 +53,7 @@ public class VenuesController(ApplicationDbContext db, IActiveBandAccessor activ
         stageWidthFeet = v.StageWidthFeet,
         stageDepthFeet = v.StageDepthFeet,
         defaultPromoterId = v.DefaultPromoterId,
+        mapsUrl = LocationsController.MapsUrl(v.AddressLine1, v.City, v.State, v.PostalCode),
         contacts = v.Contacts.Select(c => new { id = c.Id, name = c.Name, title = c.Title, email = c.Email, phone = c.Phone, isPrimary = c.IsPrimary })
     };
 

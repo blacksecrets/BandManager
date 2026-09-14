@@ -21,6 +21,7 @@ async function loadBandAdmin() {
     document.getElementById('band-acts-section').hidden = !hasBand;
     document.getElementById('band-gear-section').hidden = !hasBand;
     document.getElementById('band-promoters-section').hidden = !hasBand;
+    document.getElementById('band-locations-section').hidden = !hasBand;
     document.getElementById('band-song-catalog-section').hidden = !hasBand;
     if (!hasBand) return;
 
@@ -34,6 +35,7 @@ async function loadBandAdmin() {
     loadActs();
     loadBandGear();
     loadPromoters();
+    loadLocations();
     loadSongCatalog();
 }
 
@@ -858,6 +860,83 @@ document.getElementById('promoter-form').addEventListener('submit', async (e) =>
     const resBody = await res.json().catch(() => ({}));
     if (res.ok) { closePromoterModal(); await loadPromoters(); }
     else { status.textContent = resBody.error || 'Could not save this promoter.'; }
+});
+
+// --- Locations (generalized BandLocation book) ---
+const LOCATION_KIND_LABELS = { Venue: 'Venue', Studio: 'Studio', RehearsalSpace: 'Rehearsal Space', Store: 'Store', Other: 'Other' };
+let locations = [];
+let editingLocationId = null;
+
+async function loadLocations() {
+    const res = await fetch('/api/locations');
+    locations = res.ok ? await res.json() : [];
+    renderLocationsList();
+}
+
+function renderLocationsList() {
+    const body = document.getElementById('locations-table-body');
+    body.innerHTML = locations.map((l) => `
+        <tr>
+            <td>${escapeHtml(l.name)}</td>
+            <td>${escapeHtml(LOCATION_KIND_LABELS[l.kind] || l.kind)}</td>
+            <td>${escapeHtml([l.addressLine1, l.city, l.state].filter(Boolean).join(', '))} <a href="${escapeHtml(l.mapsUrl)}" target="_blank" rel="noopener">Get Directions</a></td>
+            <td><button type="button" class="location-edit-btn" data-id="${l.id}">Edit</button></td>
+        </tr>
+    `).join('') || '<tr><td colspan="4" class="save-note">No locations yet.</td></tr>';
+
+    body.querySelectorAll('.location-edit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => openLocationModal(locations.find((l) => l.id === btn.dataset.id)));
+    });
+}
+
+function closeLocationModal() { document.getElementById('location-modal-backdrop').hidden = true; }
+document.getElementById('location-modal-close').addEventListener('click', closeLocationModal);
+document.getElementById('location-modal-backdrop').addEventListener('click', (e) => { if (e.target.id === 'location-modal-backdrop') closeLocationModal(); });
+
+function openLocationModal(location) {
+    editingLocationId = location ? location.id : null;
+    document.getElementById('location-modal-title').textContent = location ? 'Edit Location' : 'Add a Location';
+    document.getElementById('location-form-status').textContent = '';
+    const form = document.getElementById('location-form');
+    form.name.value = location?.name || '';
+    form.kind.value = location?.kind || 'Studio';
+    form.addressLine1.value = location?.addressLine1 || '';
+    form.city.value = location?.city || '';
+    form.state.value = location?.state || '';
+    form.postalCode.value = location?.postalCode || '';
+
+    const deleteBtn = document.getElementById('location-delete-btn');
+    deleteBtn.hidden = !location;
+    deleteBtn.onclick = async () => {
+        if (!editingLocationId) return;
+        if (!confirm(`Delete "${location.name}"? This can't be undone.`)) return;
+        const res = await fetch(`/api/locations/${editingLocationId}`, { method: 'DELETE' });
+        if (res.ok) { closeLocationModal(); await loadLocations(); }
+    };
+
+    document.getElementById('location-modal-backdrop').hidden = false;
+}
+
+document.getElementById('add-location-btn').addEventListener('click', () => openLocationModal(null));
+
+document.getElementById('location-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const status = document.getElementById('location-form-status');
+    const body = JSON.stringify({
+        name: form.name.value.trim(),
+        kind: form.kind.value,
+        addressLine1: form.addressLine1.value.trim(),
+        city: form.city.value.trim(),
+        state: form.state.value.trim(),
+        postalCode: form.postalCode.value.trim()
+    });
+    const url = editingLocationId ? `/api/locations/${editingLocationId}` : '/api/locations';
+    const method = editingLocationId ? 'PUT' : 'POST';
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body });
+    const resBody = await res.json().catch(() => ({}));
+    if (res.ok) { closeLocationModal(); await loadLocations(); }
+    else { status.textContent = resBody.error || 'Could not save this location.'; }
 });
 
 // --- Tech Rider: Input / Mic Splitter Channel List (see TechRiderInputChannel.cs) ---

@@ -347,6 +347,45 @@
             </div>
         </div>
 
+        <section class="platform-card" id="band-locations-section" hidden>
+            <h2>Locations</h2>
+            <p>A general address book for this band - studios, rehearsal spaces, gear stores, anywhere that's not a booking venue (those live under Venue Campaigns instead). Every entry gets a "Get Directions" map link automatically.</p>
+
+            <table class="user-table">
+                <thead><tr><th>Name</th><th>Kind</th><th>Address</th><th></th></tr></thead>
+                <tbody id="locations-table-body"></tbody>
+            </table>
+            <button type="button" id="add-location-btn" class="upload-btn">+ Add a Location</button>
+        </section>
+
+        <div id="location-modal-backdrop" class="detail-modal-backdrop" hidden>
+            <div class="detail-modal">
+                <button type="button" class="detail-modal-close" id="location-modal-close">&times;</button>
+                <h2 id="location-modal-title">Add a Location</h2>
+                <form id="location-form" class="cred-form">
+                    <label>Name <input type="text" name="name" maxlength="200" required></label>
+                    <label>Kind
+                        <select name="kind" required>
+                            <option value="Studio">Studio</option>
+                            <option value="RehearsalSpace">Rehearsal Space</option>
+                            <option value="Store">Store</option>
+                            <option value="Venue">Venue</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </label>
+                    <label>Address <input type="text" name="addressLine1" maxlength="300" required></label>
+                    <label>City <input type="text" name="city" maxlength="100" required></label>
+                    <label>State <input type="text" name="state" maxlength="2" required></label>
+                    <label>ZIP <input type="text" name="postalCode" maxlength="10" required></label>
+                    <div class="cred-form-buttons">
+                        <button type="submit">Save</button>
+                        <button type="button" id="location-delete-btn" hidden>Delete</button>
+                    </div>
+                    <p id="location-form-status" class="save-note"></p>
+                </form>
+            </div>
+        </div>
+
         <div id="edit-roles-modal-backdrop" class="detail-modal-backdrop" hidden>
             <div class="detail-modal">
                 <button type="button" class="detail-modal-close" id="edit-roles-modal-close">&times;</button>

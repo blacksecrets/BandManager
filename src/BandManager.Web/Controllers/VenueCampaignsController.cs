@@ -170,6 +170,7 @@ public class VenueCampaignsController(ApplicationDbContext db, IActiveBandAccess
                 city = campaign.Venue.City,
                 state = campaign.Venue.State,
                 postalCode = campaign.Venue.PostalCode,
+                mapsUrl = LocationsController.MapsUrl(campaign.Venue.AddressLine1, campaign.Venue.City, campaign.Venue.State, campaign.Venue.PostalCode),
                 phone = campaign.Venue.Phone,
                 website = campaign.Venue.Website,
                 notes = campaign.Venue.Notes,

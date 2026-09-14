@@ -51,8 +51,23 @@ public class BandLocation
     public required string State { get; set; }
     public required string PostalCode { get; set; }
 
+    // Defaults to Other - rows auto-seeded from a manually-typed Trip
+    // endpoint (see TravelController.SaveTripAsync) have no way to know
+    // the kind at that moment, so they land here until someone edits it
+    // from the Locations book.
+    public LocationKind Kind { get; set; } = LocationKind.Other;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
+
+// Other declared first (ordinal 0) deliberately - EF's AddColumn migration
+// backfills every existing row's Kind to the CLR default (ordinal 0), not
+// whatever the C# property initializer above says, since migrations don't
+// see object initializers. Making Other ordinal 0 means that backfill and
+// the intended default are the same value, with no Fluent-API default
+// config needed (that path has its own trap - see the .cs history for why
+// it was tried and reverted).
+public enum LocationKind { Other, Venue, Studio, RehearsalSpace, Store }
 
 /// <summary>
 /// One band-related drive, for one member's personal mileage log. Scoped
