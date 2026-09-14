@@ -385,7 +385,7 @@ public class ChatService(ApplicationDbContext db, CatalogStore catalogStore, str
         return members.Select(m => new ChatReadStateDto(m.UserId, m.User.DisplayName, m.LastReadAt)).ToList();
     }
 
-    public async Task<Guid?> SaveAttachmentToCatalogAsync(Guid attachmentId, Guid userId, string name)
+    public async Task<Guid?> SaveAttachmentToCatalogAsync(Guid attachmentId, Guid userId, string name, bool replaceExisting = false)
     {
         var attachment = await db.ChatMessageAttachments.Include(a => a.Message).ThenInclude(m => m.Thread)
             .FirstOrDefaultAsync(a => a.Id == attachmentId);
@@ -396,17 +396,28 @@ public class ChatService(ApplicationDbContext db, CatalogStore catalogStore, str
         var trimmedName = name.Trim();
         if (string.IsNullOrEmpty(trimmedName)) throw new InvalidOperationException("A name is required.");
 
-        var duplicate = await db.CatalogItems.AnyAsync(c => c.BandId == bandId && c.Label != null && EF.Functions.ILike(c.Label, trimmedName));
-        if (duplicate) throw new InvalidOperationException($"A catalog item named \"{trimmedName}\" already exists.");
-
         var filePath = Path.Combine(chatAttachmentsRootPath, attachment.FileName);
         if (!File.Exists(filePath)) return null;
         var bytes = await File.ReadAllBytesAsync(filePath);
 
+        // Content match takes priority over a name match - telling someone
+        // "this exact picture is already in here as X" is more useful than
+        // a name collision they may not have meant, and the fix is
+        // different too (rename the existing item, not replace its file -
+        // there's nothing to replace when the bytes already match).
+        var contentMatch = await catalogStore.FindByContentHashAsync(bandId, CatalogStore.ComputeContentHash(bytes));
+        if (contentMatch is not null)
+            throw new CatalogDuplicateContentException(contentMatch.Id, contentMatch.Label ?? contentMatch.OriginalFilename ?? "(unnamed)");
+
+        var existingMatch = await db.CatalogItems.FirstOrDefaultAsync(c => c.BandId == bandId && c.Label != null && EF.Functions.ILike(c.Label, trimmedName));
+        if (existingMatch is not null && !replaceExisting)
+            throw new CatalogDuplicateNameException(trimmedName);
+
         var uploadedByName = await db.Users.Where(u => u.Id == userId).Select(u => u.DisplayName).FirstOrDefaultAsync();
-        var item = await catalogStore.RegisterCatalogItemAsync(
-            bandId, bytes, attachment.ContentType, attachment.OriginalFileName,
-            CatalogSource.ChatImage, sourceUrl: null, uploadedBy: uploadedByName, label: trimmedName);
+
+        var item = existingMatch is not null
+            ? await catalogStore.ReplaceCatalogItemFileAsync(existingMatch, bytes, attachment.ContentType, attachment.OriginalFileName, CatalogSource.ChatImage, uploadedByName)
+            : await catalogStore.RegisterCatalogItemAsync(bandId, bytes, attachment.ContentType, attachment.OriginalFileName, CatalogSource.ChatImage, sourceUrl: null, uploadedBy: uploadedByName, label: trimmedName);
         return item.Id;
     }
 

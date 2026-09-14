@@ -41,5 +41,13 @@ public class CatalogItem
     public string? UploadedBy { get; set; }
     public CatalogCategory Category { get; set; } = CatalogCategory.General;
 
+    // SHA-256 of the file's own bytes (hex), computed at write time by
+    // CatalogStore - lets a new upload be recognized as the exact same
+    // image as an existing item regardless of filename/label, not just a
+    // name collision. Null for any row written before this field existed;
+    // never backfilled, so an old row simply isn't checksum-matchable
+    // until it's next replaced/re-registered.
+    public string? ContentHash { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

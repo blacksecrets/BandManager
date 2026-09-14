@@ -250,10 +250,15 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
 
         try
         {
+            await RejectIfDuplicateContentAsync(bandId, buffer);
             var item = await catalogStore.RegisterCatalogItemAsync(
                 bandId, buffer, file.ContentType, file.FileName, source, sourceUrl: null,
                 uploadedBy: User.Identity?.Name);
             return Ok(Serialize(item, null));
+        }
+        catch (CatalogDuplicateContentException ex)
+        {
+            return BadRequest(new { error = ex.Message, duplicateContent = true, existingId = ex.ExistingId, existingName = ex.ExistingName });
         }
         catch (InvalidOperationException ex)
         {
@@ -270,14 +275,32 @@ public class CatalogController(ApplicationDbContext db, CatalogStore catalogStor
         try
         {
             var (buffer, mimeType, originalFilename) = await catalogStore.FetchUrlAsBufferAsync(request.Url);
+            await RejectIfDuplicateContentAsync(bandId, buffer);
             var item = await catalogStore.RegisterCatalogItemAsync(
                 bandId, buffer, mimeType, originalFilename ?? "from-url", CatalogSource.Url, request.Url, User.Identity?.Name);
             return Ok(Serialize(item, null));
+        }
+        catch (CatalogDuplicateContentException ex)
+        {
+            return BadRequest(new { error = ex.Message, duplicateContent = true, existingId = ex.ExistingId, existingName = ex.ExistingName });
         }
         catch (InvalidOperationException ex)
         {
             return BadRequest(new { error = ex.Message });
         }
+    }
+
+    // Opt-in duplicate-image guard for the two genuinely interactive
+    // "I'm choosing to add this file" entry points (direct upload, paste-
+    // a-URL) - deliberately not inside CatalogStore.RegisterCatalogItemAsync
+    // itself, so system-generated writers (cover-photo generation, frame-
+    // capture/trim/split) are never unexpectedly rejected - see
+    // CatalogDuplicateContentException's own doc comment.
+    private async Task RejectIfDuplicateContentAsync(Guid bandId, byte[] buffer)
+    {
+        var match = await catalogStore.FindByContentHashAsync(bandId, CatalogStore.ComputeContentHash(buffer));
+        if (match is not null)
+            throw new CatalogDuplicateContentException(match.Id, match.Label ?? match.OriginalFilename ?? "(unnamed)");
     }
 
     [HttpPut("{id:guid}")]

@@ -18,6 +18,20 @@ public record ChatMessageDto(
 public record ChatReadStateDto(Guid UserId, string UserName, DateTime? LastReadAt);
 
 /// <summary>
+/// Thrown by SaveAttachmentToCatalogAsync specifically for a name
+/// collision (not any other InvalidOperationException) so the controller
+/// can offer "Replace With This" instead of just surfacing a generic
+/// error - distinguishing on exception type rather than parsing the
+/// message string, which would break the moment the wording changes.
+/// </summary>
+public class CatalogDuplicateNameException(string name)
+    : InvalidOperationException($"A catalog item named \"{name}\" already exists.")
+{
+    public string Name { get; } = name;
+}
+
+
+/// <summary>
 /// All Band Chat business logic - membership/ownership checks, message
 /// persistence, the read cursor, attachments, reactions, mentions - lives
 /// here, not scattered across ChatController and ChatHub. This is the
@@ -58,10 +72,11 @@ public interface IChatService
 
     // Right-click "Add to Band's Catalog" on a chat image - reads the
     // attachment's own bytes off disk and hands them to the existing
-    // CatalogStore.RegisterCatalogItemAsync write path (no chat-specific
-    // storage duplication). Returns null for "not found", throws
-    // InvalidOperationException for a duplicate name (band-scoped,
-    // case-insensitive) - ChatController maps that to a 400 the same way
-    // CatalogController already does for its own store exceptions.
-    Task<Guid?> SaveAttachmentToCatalogAsync(Guid attachmentId, Guid userId, string name);
+    // CatalogStore write path (no chat-specific storage duplication).
+    // Returns null for "not found", throws InvalidOperationException for a
+    // duplicate name (band-scoped, case-insensitive) UNLESS replaceExisting
+    // is true, in which case the existing item's file content is swapped
+    // in place instead (same Id, so anything already referencing it - e.g.
+    // a Flyer's background - picks up the new image automatically).
+    Task<Guid?> SaveAttachmentToCatalogAsync(Guid attachmentId, Guid userId, string name, bool replaceExisting = false);
 }

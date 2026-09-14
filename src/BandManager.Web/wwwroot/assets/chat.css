@@ -277,8 +277,50 @@
     cursor: pointer;
     flex-shrink: 0;
 }
-.chat-compose .chat-attach-btn { background: var(--bg-hover); color: var(--text-secondary); }
+.chat-compose .chat-attach-btn, .chat-compose .chat-emoji-btn { background: var(--bg-hover); color: var(--text-secondary); font-size: 1rem; }
 .chat-compose button:disabled { opacity: 0.5; cursor: default; }
+
+.chat-emoji-picker {
+    position: absolute;
+    background: var(--bg-raised);
+    border: 0.5px solid var(--border-strong);
+    border-radius: 10px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+    z-index: 220;
+    width: 248px;
+    padding: 8px;
+}
+.chat-emoji-quick {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+    border-bottom: 0.5px solid var(--border);
+}
+.chat-emoji-tabs { display: flex; gap: 2px; margin-bottom: 4px; }
+.chat-emoji-tab {
+    flex: 1;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 0;
+    font-size: 0.95rem;
+    cursor: pointer;
+    opacity: 0.55;
+}
+.chat-emoji-tab:hover { background: var(--bg-hover); opacity: 0.85; }
+.chat-emoji-tab.active { background: var(--bg-hover); opacity: 1; }
+.chat-emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; max-height: 150px; overflow-y: auto; }
+.chat-emoji-cell {
+    background: none;
+    border: none;
+    border-radius: 6px;
+    font-size: 1.15rem;
+    padding: 4px 0;
+    cursor: pointer;
+    line-height: 1.3;
+}
+.chat-emoji-cell:hover { background: var(--bg-hover); }
 
 .chat-mention-menu {
     position: absolute;
@@ -351,6 +393,8 @@
 .chat-submodal-member:hover { background: var(--bg-hover); }
 .chat-submodal-member input { width: auto; }
 .chat-submodal-error { color: var(--danger); font-size: 0.78rem; margin: -2px 0 8px; }
+.chat-submodal-resolution { margin: -2px 0 10px; }
+.chat-submodal-resolution button { width: 100%; text-align: center; }
 .chat-submodal-buttons { display: flex; justify-content: flex-end; gap: 8px; }
 .chat-submodal-buttons button {
     border: none; border-radius: 7px; padding: 7px 14px; font-size: 0.82rem; cursor: pointer;

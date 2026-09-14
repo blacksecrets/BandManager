@@ -265,6 +265,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<CatalogItem>(b =>
         {
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => new { x.BandId, x.ContentHash });
         });
 
         builder.Entity<ScheduleItem>(b =>

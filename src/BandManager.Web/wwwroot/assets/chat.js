@@ -87,6 +87,7 @@ window.ChatWidget = (function () {
             <button type="button" class="chat-attach-btn" title="Attach a file">📎</button>
             <input type="file" class="chat-file-input" hidden accept="image/*,.pdf,.doc,.docx,.txt">
             <textarea class="chat-compose-text" rows="1" placeholder="Message..." maxlength="4000"></textarea>
+            <button type="button" class="chat-emoji-btn" title="Emoji">😊</button>
             <button type="button" class="chat-send-btn">Send</button>
         `;
         mentionMenuEl = document.createElement('div');
@@ -593,22 +594,60 @@ window.ChatWidget = (function () {
         return row;
     }
 
-    const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    // Shared emoji picker, modeled after Google Messages: a quick-access
+    // row of the same handful of reaction emoji it favors, plus a
+    // categorized grid underneath for everything else - one component
+    // used both for reactions (openReactionPicker) and for inserting an
+    // emoji into the compose box before sending (wireCompose's emoji
+    // button), rather than two separate hardcoded emoji lists.
+    const EMOJI_QUICK = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+    const EMOJI_CATEGORIES = [
+        { label: '🙂', emojis: ['😀', '😁', '😂', '🤣', '😊', '😍', '😘', '😜', '🤔', '😐', '🙄', '😴', '😭', '😡', '😱', '🥳', '😇', '😅', '🤗', '🤩', '😉', '🥰', '😬', '🤯'] },
+        { label: '👍', emojis: ['👍', '👎', '👏', '🙌', '🙏', '👋', '✌️', '🤞', '💪', '🤝', '👌', '🤙', '💯', '🔥', '✨', '🎉'] },
+        { label: '❤️', emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💔', '💕', '💖', '💗'] },
+        { label: '🎵', emojis: ['🎵', '🎶', '🎸', '🥁', '🎤', '🎧', '🎹', '🎷'] },
+        { label: '🍕', emojis: ['🍕', '🍔', '🌮', '🍺', '🍻', '☕', '🍰', '🎂'] },
+        { label: '⭐', emojis: ['⭐', '✅', '❌', '❓', '❗', '💡', '⏰', '📅', '📍', '🚗', '🎯', '💰'] }
+    ];
+
+    function openEmojiPicker(anchorEl, onPick) {
+        closePopup();
+        const menu = document.createElement('div');
+        menu.className = 'chat-emoji-picker';
+        const rect = anchorEl.getBoundingClientRect();
+        menu.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - 260)) + 'px';
+        menu.style.top = (rect.top - 6) + 'px';
+        menu.style.transform = 'translateY(-100%)';
+
+        let activeCategory = 0;
+        function render() {
+            menu.innerHTML = `
+                <div class="chat-emoji-quick">
+                    ${EMOJI_QUICK.map((e) => `<button type="button" class="chat-emoji-cell">${e}</button>`).join('')}
+                </div>
+                <div class="chat-emoji-tabs">
+                    ${EMOJI_CATEGORIES.map((c, i) => `<button type="button" class="chat-emoji-tab${i === activeCategory ? ' active' : ''}" data-i="${i}">${c.label}</button>`).join('')}
+                </div>
+                <div class="chat-emoji-grid">
+                    ${EMOJI_CATEGORIES[activeCategory].emojis.map((e) => `<button type="button" class="chat-emoji-cell">${e}</button>`).join('')}
+                </div>
+            `;
+            menu.querySelectorAll('.chat-emoji-tab').forEach((tab) => {
+                tab.addEventListener('click', () => { activeCategory = parseInt(tab.dataset.i, 10); render(); });
+            });
+            menu.querySelectorAll('.chat-emoji-cell').forEach((cell) => {
+                cell.addEventListener('click', () => { closePopup(); onPick(cell.textContent); });
+            });
+        }
+        render();
+
+        document.body.appendChild(menu);
+        openPopup = menu;
+        setTimeout(() => document.addEventListener('click', closePopupOnOutsideClick), 0);
+    }
+
     function openReactionPicker(anchorEl, messageId) {
-        showPopup(anchorEl, (menu) => {
-            menu.style.display = 'flex';
-            menu.style.gap = '4px';
-            for (const emoji of REACTION_EMOJIS) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'chat-popup-menu-item';
-                btn.style.width = 'auto';
-                btn.style.fontSize = '1.1rem';
-                btn.textContent = emoji;
-                btn.addEventListener('click', () => { closePopup(); setReaction(messageId, emoji); });
-                menu.appendChild(btn);
-            }
-        });
+        openEmojiPicker(anchorEl, (emoji) => setReaction(messageId, emoji));
     }
 
     async function toggleReaction(messageId, emoji, isMine) {
@@ -687,6 +726,18 @@ window.ChatWidget = (function () {
         fileInput.addEventListener('change', () => {
             pendingFile = fileInput.files[0] || null;
             compose.querySelector('.chat-attach-btn').textContent = pendingFile ? '📎✓' : '📎';
+        });
+
+        compose.querySelector('.chat-emoji-btn').addEventListener('click', (e) => {
+            openEmojiPicker(e.currentTarget, (emoji) => {
+                const start = composeTextEl.selectionStart ?? composeTextEl.value.length;
+                const end = composeTextEl.selectionEnd ?? composeTextEl.value.length;
+                composeTextEl.value = composeTextEl.value.slice(0, start) + emoji + composeTextEl.value.slice(end);
+                const caret = start + emoji.length;
+                composeTextEl.focus();
+                composeTextEl.setSelectionRange(caret, caret);
+                composeTextEl.dispatchEvent(new Event('input', { bubbles: true }));
+            });
         });
 
         composeTextEl.addEventListener('input', () => {
@@ -800,6 +851,7 @@ window.ChatWidget = (function () {
                 <h3>Add to Band's Catalog</h3>
                 <input type="text" class="chat-catalog-name-input" maxlength="200" placeholder="Name for this item">
                 <div class="chat-submodal-error" hidden></div>
+                <div class="chat-submodal-resolution" hidden></div>
                 <div class="chat-submodal-buttons">
                     <button type="button" class="chat-cancel-btn">Cancel</button>
                     <button type="button" class="chat-primary-btn">Save</button>
@@ -809,18 +861,54 @@ window.ChatWidget = (function () {
         document.body.appendChild(backdrop);
         backdrop.addEventListener('click', (e) => { if (e.target === backdrop) backdrop.remove(); });
         backdrop.querySelector('.chat-cancel-btn').addEventListener('click', () => backdrop.remove());
-        backdrop.querySelector('.chat-primary-btn').addEventListener('click', async () => {
-            const nameInput = backdrop.querySelector('.chat-catalog-name-input');
-            const errorEl = backdrop.querySelector('.chat-submodal-error');
+
+        const nameInput = backdrop.querySelector('.chat-catalog-name-input');
+        const errorEl = backdrop.querySelector('.chat-submodal-error');
+        const resolutionEl = backdrop.querySelector('.chat-submodal-resolution');
+
+        async function attemptSave(replaceExisting) {
             const name = nameInput.value.trim();
             if (!name) { errorEl.textContent = 'A name is required.'; errorEl.hidden = false; return; }
+            errorEl.hidden = true;
+            resolutionEl.hidden = true;
+            resolutionEl.innerHTML = '';
+
             const res = await fetch(`/api/chat/attachments/${attachment.id}/save-to-catalog`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name })
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, replaceExisting })
             });
             const body = await res.json().catch(() => ({}));
-            if (!res.ok) { errorEl.textContent = body.error || 'Could not save.'; errorEl.hidden = false; return; }
-            backdrop.remove();
-        });
+            if (res.ok) { backdrop.remove(); return; }
+
+            errorEl.textContent = body.error || 'Could not save.';
+            errorEl.hidden = false;
+
+            if (body.duplicateContent) {
+                resolutionEl.hidden = false;
+                const renameBtn = document.createElement('button');
+                renameBtn.type = 'button';
+                renameBtn.className = 'chat-cancel-btn';
+                renameBtn.textContent = `Rename existing item to "${name}"`;
+                renameBtn.addEventListener('click', async () => {
+                    const renameRes = await fetch(`/api/catalog/${body.existingId}`, {
+                        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: name })
+                    });
+                    const renameBody = await renameRes.json().catch(() => ({}));
+                    if (!renameRes.ok) { errorEl.textContent = renameBody.error || 'Could not rename the existing item.'; return; }
+                    backdrop.remove();
+                });
+                resolutionEl.appendChild(renameBtn);
+            } else if (body.duplicateName) {
+                resolutionEl.hidden = false;
+                const replaceBtn = document.createElement('button');
+                replaceBtn.type = 'button';
+                replaceBtn.className = 'chat-cancel-btn';
+                replaceBtn.textContent = 'Replace With This';
+                replaceBtn.addEventListener('click', () => attemptSave(true));
+                resolutionEl.appendChild(replaceBtn);
+            }
+        }
+
+        backdrop.querySelector('.chat-primary-btn').addEventListener('click', () => attemptSave(false));
     }
 
     // --- SignalR ---

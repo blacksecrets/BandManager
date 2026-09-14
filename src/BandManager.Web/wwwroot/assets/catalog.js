@@ -464,6 +464,34 @@ if (document.getElementById('catalog-grid')) {
         reload();
     });
 
+    // Shared by the direct-upload and paste-a-URL handlers below - a
+    // duplicateContent response means the image's own bytes already exist
+    // under a different catalog entry (see CatalogDuplicateContentException),
+    // so the fix on offer is renaming that existing item, not re-adding a
+    // byte-for-byte copy under a new name. Reuses this page's own existing
+    // prompt()-based rename convention (see the catalog viewer's own
+    // Rename button) rather than building a new modal just for this.
+    function offerRenameExisting(statusEl, result) {
+        statusEl.textContent = '';
+        statusEl.append(result.error + ' ');
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'catalog-toolbar-btn';
+        btn.textContent = 'Rename existing item';
+        btn.addEventListener('click', async () => {
+            const newName = prompt(`New name for "${result.existingName}":`, result.existingName);
+            if (!newName || !newName.trim()) return;
+            const renameRes = await fetch(`/api/catalog/${result.existingId}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: newName.trim() })
+            });
+            const renameBody = await renameRes.json().catch(() => ({}));
+            if (!renameRes.ok) { statusEl.textContent = renameBody.error || 'Could not rename.'; return; }
+            statusEl.textContent = 'Renamed - try adding your file again.';
+            reload();
+        });
+        statusEl.appendChild(btn);
+    }
+
     function renderAddPanel() {
         addPanel.innerHTML = `
             <label>Upload a file <input type="file" id="catalog-upload-file"></label>
@@ -483,7 +511,11 @@ if (document.getElementById('catalog-grid')) {
             form.append('file', file);
             const res = await fetch('/api/catalog/upload', { method: 'POST', body: form });
             const result = await res.json();
-            if (!res.ok) { statusEl.textContent = result.error || 'Could not upload.'; return; }
+            if (!res.ok) {
+                if (result.duplicateContent) { offerRenameExisting(statusEl, result); return; }
+                statusEl.textContent = result.error || 'Could not upload.';
+                return;
+            }
             statusEl.textContent = 'Added.';
             e.target.value = '';
             reload();
@@ -498,7 +530,11 @@ if (document.getElementById('catalog-grid')) {
                 body: JSON.stringify({ url })
             });
             const result = await res.json();
-            if (!res.ok) { statusEl.textContent = result.error || 'Could not fetch that URL.'; return; }
+            if (!res.ok) {
+                if (result.duplicateContent) { offerRenameExisting(statusEl, result); return; }
+                statusEl.textContent = result.error || 'Could not fetch that URL.';
+                return;
+            }
             statusEl.textContent = 'Added.';
             addPanel.querySelector('#catalog-upload-url').value = '';
             reload();

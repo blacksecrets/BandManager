@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using BandManager.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using SkiaSharp;
@@ -12,6 +13,27 @@ public record ResolvedMedia(byte[] Buffer, string MimeType, string? Ext, string 
 /// from its own IFormFile (ASP.NET Core-specific, not available to this
 /// plain class library project) before calling ResolveMediaInputAsync.</summary>
 public record UploadedFilePayload(byte[] Bytes, string MimeType, string? FileName);
+
+/// <summary>
+/// Thrown by an interactive, user-facing caller (CatalogController's
+/// direct Upload/FromUrl, ChatService's save-to-catalog) that explicitly
+/// checked CatalogStore.FindByContentHashAsync before registering a new
+/// item and found the image's own bytes already exist under a different
+/// entry - "this exact picture is already in here" is a more useful thing
+/// to tell someone than letting a byte-for-byte duplicate silently
+/// accumulate. Deliberately NOT thrown from inside RegisterCatalogItemAsync
+/// itself, so system-generated writers with no interactive error handling
+/// (Scheduler's cover-photo generation, frame-capture/trim/split) are
+/// never surprised by it - each interactive caller opts in explicitly.
+/// The resolution offered is "rename the existing item" (not "replace" -
+/// there's nothing to replace when the bytes already match).
+/// </summary>
+public class CatalogDuplicateContentException(Guid existingId, string existingName)
+    : InvalidOperationException($"This exact image already exists in the catalog as \"{existingName}\".")
+{
+    public Guid ExistingId { get; } = existingId;
+    public string ExistingName { get; } = existingName;
+}
 
 /// <summary>
 /// The Media Catalog: a persistent, per-Band, browsable library of every
@@ -42,6 +64,12 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         return string.IsNullOrEmpty(fromName) ? "bin" : fromName;
     }
 
+    public static string ComputeContentHash(byte[] buffer) =>
+        Convert.ToHexStringLower(SHA256.HashData(buffer));
+
+    public async Task<CatalogItem?> FindByContentHashAsync(Guid bandId, string contentHash) =>
+        await db.CatalogItems.FirstOrDefaultAsync(c => c.BandId == bandId && c.ContentHash == contentHash);
+
     public static MediaType? MediaTypeForMime(string? mimeType)
     {
         if (string.IsNullOrEmpty(mimeType)) return null;
@@ -51,21 +79,16 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
         return null;
     }
 
-    /// <summary>Core write path - writes the full file (+ a thumbnail if
-    /// it's an image), inserts the row, returns it. A thumbnail failure
-    /// (exotic/undecodable image format) is non-fatal - ThumbnailPath just
-    /// stays null and the UI falls back to the full file.</summary>
-    public async Task<CatalogItem> RegisterCatalogItemAsync(
-        Guid bandId, byte[] buffer, string mimeType, string? originalFilename,
-        CatalogSource source, string? sourceUrl, string? uploadedBy, string? label = null,
-        CatalogCategory category = CatalogCategory.General)
+    private record WrittenMedia(string FilePath, string? ThumbnailPath, int? Width, int? Height);
+
+    // Shared by RegisterCatalogItemAsync and ReplaceCatalogItemFileAsync -
+    // writes the full file (+ a thumbnail if it's an image) under bandDir
+    // and returns the paths/dimensions to store on the row. A thumbnail
+    // failure (exotic/undecodable image format) is non-fatal - ThumbnailPath
+    // just stays null and the UI falls back to the full file.
+    private async Task<WrittenMedia> WriteMediaFileAsync(string bandDir, byte[] buffer, string mimeType, string? originalFilename, MediaType mediaType)
     {
-        var mediaType = MediaTypeForMime(mimeType)
-            ?? throw new InvalidOperationException($"Unsupported media type: {mimeType}");
-
-        var bandDir = Path.Combine(catalogRootPath, bandId.ToString());
         Directory.CreateDirectory(bandDir);
-
         var stem = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}-{Guid.NewGuid():N}"[..24];
         var fileName = $"{stem}.{ExtForMimeType(mimeType, originalFilename)}";
         var filePath = Path.Combine(bandDir, fileName);
@@ -108,26 +131,82 @@ public class CatalogStore(ApplicationDbContext db, string catalogRootPath, HttpC
             }
         }
 
+        return new WrittenMedia(RelativeToRoot(filePath), thumbnailRelPath, width, height);
+    }
+
+    /// <summary>Core write path for a brand-new item - writes the file,
+    /// inserts the row, returns it.</summary>
+    public async Task<CatalogItem> RegisterCatalogItemAsync(
+        Guid bandId, byte[] buffer, string mimeType, string? originalFilename,
+        CatalogSource source, string? sourceUrl, string? uploadedBy, string? label = null,
+        CatalogCategory category = CatalogCategory.General)
+    {
+        var mediaType = MediaTypeForMime(mimeType)
+            ?? throw new InvalidOperationException($"Unsupported media type: {mimeType}");
+        var bandDir = Path.Combine(catalogRootPath, bandId.ToString());
+        var written = await WriteMediaFileAsync(bandDir, buffer, mimeType, originalFilename, mediaType);
+
         var item = new CatalogItem
         {
             BandId = bandId,
             MediaType = mediaType,
-            FilePath = RelativeToRoot(filePath),
-            ThumbnailPath = thumbnailRelPath,
+            FilePath = written.FilePath,
+            ThumbnailPath = written.ThumbnailPath,
             OriginalFilename = originalFilename,
             Label = label ?? originalFilename,
             MimeType = mimeType,
             FileSize = buffer.Length,
-            Width = width,
-            Height = height,
+            Width = written.Width,
+            Height = written.Height,
             Source = source,
             SourceUrl = sourceUrl,
             UploadedBy = uploadedBy,
-            Category = category
+            Category = category,
+            ContentHash = ComputeContentHash(buffer)
         };
         db.CatalogItems.Add(item);
         await db.SaveChangesAsync();
         return item;
+    }
+
+    // "Replace With This" - keeps the existing row's Id/Label/Category/
+    // CreatedAt (so anything already referencing this item by id, e.g. a
+    // Flyer's SourceCatalogItemId, picks up the new image automatically),
+    // swaps in new file content, and best-effort deletes the old files
+    // once the new ones are safely written and the row is saved (not
+    // before - a mid-write failure should never leave the row pointing at
+    // a deleted file).
+    public async Task<CatalogItem> ReplaceCatalogItemFileAsync(
+        CatalogItem existing, byte[] buffer, string mimeType, string? originalFilename,
+        CatalogSource source, string? uploadedBy)
+    {
+        var mediaType = MediaTypeForMime(mimeType)
+            ?? throw new InvalidOperationException($"Unsupported media type: {mimeType}");
+        var bandDir = Path.Combine(catalogRootPath, existing.BandId.ToString());
+        var oldFullPath = ResolveFullPath(existing);
+        var oldThumbFullPath = existing.ThumbnailPath is { } tp
+            ? Path.Combine(catalogRootPath, (tp.StartsWith("data/catalog/") ? tp["data/catalog/".Length..] : tp).Replace('/', Path.DirectorySeparatorChar))
+            : null;
+
+        var written = await WriteMediaFileAsync(bandDir, buffer, mimeType, originalFilename, mediaType);
+
+        existing.MediaType = mediaType;
+        existing.FilePath = written.FilePath;
+        existing.ThumbnailPath = written.ThumbnailPath;
+        existing.OriginalFilename = originalFilename;
+        existing.MimeType = mimeType;
+        existing.FileSize = buffer.Length;
+        existing.Width = written.Width;
+        existing.Height = written.Height;
+        existing.Source = source;
+        existing.UploadedBy = uploadedBy;
+        existing.ContentHash = ComputeContentHash(buffer);
+        await db.SaveChangesAsync();
+
+        try { File.Delete(oldFullPath); } catch { /* best-effort */ }
+        if (oldThumbFullPath is not null) { try { File.Delete(oldThumbFullPath); } catch { /* best-effort */ } }
+
+        return existing;
     }
 
     // Stored web-facing, literally prefixed "data/catalog/" regardless of

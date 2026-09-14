@@ -1,3 +1,4 @@
+using BandManager.Data.Services;
 using BandManager.Web.Auth;
 using BandManager.Web.Hubs;
 using BandManager.Web.Services;
@@ -13,7 +14,7 @@ public record AddMemberRequest(Guid UserId);
 public record SendMessageRequest(string? Text, List<Guid>? MentionedUserIds);
 public record SetReactionRequest(string? Emoji);
 public record MarkReadRequest(Guid LastReadMessageId);
-public record SaveToCatalogRequest(string Name);
+public record SaveToCatalogRequest(string Name, bool ReplaceExisting = false);
 
 /// <summary>
 /// Thin HTTP translation layer over IChatService (see its own doc comment
@@ -227,9 +228,17 @@ public class ChatController(IChatService chat, IActiveBandAccessor activeBand, I
 
         try
         {
-            var catalogItemId = await chat.SaveAttachmentToCatalogAsync(id, userId.Value, request.Name);
+            var catalogItemId = await chat.SaveAttachmentToCatalogAsync(id, userId.Value, request.Name, request.ReplaceExisting);
             if (catalogItemId is null) return NotFound(new { error = "Not found" });
             return Ok(new { ok = true, catalogItemId });
+        }
+        catch (CatalogDuplicateContentException ex)
+        {
+            return BadRequest(new { error = ex.Message, duplicateContent = true, existingId = ex.ExistingId, existingName = ex.ExistingName });
+        }
+        catch (CatalogDuplicateNameException ex)
+        {
+            return BadRequest(new { error = ex.Message, duplicateName = true });
         }
         catch (InvalidOperationException ex)
         {
