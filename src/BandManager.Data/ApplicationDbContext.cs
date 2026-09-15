@@ -42,6 +42,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Song> Songs => Set<Song>();
     public DbSet<BandInstrument> BandInstruments => Set<BandInstrument>();
     public DbSet<RepertoireEntry> RepertoireEntries => Set<RepertoireEntry>();
+    public DbSet<RepertoireEntryVideo> RepertoireEntryVideos => Set<RepertoireEntryVideo>();
+    public DbSet<RepertoireEntryVideoBreakpoint> RepertoireEntryVideoBreakpoints => Set<RepertoireEntryVideoBreakpoint>();
+    public DbSet<RepertoireEntryVideoTempoSegment> RepertoireEntryVideoTempoSegments => Set<RepertoireEntryVideoTempoSegment>();
     public DbSet<GigSet> GigSets => Set<GigSet>();
     public DbSet<GigSetSong> GigSetSongs => Set<GigSetSong>();
     public DbSet<SongNote> SongNotes => Set<SongNote>();
@@ -314,6 +317,23 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasOne(x => x.Band).WithMany().HasForeignKey(x => x.BandId).OnDelete(DeleteBehavior.Cascade);
             b.HasOne(x => x.Song).WithMany().HasForeignKey(x => x.SongId).OnDelete(DeleteBehavior.Restrict);
             b.HasIndex(x => new { x.BandId, x.SongId }).IsUnique();
+        });
+
+        builder.Entity<RepertoireEntryVideo>(b =>
+        {
+            b.HasOne(x => x.RepertoireEntry).WithMany().HasForeignKey(x => x.RepertoireEntryId).OnDelete(DeleteBehavior.Cascade);
+            b.HasIndex(x => x.RepertoireEntryId).IsUnique();
+            b.HasOne(x => x.CatalogItem).WithMany().HasForeignKey(x => x.CatalogItemId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        builder.Entity<RepertoireEntryVideoBreakpoint>(b =>
+        {
+            b.HasOne(x => x.RepertoireEntryVideo).WithMany(v => v.Breakpoints).HasForeignKey(x => x.RepertoireEntryVideoId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<RepertoireEntryVideoTempoSegment>(b =>
+        {
+            b.HasOne(x => x.RepertoireEntryVideo).WithMany(v => v.TempoSegments).HasForeignKey(x => x.RepertoireEntryVideoId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<GigSet>(b =>

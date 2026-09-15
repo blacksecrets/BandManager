@@ -164,6 +164,30 @@
                 <textarea id="repertoire-detail-lyrics" rows="6" placeholder="Paste or type the lyrics here..."></textarea>
             </label>
 
+            <div class="detail-field">
+                <span class="detail-field-label">Stage Video <span class="save-note">(this Band's own video for this song - not shared with other Bands, unlike lyrics/tunings above)</span></span>
+
+                <div id="stage-video-empty" hidden>
+                    <p class="save-note">No stage video attached yet.</p>
+                    <label class="upload-btn">Upload video<input type="file" id="stage-video-upload-input" accept="video/*" hidden></label>
+                </div>
+
+                <div id="stage-video-attached" hidden>
+                    <video id="stage-video-preview" controls></video>
+                    <div class="stage-video-buttons">
+                        <label class="upload-btn">Replace video<input type="file" id="stage-video-replace-input" accept="video/*" hidden></label>
+                        <button type="button" id="stage-video-remove-btn" class="remove-btn">Remove video</button>
+                    </div>
+
+                    <h3>Breakpoints</h3>
+                    <p class="save-note">Named jump-points for the Stage Video Player. "Song Start" is always here (edit its time for videos with lead-in footage) - add others at the video's current playback position.</p>
+                    <ul id="stage-video-breakpoint-list" class="stage-video-breakpoint-list"></ul>
+                    <button type="button" id="stage-video-add-breakpoint-btn">+ Add breakpoint at current position</button>
+                </div>
+
+                <p class="save-note" id="stage-video-status"></p>
+            </div>
+
             <div class="adhoc-form-buttons">
                 <button type="button" id="repertoire-detail-remove-btn" class="remove-btn">Remove from repertoire</button>
             </div>

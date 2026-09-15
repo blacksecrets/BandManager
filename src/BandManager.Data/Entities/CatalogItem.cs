@@ -2,7 +2,7 @@ namespace BandManager.Data.Entities;
 
 public enum MediaType { Image, Video, Audio }
 
-public enum CatalogSource { Upload, Url, FrameCapture, Trim, Split, CoverPhoto, ChatImage }
+public enum CatalogSource { Upload, Url, FrameCapture, Trim, Split, CoverPhoto, ChatImage, StageVideo }
 
 /// <summary>Only ever meaningful for MediaType.Image - video/audio items
 /// stay General. Flyer is a rendered output image a Flyer row references

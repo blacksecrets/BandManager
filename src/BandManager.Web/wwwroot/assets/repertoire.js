@@ -335,6 +335,8 @@ function openRepertoireDetail(entry) {
 
     document.getElementById('repertoire-detail-remove-btn').hidden = !isAdmin;
     document.getElementById('repertoire-detail-modal-backdrop').hidden = false;
+
+    loadStageVideo(entry.id);
 }
 
 document.getElementById('repertoire-detail-close').addEventListener('click', () => {
@@ -395,6 +397,148 @@ document.getElementById('repertoire-detail-lyrics').addEventListener('input', (e
         });
         detailEntry.song.lyricsText = text.trim() || null;
     }, 500);
+});
+
+// --- Stage Video (Band-private per RepertoireEntry - see
+// RepertoireEntryVideo's own doc comment for why this isn't shared like
+// lyrics/tunings above) ---
+function stageVideoUrl(filePath) {
+    return filePath ? '/' + String(filePath).replace(/\\/g, '/').replace(/^data\/catalog\//, 'catalog-files/') : null;
+}
+
+let stageVideo = null;
+
+async function loadStageVideo(entryId) {
+    const res = await fetch(`/api/repertoire/${entryId}/video`);
+    stageVideo = res.ok ? await res.json() : null;
+    renderStageVideoSection();
+}
+
+function renderStageVideoSection() {
+    const empty = document.getElementById('stage-video-empty');
+    const attached = document.getElementById('stage-video-attached');
+    document.getElementById('stage-video-status').textContent = '';
+    empty.hidden = !!stageVideo;
+    attached.hidden = !stageVideo;
+    if (!stageVideo) return;
+    document.getElementById('stage-video-preview').src = stageVideoUrl(stageVideo.filePath);
+    renderStageVideoBreakpoints();
+}
+
+function renderStageVideoBreakpoints() {
+    const list = document.getElementById('stage-video-breakpoint-list');
+    list.innerHTML = '';
+    for (const bp of stageVideo.breakpoints) {
+        const li = document.createElement('li');
+        li.className = 'stage-video-breakpoint-item' + (bp.isSongStart ? ' is-song-start' : '');
+        li.dataset.id = bp.id;
+        li.draggable = !bp.isSongStart;
+        li.innerHTML = `
+            ${bp.isSongStart ? '<span></span>' : '<span class="drag-handle" title="Drag to reorder">&#9776;</span>'}
+            <input type="text" class="stage-video-bp-label" value="${escapeHtml(bp.label)}" ${bp.isSongStart ? 'readonly' : ''}>
+            <input type="number" class="stage-video-bp-time" step="0.1" min="0" value="${bp.timestampSeconds}">
+            <button type="button" class="stage-video-bp-goto">Go</button>
+            ${bp.isSongStart ? '' : '<button type="button" class="stage-video-bp-delete">Delete</button>'}
+        `;
+        list.appendChild(li);
+    }
+}
+
+document.getElementById('stage-video-breakpoint-list').addEventListener('click', async (e) => {
+    const item = e.target.closest('.stage-video-breakpoint-item');
+    if (!item || !stageVideo || !detailEntry) return;
+    const bpId = item.dataset.id;
+
+    if (e.target.classList.contains('stage-video-bp-goto')) {
+        document.getElementById('stage-video-preview').currentTime = Number(item.querySelector('.stage-video-bp-time').value);
+    } else if (e.target.classList.contains('stage-video-bp-delete')) {
+        if (!confirm('Delete this breakpoint?')) return;
+        const res = await fetch(`/api/repertoire/${detailEntry.id}/video/breakpoints/${bpId}`, { method: 'DELETE' });
+        if (res.ok) await loadStageVideo(detailEntry.id);
+    }
+});
+
+document.getElementById('stage-video-breakpoint-list').addEventListener('change', async (e) => {
+    const item = e.target.closest('.stage-video-breakpoint-item');
+    if (!item || !detailEntry) return;
+    const bpId = item.dataset.id;
+    const label = item.querySelector('.stage-video-bp-label').value.trim();
+    const timestampSeconds = Number(item.querySelector('.stage-video-bp-time').value);
+    await fetch(`/api/repertoire/${detailEntry.id}/video/breakpoints/${bpId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label, timestampSeconds })
+    });
+    const bp = stageVideo.breakpoints.find((b) => b.id === bpId);
+    if (bp) { bp.label = label; bp.timestampSeconds = timestampSeconds; }
+});
+
+let stageVideoDragId = null;
+document.getElementById('stage-video-breakpoint-list').addEventListener('dragstart', (e) => {
+    const item = e.target.closest('.stage-video-breakpoint-item');
+    if (!item || item.classList.contains('is-song-start')) return;
+    stageVideoDragId = item.dataset.id;
+});
+document.getElementById('stage-video-breakpoint-list').addEventListener('dragover', (e) => e.preventDefault());
+document.getElementById('stage-video-breakpoint-list').addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const target = e.target.closest('.stage-video-breakpoint-item');
+    if (!target || !stageVideoDragId || target.dataset.id === stageVideoDragId || target.classList.contains('is-song-start')) return;
+    const list = document.getElementById('stage-video-breakpoint-list');
+    const dragged = list.querySelector(`[data-id="${stageVideoDragId}"]`);
+    const rect = target.getBoundingClientRect();
+    target.insertAdjacentElement(e.clientY < rect.top + rect.height / 2 ? 'beforebegin' : 'afterend', dragged);
+    stageVideoDragId = null;
+    const orderedIds = [...list.querySelectorAll('.stage-video-breakpoint-item')].map((li) => li.dataset.id);
+    await fetch(`/api/repertoire/${detailEntry.id}/video/breakpoints/order`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderedIds })
+    });
+});
+
+document.getElementById('stage-video-add-breakpoint-btn').addEventListener('click', async () => {
+    if (!detailEntry || !stageVideo) return;
+    const time = document.getElementById('stage-video-preview').currentTime;
+    const res = await fetch(`/api/repertoire/${detailEntry.id}/video/breakpoints`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: `Breakpoint ${stageVideo.breakpoints.length}`, timestampSeconds: time })
+    });
+    if (res.ok) await loadStageVideo(detailEntry.id);
+});
+
+// Reads a locally-picked file's duration before uploading (probed via a
+// throwaway <video>, never attached to the DOM) so the server gets it in
+// the same request rather than needing a second round-trip after upload.
+function probeVideoDuration(file) {
+    return new Promise((resolve) => {
+        const probe = document.createElement('video');
+        probe.preload = 'metadata';
+        probe.onloadedmetadata = () => { URL.revokeObjectURL(probe.src); resolve(probe.duration || null); };
+        probe.onerror = () => resolve(null);
+        probe.src = URL.createObjectURL(file);
+    });
+}
+
+async function uploadStageVideo(file) {
+    if (!file || !detailEntry) return;
+    const status = document.getElementById('stage-video-status');
+    status.textContent = 'Uploading...';
+    const durationSeconds = await probeVideoDuration(file);
+    const formData = new FormData();
+    formData.set('file', file);
+    if (durationSeconds) formData.set('durationSeconds', String(durationSeconds));
+    const res = await fetch(`/api/repertoire/${detailEntry.id}/video`, { method: 'POST', body: formData });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) { status.textContent = body.error || 'Could not upload video.'; return; }
+    stageVideo = body;
+    renderStageVideoSection();
+}
+
+document.getElementById('stage-video-upload-input').addEventListener('change', (e) => uploadStageVideo(e.target.files[0]));
+document.getElementById('stage-video-replace-input').addEventListener('change', (e) => uploadStageVideo(e.target.files[0]));
+
+document.getElementById('stage-video-remove-btn').addEventListener('click', async () => {
+    if (!detailEntry || !confirm('Remove this stage video and all its breakpoints?')) return;
+    const res = await fetch(`/api/repertoire/${detailEntry.id}/video`, { method: 'DELETE' });
+    if (res.ok) { stageVideo = null; renderStageVideoSection(); }
 });
 
 document.getElementById('repertoire-detail-remove-btn').addEventListener('click', async () => {

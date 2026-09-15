@@ -190,3 +190,24 @@ tr.repertoire-row-inprogress { background: rgba(220, 190, 60, 0.10); }
    once a second one followed "My note" (Lyrics, for the teleprompter). */
 .detail-field { display: block; margin: 14px 0; font-size: 0.85rem; color: #ccc; }
 .detail-field input[type="text"], .detail-field textarea { display: block; width: 100%; margin-top: 6px; font-family: inherit; }
+.detail-field-label { display: block; margin-bottom: 6px; }
+
+#stage-video-preview { display: block; width: 100%; max-height: 260px; border-radius: 6px; margin-top: 6px; background: #000; }
+.stage-video-buttons { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
+.stage-video-breakpoint-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.stage-video-breakpoint-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #222;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+.stage-video-breakpoint-item .drag-handle { color: #777; cursor: grab; }
+.stage-video-breakpoint-item input[type="text"] { flex: 1; background: #1c1c1c; border: 1px solid #444; color: #eee; border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; }
+.stage-video-breakpoint-item input[type="number"] { width: 80px; background: #1c1c1c; border: 1px solid #444; color: #eee; border-radius: 4px; padding: 4px 8px; font-size: 0.85rem; }
+.stage-video-breakpoint-item button { background: none; border: 1px solid #555; color: #ccc; border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 0.78rem; }
+.stage-video-breakpoint-item button:hover { background: rgba(255,255,255,0.08); }
+.stage-video-breakpoint-item.is-song-start { border-color: #4a6fa5; background: rgba(74, 111, 165, 0.1); }
