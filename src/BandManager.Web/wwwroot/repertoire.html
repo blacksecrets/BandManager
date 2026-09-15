@@ -85,7 +85,11 @@
 
             <section class="platform-card">
                 <h2>Add a song</h2>
-                <label>Search the shared catalog <input type="search" id="song-db-search" placeholder="Title, artist, or album..." autocomplete="off"></label>
+                <div class="song-db-search-row">
+                    <label>Search the shared catalog <input type="search" id="song-db-search" placeholder="Title, artist, or album..." autocomplete="off"></label>
+                    <label>Genre <input type="text" id="song-db-genre" list="song-db-genre-datalist" placeholder="Any genre" autocomplete="off"></label>
+                    <datalist id="song-db-genre-datalist"></datalist>
+                </div>
                 <div id="song-db-results" class="song-search-results"></div>
 
                 <details class="manual-fallback">

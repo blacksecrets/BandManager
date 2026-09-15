@@ -15,12 +15,12 @@ public class SongCsvImportServiceTests
 {
     private static byte[] Csv(string content) => Encoding.UTF8.GetBytes(content);
 
-    private const string ValidHeader = "Title,OriginalArtist,Album,Key,Length,YouTubeUrl,SpotifyUrl,SongsterrUrl";
+    private const string ValidHeader = "Title,OriginalArtist,Album,Key,Length,YouTubeUrl,SpotifyUrl,SongsterrUrl,Genre";
 
     [Fact]
     public void Parse_ValidFile_ReturnsRowsAndNoErrors()
     {
-        var csv = Csv($"{ValidHeader}\nSweet Child O' Mine,Guns N' Roses,Appetite for Destruction,Eb,5:56,https://www.youtube.com/watch?v=1,https://open.spotify.com/track/1,https://www.songsterr.com/a/wsa/x\n");
+        var csv = Csv($"{ValidHeader}\nSweet Child O' Mine,Guns N' Roses,Appetite for Destruction,Eb,5:56,https://www.youtube.com/watch?v=1,https://open.spotify.com/track/1,https://www.songsterr.com/a/wsa/x,Rock\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -29,12 +29,13 @@ public class SongCsvImportServiceTests
         Assert.Equal("Sweet Child O' Mine", row.Title);
         Assert.Equal("Guns N' Roses", row.OriginalArtist);
         Assert.Equal(356, row.LengthSeconds); // 5:56 -> 356 seconds
+        Assert.Equal("Rock", row.Genre);
     }
 
     [Fact]
     public void Parse_MinimalValidFile_OnlyRequiredFieldsFilled()
     {
-        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,,,,\n");
+        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -43,6 +44,7 @@ public class SongCsvImportServiceTests
         Assert.Null(row.Album);
         Assert.Null(row.LengthSeconds);
         Assert.Null(row.YouTubeUrl);
+        Assert.Null(row.Genre);
     }
 
     [Fact]
@@ -61,7 +63,7 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_ExtraUnexpectedColumn_IsRejected()
     {
-        var csv = Csv($"{ValidHeader},ExtraColumn\nA Song,An Artist,,,,,,,extra\n");
+        var csv = Csv($"{ValidHeader},ExtraColumn\nA Song,An Artist,,,,,,,,extra\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -73,8 +75,8 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_HeaderOrderDoesNotMatter()
     {
-        var reordered = "OriginalArtist,Title,SongsterrUrl,SpotifyUrl,YouTubeUrl,Length,Key,Album";
-        var csv = Csv($"{reordered}\nAn Artist,A Song,,,,,,\n");
+        var reordered = "OriginalArtist,Title,SongsterrUrl,SpotifyUrl,YouTubeUrl,Length,Key,Album,Genre";
+        var csv = Csv($"{reordered}\nAn Artist,A Song,,,,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -87,7 +89,7 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_MissingRequiredTitle_ProducesRowError_AndRejectsWholeFile()
     {
-        var csv = Csv($"{ValidHeader}\n,An Artist,,,,,,\nGood Song,Good Artist,,,,,,\n");
+        var csv = Csv($"{ValidHeader}\n,An Artist,,,,,,,\nGood Song,Good Artist,,,,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -100,7 +102,7 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_MissingRequiredArtist_ProducesRowError()
     {
-        var csv = Csv($"{ValidHeader}\nA Song,,,,,,,\n");
+        var csv = Csv($"{ValidHeader}\nA Song,,,,,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -114,7 +116,7 @@ public class SongCsvImportServiceTests
     [InlineData("https://vimeo.com/12345")] // valid URL, wrong host
     public void Parse_InvalidYouTubeUrl_IsRejected(string badUrl)
     {
-        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,,{badUrl},,\n");
+        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,,{badUrl},,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -127,7 +129,7 @@ public class SongCsvImportServiceTests
     [InlineData("https://youtu.be/abc")]
     public void Parse_ValidYouTubeUrlHosts_AreAccepted(string goodUrl)
     {
-        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,,{goodUrl},,\n");
+        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,,{goodUrl},,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -137,7 +139,7 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_InvalidLengthFormat_IsRejected()
     {
-        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,3 minutes,,,\n");
+        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,3 minutes,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -148,7 +150,7 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_LengthOverTwoHours_IsRejected()
     {
-        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,121:00,,,\n"); // 121:00 = 2h1m = 7260s, over the 7200s cap
+        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,,121:00,,,,\n"); // 121:00 = 2h1m = 7260s, over the 7200s cap
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -164,7 +166,7 @@ public class SongCsvImportServiceTests
     [InlineData("C minor")]
     public void Parse_ValidKeyFormats_AreAccepted(string key)
     {
-        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,{key},,,,\n");
+        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,{key},,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -174,7 +176,7 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_InvalidKeyFormat_IsRejected()
     {
-        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,not a key at all,,,,\n");
+        var csv = Csv($"{ValidHeader}\nA Song,An Artist,,not a key at all,,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 
@@ -185,7 +187,7 @@ public class SongCsvImportServiceTests
     [Fact]
     public void Parse_MultipleBadRows_ReportsEveryError_NotJustTheFirst()
     {
-        var csv = Csv($"{ValidHeader}\n,An Artist,,,,,,\nA Song,,,,,,,\n");
+        var csv = Csv($"{ValidHeader}\n,An Artist,,,,,,,\nA Song,,,,,,,,\n");
 
         var result = SongCsvImportService.Parse(csv);
 

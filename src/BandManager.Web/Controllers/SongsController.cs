@@ -10,9 +10,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BandManager.Web.Controllers;
 
 public record CreateSongRequest(string Title, string? OriginalArtist, string? Album, string? Key,
-    int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl);
+    int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl, string? Genre = null);
 public record UpdateSongRequest(string Title, string? OriginalArtist, string? Album, string? Key,
-    int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl);
+    int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl, string? Genre = null);
 public record SetTuningRequest(string Instrument, string Tuning);
 public record SetLyricsRequest(string? LyricsText);
 public record ResolveNewSongRequest(string Message);
@@ -58,6 +58,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         album = s.Album,
         key = s.Key,
         lengthSeconds = s.LengthSeconds,
+        genre = s.Genre,
         youTubeUrl = s.YouTubeUrl,
         spotifyUrl = s.SpotifyUrl,
         songsterrUrl = s.SongsterrUrl,
@@ -87,22 +88,47 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
     // Search the shared catalog - every Song any Band has ever entered,
     // not just this Band's own repertoire (that's the whole point: find
     // one someone else already filled in before creating a duplicate).
+    // ILike (not .ToLower().Contains()) so this can actually use the
+    // Title/OriginalArtist trigram GIN indexes at catalog sizes beyond a
+    // plain table scan - see ApplicationDbContext's comment on those.
     [HttpGet("search")]
     [Authorize(Policy = "BandMember")]
-    public async Task<IActionResult> Search([FromQuery] string? q)
+    public async Task<IActionResult> Search([FromQuery] string? q, [FromQuery] string? genre)
     {
         var query = q?.Trim() ?? "";
-        if (query.Length == 0) return Ok(Array.Empty<object>());
+        if (query.Length == 0 && string.IsNullOrWhiteSpace(genre)) return Ok(Array.Empty<object>());
 
-        var lowered = query.ToLowerInvariant();
-        var songs = await db.Songs.AsNoTracking()
-            .Where(s => s.Title.ToLower().Contains(lowered)
-                || (s.OriginalArtist != null && s.OriginalArtist.ToLower().Contains(lowered))
-                || (s.Album != null && s.Album.ToLower().Contains(lowered)))
-            .OrderBy(s => s.Title)
-            .Take(25)
-            .ToListAsync();
+        var like = $"%{query}%";
+        var songsQuery = db.Songs.AsNoTracking().AsQueryable();
+        if (query.Length > 0)
+        {
+            songsQuery = songsQuery.Where(s =>
+                EF.Functions.ILike(s.Title, like)
+                || (s.OriginalArtist != null && EF.Functions.ILike(s.OriginalArtist, like))
+                || (s.Album != null && EF.Functions.ILike(s.Album, like)));
+        }
+        if (!string.IsNullOrWhiteSpace(genre))
+            songsQuery = songsQuery.Where(s => s.Genre == genre);
+
+        var songs = await songsQuery.OrderBy(s => s.Title).Take(25).ToListAsync();
         return Ok(songs.Select(s => Serialize(s)));
+    }
+
+    // Distinct genre values already in the catalog, for the genre
+    // selector's autocomplete - keeps genre entry consistent in practice
+    // (everyone picks from what's already there) without a rigid enum
+    // that would fight a catalog seeded from many different source lists.
+    [HttpGet("genres")]
+    [Authorize(Policy = "BandMember")]
+    public async Task<IActionResult> ListGenres()
+    {
+        var genres = await db.Songs.AsNoTracking()
+            .Where(s => s.Genre != null && s.Genre != "")
+            .Select(s => s.Genre!)
+            .Distinct()
+            .OrderBy(g => g)
+            .ToListAsync();
+        return Ok(genres);
     }
 
     // Exact (case-insensitive) title+artist duplicate check - the "does
@@ -204,7 +230,8 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
             LengthSeconds = request.LengthSeconds,
             YouTubeUrl = request.YouTubeUrl?.Trim(),
             SpotifyUrl = request.SpotifyUrl?.Trim(),
-            SongsterrUrl = request.SongsterrUrl?.Trim()
+            SongsterrUrl = request.SongsterrUrl?.Trim(),
+            Genre = string.IsNullOrWhiteSpace(request.Genre) ? null : request.Genre.Trim()
         };
         db.Songs.Add(song);
         await db.SaveChangesAsync();
@@ -233,6 +260,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
         song.YouTubeUrl = request.YouTubeUrl?.Trim();
         song.SpotifyUrl = request.SpotifyUrl?.Trim();
         song.SongsterrUrl = request.SongsterrUrl?.Trim();
+        song.Genre = string.IsNullOrWhiteSpace(request.Genre) ? null : request.Genre.Trim();
         await db.SaveChangesAsync();
         return Ok(Serialize(song));
     }
@@ -310,6 +338,7 @@ public class SongsController(ApplicationDbContext db, SongSearchService songSear
             YouTubeUrl = request.YouTubeUrl?.Trim(),
             SpotifyUrl = request.SpotifyUrl?.Trim(),
             SongsterrUrl = request.SongsterrUrl?.Trim(),
+            Genre = string.IsNullOrWhiteSpace(request.Genre) ? null : request.Genre.Trim(),
             Status = SongStatus.PendingReview,
             ProposedByUserId = userId.Value
         };

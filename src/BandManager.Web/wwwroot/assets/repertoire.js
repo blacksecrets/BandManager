@@ -407,20 +407,36 @@ document.getElementById('repertoire-detail-remove-btn').addEventListener('click'
     }
 });
 
-// --- Add a song: search the shared catalog ---
+// --- Add a song: search the shared catalog, optionally narrowed by genre ---
 let dbSearchTimeout = null;
 const dbSearchInput = document.getElementById('song-db-search');
-if (dbSearchInput) {
-    dbSearchInput.addEventListener('input', () => {
-        clearTimeout(dbSearchTimeout);
-        dbSearchTimeout = setTimeout(() => runDbSearch(dbSearchInput.value.trim()), 300);
+const dbGenreInput = document.getElementById('song-db-genre');
+
+function triggerDbSearch() {
+    clearTimeout(dbSearchTimeout);
+    dbSearchTimeout = setTimeout(
+        () => runDbSearch(dbSearchInput ? dbSearchInput.value.trim() : '', dbGenreInput ? dbGenreInput.value.trim() : ''),
+        300);
+}
+if (dbSearchInput) dbSearchInput.addEventListener('input', triggerDbSearch);
+if (dbGenreInput) {
+    dbGenreInput.addEventListener('input', triggerDbSearch);
+    // Datalist options come from what's actually in the catalog (GET
+    // /api/songs/genres, distinct values) rather than a hardcoded list, so
+    // it can never drift from what songs are really tagged with.
+    fetch('/api/songs/genres').then((r) => (r.ok ? r.json() : [])).then((genres) => {
+        document.getElementById('song-db-genre-datalist').innerHTML =
+            genres.map((g) => `<option value="${escapeHtml(g)}"></option>`).join('');
     });
 }
 
-async function runDbSearch(query) {
+async function runDbSearch(query, genre) {
     const box = document.getElementById('song-db-results');
-    if (!query) { box.innerHTML = ''; return; }
-    const res = await fetch(`/api/songs/search?q=${encodeURIComponent(query)}`);
+    if (!query && !genre) { box.innerHTML = ''; return; }
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (genre) params.set('genre', genre);
+    const res = await fetch(`/api/songs/search?${params.toString()}`);
     if (!res.ok) return;
     const results = await res.json();
     const inRepertoireIds = new Set(repertoire.map((e) => e.song.id));

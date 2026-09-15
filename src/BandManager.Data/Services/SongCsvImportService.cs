@@ -12,7 +12,7 @@ public record CsvRowError(int Row, string Column, string Message);
 
 public record ParsedSongRow(
     string Title, string OriginalArtist, string? Album, string? Key,
-    int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl);
+    int? LengthSeconds, string? YouTubeUrl, string? SpotifyUrl, string? SongsterrUrl, string? Genre);
 
 public record CsvParseResult(List<ParsedSongRow> Rows, List<CsvRowError> Errors);
 
@@ -28,7 +28,7 @@ public record CsvParseResult(List<ParsedSongRow> Rows, List<CsvRowError> Errors)
 public static class SongCsvImportService
 {
     public static readonly string[] ExpectedHeaders =
-        ["Title", "OriginalArtist", "Album", "Key", "Length", "YouTubeUrl", "SpotifyUrl", "SongsterrUrl"];
+        ["Title", "OriginalArtist", "Album", "Key", "Length", "YouTubeUrl", "SpotifyUrl", "SongsterrUrl", "Genre"];
 
     private static readonly Regex KeyPattern = new(@"^[A-Ga-g][#b]?\s*(major|minor|maj|min|m)?$", RegexOptions.Compiled);
     private static readonly Regex LengthPattern = new(@"^(\d{1,3}):([0-5]\d)$", RegexOptions.Compiled);
@@ -89,6 +89,7 @@ public static class SongCsvImportService
                 var youTube = Field("YouTubeUrl");
                 var spotify = Field("SpotifyUrl");
                 var songsterr = Field("SongsterrUrl");
+                var genre = Field("Genre");
 
                 if (string.IsNullOrEmpty(title))
                     errors.Add(new CsvRowError(rowNum, "Title", "Title is required."));
@@ -105,6 +106,9 @@ public static class SongCsvImportService
 
                 if (key.Length > 0 && (key.Length > 20 || !KeyPattern.IsMatch(key)))
                     errors.Add(new CsvRowError(rowNum, "Key", "Key must look like a musical key, e.g. \"A\", \"F#m\", \"Bb major\"."));
+
+                if (genre.Length > 100)
+                    errors.Add(new CsvRowError(rowNum, "Genre", "Genre must be 100 characters or fewer."));
 
                 int? lengthSeconds = null;
                 if (length.Length > 0)
@@ -133,7 +137,8 @@ public static class SongCsvImportService
                     lengthSeconds,
                     youTube.Length > 0 ? youTube : null,
                     spotify.Length > 0 ? spotify : null,
-                    songsterr.Length > 0 ? songsterr : null));
+                    songsterr.Length > 0 ? songsterr : null,
+                    genre.Length > 0 ? genre : null));
             }
         }
         catch (Exception ex)
@@ -179,6 +184,7 @@ public static class SongCsvImportService
         csv.WriteField("https://www.youtube.com/watch?v=1w7OgIMMRc4");
         csv.WriteField("https://open.spotify.com/track/7o2CTH4ctstm8TNelqjb51");
         csv.WriteField("https://www.songsterr.com/a/wsa/guns-n-roses-sweet-child-o-mine-tab");
+        csv.WriteField("Rock");
         csv.NextRecord();
         return writer.ToString();
     }

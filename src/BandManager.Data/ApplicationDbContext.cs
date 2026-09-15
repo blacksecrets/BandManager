@@ -288,10 +288,20 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         // --- Repertoire / gig sets ---
 
+        // pg_trgm backs the GIN indexes below - substring search (Search()'s
+        // ILike '%x%' queries) can't use a plain btree index, and the
+        // catalog is meant to grow into the thousands (see the bulk-import
+        // work this migration ships with).
+        builder.HasPostgresExtension("pg_trgm");
+
         builder.Entity<Song>(b =>
         {
             b.Property(x => x.Tunings)
                 .HasConversion(JsonValueConverter.For<Dictionary<string, string>>(), JsonValueConverter.Comparer<Dictionary<string, string>>());
+            b.Property(x => x.Genre).HasMaxLength(100);
+            b.HasIndex(x => x.Genre);
+            b.HasIndex(x => x.Title).HasMethod("gin").HasOperators("gin_trgm_ops");
+            b.HasIndex(x => x.OriginalArtist).HasMethod("gin").HasOperators("gin_trgm_ops");
         });
 
         builder.Entity<BandInstrument>(b =>

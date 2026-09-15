@@ -98,7 +98,8 @@ public class SongCsvImportController(ApplicationDbContext db) : ControllerBase
                     LengthSeconds = row.LengthSeconds,
                     YouTubeUrl = row.YouTubeUrl,
                     SpotifyUrl = row.SpotifyUrl,
-                    SongsterrUrl = row.SongsterrUrl
+                    SongsterrUrl = row.SongsterrUrl,
+                    Genre = row.Genre
                 };
                 db.Songs.Add(song);
                 resolved[key] = song.Id;

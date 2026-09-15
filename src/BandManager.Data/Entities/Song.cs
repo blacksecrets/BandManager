@@ -30,6 +30,14 @@ public class Song
     public string? Album { get; set; }
     public string? Key { get; set; }
     public int? LengthSeconds { get; set; }
+
+    // Free-form, not an enum - a fixed genre list would fight the reality
+    // of a catalog seeded from many different source lists (classic rock,
+    // disco, wedding-band standards...) that don't share one taxonomy.
+    // GenresController.List (distinct values already in the catalog) is
+    // what backs the genre selector's autocomplete, so genre entry stays
+    // consistent in practice without needing to be enforced in the schema.
+    public string? Genre { get; set; }
     public SongStatus Status { get; set; } = SongStatus.Approved;
 
     // Set when Status is PendingReview via SongsController.ProposeNew, so
